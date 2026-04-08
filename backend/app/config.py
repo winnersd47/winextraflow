@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     telegram_api_hash: str = ""
     telegram_phone: str = ""
 
+    # AI Rating
+    ai_rating_enabled: bool = True
+    signal_expiry_hours: int = 168  # 7 days
+
     # App
     app_env: str = "development"
     app_debug: bool = True

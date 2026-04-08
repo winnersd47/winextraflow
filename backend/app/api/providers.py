@@ -38,6 +38,23 @@ async def list_providers(
     return ProviderList(items=result.scalars().all(), total=total)
 
 
+@router.get("/leaderboard", response_model=ProviderList)
+async def leaderboard(
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get top providers ranked by AI score. Only includes rated providers."""
+    result = await db.execute(
+        select(Provider)
+        .where(Provider.ai_score.isnot(None))
+        .order_by(Provider.ai_score.desc())
+        .limit(limit)
+    )
+    providers = result.scalars().all()
+    return ProviderList(items=providers, total=len(providers))
+
+
 @router.get("/{provider_id}", response_model=ProviderResponse)
 async def get_provider(
     provider_id: uuid.UUID,

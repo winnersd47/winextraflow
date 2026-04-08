@@ -41,6 +41,23 @@ class SignalList(BaseModel):
     total: int
 
 
+class SignalClose(BaseModel):
+    close_price: float
+    status: SignalStatus | None = None
+
+
+class RatingFactor(BaseModel):
+    score: float
+    weight: float
+    reason: str
+
+
+class RatingDetail(BaseModel):
+    final_confidence: float
+    reasoning: str
+    factors: dict[str, RatingFactor]
+
+
 class TradingViewWebhook(BaseModel):
     ticker: str
     action: str

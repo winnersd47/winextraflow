@@ -9,7 +9,14 @@ from app.config import settings
 from app.database import get_db
 from app.models.signal import Signal, SignalStatus
 from app.models.user import User
-from app.schemas.signal import SignalList, SignalResponse, TradingViewWebhook
+from app.schemas.signal import (
+    RatingDetail,
+    SignalClose,
+    SignalList,
+    SignalResponse,
+    TradingViewWebhook,
+)
+from app.services.ai_rating import ai_rating_service
 from app.services.tradingview import tradingview_service
 
 router = APIRouter()
@@ -78,4 +85,47 @@ async def tradingview_webhook(
         )
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+
+    # Auto-rate the signal
+    if settings.ai_rating_enabled:
+        await ai_rating_service.rate_and_update_signal(db, signal)
+
     return signal
+
+
+@router.patch("/{signal_id}/close", response_model=SignalResponse)
+async def close_signal(
+    signal_id: uuid.UUID,
+    data: SignalClose,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Close an active signal with a close price. Calculates profit and updates provider stats."""
+    result = await db.execute(select(Signal).where(Signal.id == signal_id))
+    signal = result.scalar_one_or_none()
+    if not signal:
+        raise HTTPException(status_code=404, detail="Signal not found")
+
+    try:
+        signal = await ai_rating_service.close_signal(
+            db, signal, data.close_price, data.status
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return signal
+
+
+@router.get("/{signal_id}/rating", response_model=RatingDetail)
+async def get_signal_rating(
+    signal_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get detailed AI rating breakdown for a signal."""
+    result = await db.execute(select(Signal).where(Signal.id == signal_id))
+    signal = result.scalar_one_or_none()
+    if not signal:
+        raise HTTPException(status_code=404, detail="Signal not found")
+
+    breakdown = await ai_rating_service.rate_signal(db, signal)
+    return breakdown.to_dict()
