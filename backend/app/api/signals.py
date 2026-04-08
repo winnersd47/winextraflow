@@ -7,15 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.config import settings
 from app.database import get_db
-from app.models.provider import Provider
-from app.models.signal import Signal, SignalAction, SignalStatus
+from app.models.signal import Signal, SignalStatus
 from app.models.user import User
-from app.schemas.signal import (
-    SignalCreate,
-    SignalList,
-    SignalResponse,
-    TradingViewWebhook,
-)
+from app.schemas.signal import SignalList, SignalResponse, TradingViewWebhook
+from app.services.tradingview import tradingview_service
 
 router = APIRouter()
 
@@ -70,28 +65,17 @@ async def tradingview_webhook(
     if settings.tradingview_webhook_secret and data.secret != settings.tradingview_webhook_secret:
         raise HTTPException(status_code=403, detail="Invalid webhook secret")
 
-    # Find or create TradingView provider
-    result = await db.execute(
-        select(Provider).where(Provider.name == "TradingView Default")
-    )
-    provider = result.scalar_one_or_none()
-    if not provider:
-        provider = Provider(name="TradingView Default", source="tradingview")
-        db.add(provider)
-        await db.flush()
-
-    action = SignalAction(data.action.lower())
-    signal = Signal(
-        provider_id=provider.id,
-        ticker=data.ticker.upper(),
-        action=action,
-        entry_price=data.price,
-        take_profit=data.take_profit,
-        stop_loss=data.stop_loss,
-        timeframe=data.timeframe,
-        raw_message=data.model_dump_json(),
-    )
-    db.add(signal)
-    await db.commit()
-    await db.refresh(signal)
+    try:
+        signal = await tradingview_service.process_webhook(
+            db,
+            ticker=data.ticker,
+            action=data.action,
+            price=data.price,
+            timeframe=data.timeframe,
+            take_profit=data.take_profit,
+            stop_loss=data.stop_loss,
+            raw_message=data.model_dump_json(),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
     return signal
