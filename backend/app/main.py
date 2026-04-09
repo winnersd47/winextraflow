@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.signals import router as signals_router
 from app.api.providers import router as providers_router
 from app.api.ws import router as ws_router
+from app.api.backtesting import router as backtest_router
 from app.config import settings
 from app.workers.signal_fetcher import telegram_worker
 
@@ -49,6 +50,7 @@ app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(signals_router, prefix="/api/v1/signals", tags=["signals"])
 app.include_router(providers_router, prefix="/api/v1/providers", tags=["providers"])
 app.include_router(ws_router, prefix="/api/v1/ws")
+app.include_router(backtest_router, prefix="/api/v1/backtest", tags=["backtesting"])
 
 
 @app.get("/health")

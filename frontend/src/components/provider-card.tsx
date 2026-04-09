@@ -29,36 +29,31 @@ export function ProviderCard({
       </div>
 
       {/* Stats */}
-      <div className="flex gap-6 text-right">
-        <div>
-          <p className="text-xs text-gray-500">Win Rate</p>
-          <p className="font-semibold text-white">
-            {provider.win_rate !== null
-              ? `${(provider.win_rate * 100).toFixed(0)}%`
-              : "—"}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-gray-500">Avg Profit</p>
-          <p
-            className={`font-semibold ${
-              provider.avg_profit !== null && provider.avg_profit >= 0
-                ? "text-green-400"
-                : "text-red-400"
-            }`}
-          >
-            {formatPercent(provider.avg_profit)}
-          </p>
-        </div>
+      <div className="flex gap-4 text-right text-sm">
+        <Stat label="Win Rate" value={provider.win_rate !== null ? `${(provider.win_rate * 100).toFixed(0)}%` : "—"} />
+        <Stat label="Sharpe" value={provider.sharpe_ratio?.toFixed(2) ?? "—"} />
+        <Stat label="PF" value={provider.profit_factor?.toFixed(1) ?? "—"} />
+        <Stat
+          label="Drawdown"
+          value={provider.max_drawdown !== null ? `${provider.max_drawdown.toFixed(1)}%` : "—"}
+          color={provider.max_drawdown !== null && provider.max_drawdown < -20 ? "text-red-400" : undefined}
+        />
         <div>
           <p className="text-xs text-gray-500">AI Score</p>
-          <p
-            className={`text-lg font-bold ${confidenceColor(provider.ai_score)}`}
-          >
+          <p className={`text-lg font-bold ${confidenceColor(provider.ai_score)}`}>
             {formatConfidence(provider.ai_score)}
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className={`font-semibold ${color || "text-white"}`}>{value}</p>
     </div>
   );
 }

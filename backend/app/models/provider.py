@@ -29,3 +29,8 @@ class Provider(Base):
     win_rate: Mapped[float | None] = mapped_column(Float)
     avg_profit: Mapped[float | None] = mapped_column(Float)
     ai_score: Mapped[float | None] = mapped_column(Float)
+
+    # Advanced metrics (updated by enhanced AI rating)
+    sharpe_ratio: Mapped[float | None] = mapped_column(Float)
+    profit_factor: Mapped[float | None] = mapped_column(Float)
+    max_drawdown: Mapped[float | None] = mapped_column(Float)

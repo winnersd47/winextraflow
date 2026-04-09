@@ -24,6 +24,9 @@ class ProviderResponse(BaseModel):
     win_rate: float | None
     avg_profit: float | None
     ai_score: float | None
+    sharpe_ratio: float | None
+    profit_factor: float | None
+    max_drawdown: float | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

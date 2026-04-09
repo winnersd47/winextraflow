@@ -72,6 +72,9 @@ export interface Provider {
   win_rate: number | null;
   avg_profit: number | null;
   ai_score: number | null;
+  sharpe_ratio: number | null;
+  profit_factor: number | null;
+  max_drawdown: number | null;
   created_at: string;
 }
 
@@ -102,3 +105,39 @@ export interface WSConnected {
 }
 
 export type WSMessage = WSNewSignal | WSConnected | { type: "pong" };
+
+// --- Backtesting ---
+export interface TradeResult {
+  signal_id: string;
+  ticker: string;
+  action: string;
+  entry_price: number;
+  close_price: number;
+  profit_pct: number;
+  status: string;
+  created_at: string;
+}
+
+export interface BacktestResult {
+  provider_id: string | null;
+  ticker: string | null;
+  date_from: string | null;
+  date_to: string | null;
+  total_signals: number;
+  closed_signals: number;
+  active_signals: number;
+  expired_signals: number;
+  total_return_pct: number;
+  win_rate: number;
+  avg_profit_pct: number;
+  avg_loss_pct: number;
+  best_trade_pct: number;
+  worst_trade_pct: number;
+  sharpe_ratio: number | null;
+  profit_factor: number | null;
+  max_drawdown_pct: number;
+  max_consecutive_wins: number;
+  max_consecutive_losses: number;
+  trades: TradeResult[];
+  equity_curve: number[];
+}

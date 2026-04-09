@@ -5,6 +5,7 @@ import type {
   Signal,
   RatingDetail,
   ProviderList,
+  BacktestResult,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -120,6 +121,20 @@ class ApiClient {
 
   async getProviders(): Promise<ProviderList> {
     return this.request<ProviderList>("/providers");
+  }
+
+  // --- Backtesting ---
+  async runBacktest(params: {
+    provider_id?: string;
+    ticker?: string;
+    date_from?: string;
+    date_to?: string;
+    initial_capital?: number;
+  }): Promise<BacktestResult> {
+    return this.request<BacktestResult>("/backtest", {
+      method: "POST",
+      body: JSON.stringify(params),
+    });
   }
 }
 
