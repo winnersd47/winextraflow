@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
 
+    # Execution
+    execution_enabled: bool = True
+    execution_min_confidence: float = 0.6
+    execution_daily_loss_limit: float = 500.0  # USD, 0 = no limit
+
     # Referral
     referral_reward_type: str = "premium_days"
     referral_level1_reward: int = 7   # days of Premium for direct referral

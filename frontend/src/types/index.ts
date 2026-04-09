@@ -173,3 +173,42 @@ export interface ReferralTree {
   referrals: ReferralTreeItem[];
   total: number;
 }
+
+// --- Execution ---
+export type ExchangeName = "binance" | "bybit" | "demo";
+export type OrderSide = "buy" | "sell";
+export type OrderStatusType = "pending" | "filled" | "partial" | "failed" | "cancelled";
+
+export interface ExchangeAccountResponse {
+  id: string;
+  exchange: ExchangeName;
+  label: string;
+  is_active: boolean;
+  auto_execute: boolean;
+  min_confidence: number;
+  max_position_pct: number;
+  created_at: string;
+}
+
+export interface OrderResponse {
+  id: string;
+  signal_id: string;
+  exchange_account_id: string;
+  exchange_order_id: string | null;
+  exchange: string;
+  symbol: string;
+  side: OrderSide;
+  order_type: string;
+  quantity: number;
+  price: number | null;
+  filled_price: number | null;
+  filled_quantity: number | null;
+  status: OrderStatusType;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface OrderList {
+  items: OrderResponse[];
+  total: number;
+}

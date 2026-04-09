@@ -8,6 +8,9 @@ import type {
   BacktestResult,
   ReferralStats,
   ReferralTree,
+  ExchangeAccountResponse,
+  OrderList,
+  OrderResponse,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -146,6 +149,43 @@ class ApiClient {
 
   async getReferralTree(): Promise<ReferralTree> {
     return this.request<ReferralTree>("/referrals/tree");
+  }
+
+  // --- Execution ---
+  async getExchangeAccounts(): Promise<ExchangeAccountResponse[]> {
+    return this.request<ExchangeAccountResponse[]>("/execution/accounts");
+  }
+
+  async createExchangeAccount(data: {
+    exchange: string;
+    label: string;
+    api_key: string;
+    api_secret: string;
+    auto_execute?: boolean;
+  }): Promise<ExchangeAccountResponse> {
+    return this.request<ExchangeAccountResponse>("/execution/accounts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async executeSignal(
+    signalId: string,
+    accountId: string,
+    quantity?: number
+  ): Promise<OrderResponse> {
+    return this.request<OrderResponse>(`/execution/execute/${signalId}`, {
+      method: "POST",
+      body: JSON.stringify({
+        exchange_account_id: accountId,
+        order_type: "market",
+        quantity: quantity || null,
+      }),
+    });
+  }
+
+  async getOrders(skip = 0, limit = 50): Promise<OrderList> {
+    return this.request<OrderList>(`/execution/orders?skip=${skip}&limit=${limit}`);
   }
 }
 
