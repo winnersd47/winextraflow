@@ -9,6 +9,7 @@ const navItems = [
   { href: "/dashboard/leaderboard", label: "Leaderboard", icon: "🏆" },
   { href: "/dashboard/backtest", label: "Backtest", icon: "🧪" },
   { href: "/dashboard/marketplace", label: "Marketplace", icon: "🛒" },
+  { href: "/dashboard/copy-trading", label: "Copy Trading", icon: "📋" },
   { href: "/dashboard/execution", label: "Execution", icon: "⚡" },
   { href: "/dashboard/referrals", label: "Referrals", icon: "🤝" },
 ];

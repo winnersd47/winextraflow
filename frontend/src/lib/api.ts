@@ -14,6 +14,8 @@ import type {
   StrategyList,
   StrategyResponse,
   SubscriptionResponse,
+  CopyTradingStatus,
+  CopyTradeList,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -221,6 +223,21 @@ class ApiClient {
 
   async getMySubscriptions(): Promise<SubscriptionResponse[]> {
     return this.request<SubscriptionResponse[]>("/strategies/subscriptions");
+  }
+
+  // --- Copy Trading ---
+  async getCopyTradingStatus(): Promise<CopyTradingStatus> {
+    return this.request<CopyTradingStatus>("/copy-trading/status");
+  }
+
+  async getCopyTradeHistory(skip = 0, limit = 50): Promise<CopyTradeList> {
+    return this.request<CopyTradeList>(`/copy-trading/history?skip=${skip}&limit=${limit}`);
+  }
+
+  async toggleAutoExecute(subscriptionId: string, enable: boolean): Promise<void> {
+    await this.request(`/copy-trading/subscriptions/${subscriptionId}/auto-execute?enable=${enable}`, {
+      method: "PATCH",
+    });
   }
 }
 

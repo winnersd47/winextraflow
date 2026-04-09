@@ -13,7 +13,10 @@ from app.api.backtesting import router as backtest_router
 from app.api.referrals import router as referrals_router
 from app.api.execution import router as execution_router
 from app.api.strategies import router as strategies_router
+from app.api.copy_trading import router as copy_trading_router
 from app.config import settings
+from app.services.copy_trading import copy_trading_service
+from app.services.signal_aggregator import signal_aggregator
 from app.workers.signal_fetcher import telegram_worker
 
 logging.basicConfig(level=logging.INFO)
@@ -22,6 +25,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: register copy trading listener
+    if settings.execution_enabled:
+        signal_aggregator.on_new_signal(copy_trading_service.on_new_signal)
+        logger.info("Copy trading listener registered")
+
     # Startup: launch Telegram worker if configured
     if settings.telegram_api_id and settings.telegram_api_hash:
         try:
@@ -57,6 +65,7 @@ app.include_router(backtest_router, prefix="/api/v1/backtest", tags=["backtestin
 app.include_router(referrals_router, prefix="/api/v1/referrals", tags=["referrals"])
 app.include_router(execution_router, prefix="/api/v1/execution", tags=["execution"])
 app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["marketplace"])
+app.include_router(copy_trading_router, prefix="/api/v1/copy-trading", tags=["copy-trading"])
 
 
 @app.get("/health")

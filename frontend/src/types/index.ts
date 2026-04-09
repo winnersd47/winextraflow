@@ -249,3 +249,29 @@ export interface SubscriptionResponse {
   expires_at: string | null;
   created_at: string;
 }
+
+// --- Copy Trading ---
+export interface CopyTradeResponse {
+  id: string;
+  subscriber_id: string;
+  strategy_id: string;
+  signal_id: string;
+  order_id: string | null;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface CopyTradingStatus {
+  enabled: boolean;
+  active_subscriptions: number;
+  auto_execute_accounts: number;
+  total_copied_trades: number;
+  successful_trades: number;
+  failed_trades: number;
+}
+
+export interface CopyTradeList {
+  items: CopyTradeResponse[];
+  total: number;
+}
