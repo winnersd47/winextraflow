@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
 
+    # Referral
+    referral_reward_type: str = "premium_days"
+    referral_level1_reward: int = 7   # days of Premium for direct referral
+    referral_level2_reward: int = 3   # days of Premium for indirect referral
+    referral_max_levels: int = 2
+    referral_base_url: str = "http://localhost:3000/register"
+
     # App
     app_env: str = "development"
     app_debug: bool = True

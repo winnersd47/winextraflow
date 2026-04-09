@@ -6,6 +6,8 @@ import type {
   RatingDetail,
   ProviderList,
   BacktestResult,
+  ReferralStats,
+  ReferralTree,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -135,6 +137,15 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(params),
     });
+  }
+
+  // --- Referrals ---
+  async getReferralStats(): Promise<ReferralStats> {
+    return this.request<ReferralStats>("/referrals/stats");
+  }
+
+  async getReferralTree(): Promise<ReferralTree> {
+    return this.request<ReferralTree>("/referrals/tree");
   }
 }
 

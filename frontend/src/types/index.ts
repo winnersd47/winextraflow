@@ -141,3 +141,35 @@ export interface BacktestResult {
   trades: TradeResult[];
   equity_curve: number[];
 }
+
+// --- Referral ---
+export interface ReferralStats {
+  referral_code: string;
+  share_link: string;
+  total_referrals: number;
+  level1_count: number;
+  level2_count: number;
+  total_rewards: number;
+  reward_type: string;
+}
+
+export interface ReferralUserInfo {
+  id: string;
+  username: string;
+  email: string;
+  created_at: string;
+}
+
+export interface ReferralTreeItem {
+  user: ReferralUserInfo;
+  level: number;
+  status: string;
+  reward_type: string | null;
+  reward_amount: number | null;
+  created_at: string;
+}
+
+export interface ReferralTree {
+  referrals: ReferralTreeItem[];
+  total: number;
+}

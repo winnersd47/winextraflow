@@ -1,3 +1,4 @@
+import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -10,10 +11,13 @@ from app.api.deps import (
     hash_password,
     verify_password,
 )
+from app.config import settings
 from app.database import get_db
+from app.models.referral import Referral, ReferralStatus
 from app.models.user import User
 from app.schemas.user import Token, UserLogin, UserRegister, UserResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -26,13 +30,51 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email or username already taken")
 
+    # Resolve referrer
+    referrer = None
+    if data.referral_code:
+        result = await db.execute(
+            select(User).where(User.referral_code == data.referral_code)
+        )
+        referrer = result.scalar_one_or_none()
+        if not referrer:
+            logger.warning(f"Invalid referral code: {data.referral_code}")
+
     user = User(
         email=data.email,
         username=data.username,
         hashed_password=hash_password(data.password),
         referral_code=secrets.token_urlsafe(8),
+        referred_by=referrer.id if referrer else None,
     )
     db.add(user)
+    await db.flush()  # Get user.id
+
+    # Create referral records (multi-level)
+    if referrer:
+        # Level 1: direct referral
+        db.add(Referral(
+            referrer_id=referrer.id,
+            referred_id=user.id,
+            level=1,
+            status=ReferralStatus.ACTIVE,
+            reward_type=settings.referral_reward_type,
+            reward_amount=settings.referral_level1_reward,
+        ))
+        logger.info(f"Referral L1: {referrer.username} -> {user.username}")
+
+        # Level 2: indirect referral (referrer's referrer)
+        if settings.referral_max_levels >= 2 and referrer.referred_by:
+            db.add(Referral(
+                referrer_id=referrer.referred_by,
+                referred_id=user.id,
+                level=2,
+                status=ReferralStatus.ACTIVE,
+                reward_type=settings.referral_reward_type,
+                reward_amount=settings.referral_level2_reward,
+            ))
+            logger.info(f"Referral L2: {referrer.referred_by} -> {user.username}")
+
     await db.commit()
     await db.refresh(user)
     return user
