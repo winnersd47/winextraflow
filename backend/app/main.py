@@ -14,6 +14,9 @@ from app.api.referrals import router as referrals_router
 from app.api.execution import router as execution_router
 from app.api.strategies import router as strategies_router
 from app.api.copy_trading import router as copy_trading_router
+from app.api.achievements import router as achievements_router
+from app.services.achievements import achievement_service
+from app.database import async_session as get_async_session
 from app.config import settings
 from app.services.copy_trading import copy_trading_service
 from app.services.signal_aggregator import signal_aggregator
@@ -25,6 +28,11 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: seed achievements
+    async with get_async_session() as db:
+        await achievement_service.seed_achievements(db)
+    logger.info("Achievements seeded")
+
     # Startup: register copy trading listener
     if settings.execution_enabled:
         signal_aggregator.on_new_signal(copy_trading_service.on_new_signal)
@@ -66,6 +74,7 @@ app.include_router(referrals_router, prefix="/api/v1/referrals", tags=["referral
 app.include_router(execution_router, prefix="/api/v1/execution", tags=["execution"])
 app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["marketplace"])
 app.include_router(copy_trading_router, prefix="/api/v1/copy-trading", tags=["copy-trading"])
+app.include_router(achievements_router, prefix="/api/v1/achievements", tags=["gamification"])
 
 
 @app.get("/health")

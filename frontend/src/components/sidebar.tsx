@@ -12,6 +12,7 @@ const navItems = [
   { href: "/dashboard/copy-trading", label: "Copy Trading", icon: "📋" },
   { href: "/dashboard/execution", label: "Execution", icon: "⚡" },
   { href: "/dashboard/referrals", label: "Referrals", icon: "🤝" },
+  { href: "/dashboard/profile", label: "Profile", icon: "👤" },
 ];
 
 export function Sidebar() {

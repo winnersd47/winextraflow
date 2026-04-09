@@ -16,6 +16,7 @@ import type {
   SubscriptionResponse,
   CopyTradingStatus,
   CopyTradeList,
+  ProfileResponse,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -238,6 +239,11 @@ class ApiClient {
     await this.request(`/copy-trading/subscriptions/${subscriptionId}/auto-execute?enable=${enable}`, {
       method: "PATCH",
     });
+  }
+
+  // --- Gamification ---
+  async getProfile(): Promise<ProfileResponse> {
+    return this.request<ProfileResponse>("/achievements/profile");
   }
 }
 

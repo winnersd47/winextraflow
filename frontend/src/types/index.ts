@@ -275,3 +275,33 @@ export interface CopyTradeList {
   items: CopyTradeResponse[];
   total: number;
 }
+
+// --- Gamification ---
+export interface AchievementResponse {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: string;
+  xp_reward: number;
+  requirement_value: number;
+  is_hidden: boolean;
+  progress: number;
+  is_unlocked: boolean;
+}
+
+export interface UserXP {
+  total_xp: number;
+  level: number;
+  current_level_xp: number;
+  next_level_xp: number;
+  progress_pct: number;
+}
+
+export interface ProfileResponse {
+  xp: UserXP;
+  achievements: AchievementResponse[];
+  unlocked_count: number;
+  total_count: number;
+}
