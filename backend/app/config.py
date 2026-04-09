@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
 
+    # Marketplace
+    marketplace_enabled: bool = True
+    revenue_share_author_pct: float = 70.0
+    revenue_share_platform_pct: float = 30.0
+
     # Execution
     execution_enabled: bool = True
     execution_min_confidence: float = 0.6

@@ -12,6 +12,7 @@ from app.api.ws import router as ws_router
 from app.api.backtesting import router as backtest_router
 from app.api.referrals import router as referrals_router
 from app.api.execution import router as execution_router
+from app.api.strategies import router as strategies_router
 from app.config import settings
 from app.workers.signal_fetcher import telegram_worker
 
@@ -55,6 +56,7 @@ app.include_router(ws_router, prefix="/api/v1/ws")
 app.include_router(backtest_router, prefix="/api/v1/backtest", tags=["backtesting"])
 app.include_router(referrals_router, prefix="/api/v1/referrals", tags=["referrals"])
 app.include_router(execution_router, prefix="/api/v1/execution", tags=["execution"])
+app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["marketplace"])
 
 
 @app.get("/health")

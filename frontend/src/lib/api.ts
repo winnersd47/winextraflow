@@ -11,6 +11,9 @@ import type {
   ExchangeAccountResponse,
   OrderList,
   OrderResponse,
+  StrategyList,
+  StrategyResponse,
+  SubscriptionResponse,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -186,6 +189,38 @@ class ApiClient {
 
   async getOrders(skip = 0, limit = 50): Promise<OrderList> {
     return this.request<OrderList>(`/execution/orders?skip=${skip}&limit=${limit}`);
+  }
+
+  // --- Marketplace ---
+  async browseStrategies(params?: {
+    price_type?: string;
+    tags?: string;
+    sort_by?: string;
+  }): Promise<StrategyList> {
+    const query = new URLSearchParams();
+    if (params?.price_type) query.set("price_type", params.price_type);
+    if (params?.tags) query.set("tags", params.tags);
+    if (params?.sort_by) query.set("sort_by", params.sort_by);
+    const qs = query.toString();
+    return this.request<StrategyList>(`/strategies${qs ? `?${qs}` : ""}`);
+  }
+
+  async getStrategy(id: string): Promise<StrategyResponse> {
+    return this.request<StrategyResponse>(`/strategies/${id}`);
+  }
+
+  async subscribeStrategy(id: string): Promise<SubscriptionResponse> {
+    return this.request<SubscriptionResponse>(`/strategies/${id}/subscribe`, {
+      method: "POST",
+    });
+  }
+
+  async unsubscribeStrategy(id: string): Promise<void> {
+    await this.request(`/strategies/${id}/subscribe`, { method: "DELETE" });
+  }
+
+  async getMySubscriptions(): Promise<SubscriptionResponse[]> {
+    return this.request<SubscriptionResponse[]>("/strategies/subscriptions");
   }
 }
 

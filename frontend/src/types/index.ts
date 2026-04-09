@@ -212,3 +212,40 @@ export interface OrderList {
   items: OrderResponse[];
   total: number;
 }
+
+// --- Marketplace ---
+export type PriceType = "free" | "premium" | "paid";
+
+export interface StrategyResponse {
+  id: string;
+  author_id: string;
+  provider_id: string;
+  name: string;
+  description: string | null;
+  tags: string | null;
+  is_published: boolean;
+  price_type: PriceType;
+  price_monthly: number;
+  subscriber_count: number;
+  created_at: string;
+  win_rate: number | null;
+  avg_profit: number | null;
+  ai_score: number | null;
+  sharpe_ratio: number | null;
+  total_signals: number;
+}
+
+export interface StrategyList {
+  items: StrategyResponse[];
+  total: number;
+}
+
+export interface SubscriptionResponse {
+  id: string;
+  user_id: string;
+  strategy_id: string;
+  status: string;
+  auto_execute: boolean;
+  expires_at: string | null;
+  created_at: string;
+}
