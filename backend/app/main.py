@@ -28,10 +28,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: seed achievements
-    async with get_async_session() as db:
-        await achievement_service.seed_achievements(db)
-    logger.info("Achievements seeded")
+    # Startup: seed achievements (skip if DB not available)
+    try:
+        async with get_async_session() as db:
+            await achievement_service.seed_achievements(db)
+        logger.info("Achievements seeded")
+    except Exception as e:
+        logger.warning(f"Could not seed achievements (DB not ready?): {e}")
 
     # Startup: register copy trading listener
     if settings.execution_enabled:
