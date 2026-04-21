@@ -8,5 +8,6 @@ from app.models.strategy import Strategy
 from app.models.subscription import Subscription
 from app.models.copy_trade import CopyTrade
 from app.models.achievement import Achievement, UserAchievement
+from app.models.notification import Notification
 
-__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement"]
+__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification"]

@@ -13,6 +13,7 @@ const navItems = [
   { href: "/dashboard/copy-trading", labelKey: "nav.copyTrading", icon: "📋" },
   { href: "/dashboard/execution", labelKey: "nav.execution", icon: "⚡" },
   { href: "/dashboard/referrals", labelKey: "nav.referrals", icon: "🤝" },
+  { href: "/dashboard/premium", labelKey: "nav.premium", icon: "💎" },
   { href: "/dashboard/profile", labelKey: "nav.profile", icon: "👤" },
 ];
 

@@ -15,6 +15,8 @@ from app.api.execution import router as execution_router
 from app.api.strategies import router as strategies_router
 from app.api.copy_trading import router as copy_trading_router
 from app.api.achievements import router as achievements_router
+from app.api.premium import router as premium_router
+from app.api.notifications import router as notifications_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -86,6 +88,8 @@ app.include_router(execution_router, prefix="/api/v1/execution", tags=["executio
 app.include_router(strategies_router, prefix="/api/v1/strategies", tags=["marketplace"])
 app.include_router(copy_trading_router, prefix="/api/v1/copy-trading", tags=["copy-trading"])
 app.include_router(achievements_router, prefix="/api/v1/achievements", tags=["gamification"])
+app.include_router(premium_router, prefix="/api/v1/premium", tags=["premium"])
+app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["notifications"])
 
 
 @app.get("/health")

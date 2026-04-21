@@ -15,6 +15,8 @@ from app.config import settings
 from app.database import get_db
 from app.models.referral import Referral, ReferralStatus
 from app.models.user import User
+from app.services.premium import grant_premium_days
+from app.services.notifications import notification_service
 from app.schemas.user import Token, UserLogin, UserRegister, UserResponse
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,12 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             reward_amount=settings.referral_level1_reward,
         ))
         logger.info(f"Referral L1: {referrer.username} -> {user.username}")
+
+        # Grant premium days to referrer
+        await grant_premium_days(db, referrer, settings.referral_level1_reward)
+        await notification_service.notify_referral(
+            referrer.id, user.username, settings.referral_level1_reward
+        )
 
         # Level 2: indirect referral (referrer's referrer)
         if settings.referral_max_levels >= 2 and referrer.referred_by:

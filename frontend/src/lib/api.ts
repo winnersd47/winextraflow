@@ -17,6 +17,8 @@ import type {
   CopyTradingStatus,
   CopyTradeList,
   ProfileResponse,
+  PremiumStatus,
+  NotificationList,
 } from "@/types";
 
 const API_BASE = "/api/v1";
@@ -244,6 +246,35 @@ class ApiClient {
   // --- Gamification ---
   async getProfile(): Promise<ProfileResponse> {
     return this.request<ProfileResponse>("/achievements/profile");
+  }
+
+  // --- Premium ---
+  async getPremiumStatus(): Promise<PremiumStatus> {
+    return this.request<PremiumStatus>("/premium/status");
+  }
+
+  async activatePremium(promoCode: string): Promise<PremiumStatus> {
+    return this.request<PremiumStatus>("/premium/activate", {
+      method: "POST",
+      body: JSON.stringify({ promo_code: promoCode }),
+    });
+  }
+
+  // --- Notifications ---
+  async getNotifications(skip = 0, limit = 20): Promise<NotificationList> {
+    return this.request<NotificationList>(`/notifications?skip=${skip}&limit=${limit}`);
+  }
+
+  async getUnreadCount(): Promise<{ count: number }> {
+    return this.request<{ count: number }>("/notifications/unread-count");
+  }
+
+  async markNotificationRead(id: string): Promise<void> {
+    await this.request(`/notifications/${id}/read`, { method: "PATCH" });
+  }
+
+  async markAllRead(): Promise<void> {
+    await this.request("/notifications/read-all", { method: "PATCH" });
   }
 }
 

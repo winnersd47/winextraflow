@@ -1,7 +1,8 @@
 import enum
 import uuid
+from datetime import datetime
 
-from sqlalchemy import String, Boolean, Enum
+from sqlalchemy import String, Boolean, Enum, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -23,6 +24,9 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole), default=UserRole.USER
     )
+
+    # Premium
+    premium_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Referral
     referral_code: Mapped[str | None] = mapped_column(String(20), unique=True)

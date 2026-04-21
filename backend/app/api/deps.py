@@ -57,3 +57,14 @@ async def get_current_user(
             detail="User not found or inactive",
         )
     return user
+
+
+async def require_premium(user: User = Depends(get_current_user)) -> User:
+    """Dependency that requires the user to have premium access."""
+    from app.services.premium import is_premium as check_premium
+    if not check_premium(user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Premium subscription required",
+        )
+    return user

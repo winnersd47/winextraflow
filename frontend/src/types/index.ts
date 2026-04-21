@@ -305,3 +305,26 @@ export interface ProfileResponse {
   unlocked_count: number;
   total_count: number;
 }
+
+// --- Premium ---
+export interface PremiumStatus {
+  is_premium: boolean;
+  days_left: number;
+  role: string;
+  expires_at: string | null;
+}
+
+// --- Notifications ---
+export interface NotificationResponse {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationList {
+  items: NotificationResponse[];
+  total: number;
+}
