@@ -7,8 +7,22 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.config import settings
 
-engine = create_async_engine(settings.database_url, echo=settings.app_debug)
+_connect_args = {}
+if settings.database_url.startswith("sqlite"):
+    _connect_args = {"check_same_thread": False}
+
+engine = create_async_engine(
+    settings.database_url,
+    echo=settings.app_debug,
+    connect_args=_connect_args,
+)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+async def create_tables():
+    """Create all tables (used for SQLite local dev)."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 class Base(DeclarativeBase):

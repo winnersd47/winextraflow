@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n";
 
 const navItems = [
-  { href: "/dashboard", label: "Signals", icon: "📊" },
-  { href: "/dashboard/leaderboard", label: "Leaderboard", icon: "🏆" },
-  { href: "/dashboard/backtest", label: "Backtest", icon: "🧪" },
-  { href: "/dashboard/marketplace", label: "Marketplace", icon: "🛒" },
-  { href: "/dashboard/copy-trading", label: "Copy Trading", icon: "📋" },
-  { href: "/dashboard/execution", label: "Execution", icon: "⚡" },
-  { href: "/dashboard/referrals", label: "Referrals", icon: "🤝" },
-  { href: "/dashboard/profile", label: "Profile", icon: "👤" },
+  { href: "/dashboard", labelKey: "nav.signals", icon: "📊" },
+  { href: "/dashboard/leaderboard", labelKey: "nav.leaderboard", icon: "🏆" },
+  { href: "/dashboard/backtest", labelKey: "nav.backtest", icon: "🧪" },
+  { href: "/dashboard/marketplace", labelKey: "nav.marketplace", icon: "🛒" },
+  { href: "/dashboard/copy-trading", labelKey: "nav.copyTrading", icon: "📋" },
+  { href: "/dashboard/execution", labelKey: "nav.execution", icon: "⚡" },
+  { href: "/dashboard/referrals", labelKey: "nav.referrals", icon: "🤝" },
+  { href: "/dashboard/profile", labelKey: "nav.profile", icon: "👤" },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <aside className="flex w-60 flex-col border-r border-gray-800 bg-surface-card">
@@ -43,7 +45,7 @@ export function Sidebar() {
               )}
             >
               <span>{item.icon}</span>
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}

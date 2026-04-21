@@ -16,7 +16,8 @@ from app.api.strategies import router as strategies_router
 from app.api.copy_trading import router as copy_trading_router
 from app.api.achievements import router as achievements_router
 from app.services.achievements import achievement_service
-from app.database import async_session as get_async_session
+from app.database import async_session as get_async_session, create_tables
+from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
 from app.config import settings
 from app.services.copy_trading import copy_trading_service
 from app.services.signal_aggregator import signal_aggregator
@@ -28,6 +29,13 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Startup: create tables (for SQLite local dev)
+    try:
+        await create_tables()
+        logger.info("Database tables created/verified")
+    except Exception as e:
+        logger.warning(f"Could not create tables: {e}")
+
     # Startup: seed achievements (skip if DB not available)
     try:
         async with get_async_session() as db:
