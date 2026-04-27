@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+
+const EquityChart = dynamic(() => import("@/components/equity-chart").then(m => ({ default: m.EquityChart })), { ssr: false });
 import { formatPercent } from "@/lib/utils";
 import type { BacktestResult } from "@/types";
 
@@ -66,21 +69,9 @@ export default function BacktestPage() {
           </div>
 
           {result.equity_curve.length > 1 && (
-            <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
-              <h2 className="mb-4 text-lg font-bold text-white">{t("backtest.equityCurve")}</h2>
-              <div className="flex h-48 items-end gap-px">
-                {result.equity_curve.map((val, i) => {
-                  const min = Math.min(...result.equity_curve);
-                  const max = Math.max(...result.equity_curve);
-                  const range = max - min || 1;
-                  const height = ((val - min) / range) * 100;
-                  return <div key={i} className={`flex-1 rounded-t ${val >= result.equity_curve[0] ? "bg-green-500/60" : "bg-red-500/60"}`} style={{ height: `${Math.max(2, height)}%` }} title={`$${val.toFixed(0)}`} />;
-                })}
-              </div>
-              <div className="mt-2 flex justify-between text-xs text-gray-500">
-                <span>${result.equity_curve[0]?.toFixed(0)}</span>
-                <span>${result.equity_curve[result.equity_curve.length - 1]?.toFixed(0)}</span>
-              </div>
+            <div className="rounded-xl border border-border bg-surface-card p-6">
+              <h2 className="mb-4 text-lg font-bold text-text-primary">{t("backtest.equityCurve")}</h2>
+              <EquityChart data={result.equity_curve} initialCapital={parseFloat(capital) || 10000} />
             </div>
           )}
 

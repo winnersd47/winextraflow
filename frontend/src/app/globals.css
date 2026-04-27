@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-surface: #ffffff;
+  --color-surface-card: #f8f9fa;
+  --color-surface-hover: #f1f3f5;
+  --color-border: #e5e7eb;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-muted: #9ca3af;
+}
+
+.dark {
+  --color-surface: #0f1117;
+  --color-surface-card: #1a1d27;
+  --color-surface-hover: #242736;
+  --color-border: #1f2937;
+  --color-text-primary: #f3f4f6;
+  --color-text-secondary: #9ca3af;
+  --color-text-muted: #6b7280;
+}
+
 body {
-  @apply bg-surface text-gray-100 antialiased;
+  @apply bg-surface text-text-primary antialiased;
 }

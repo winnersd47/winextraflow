@@ -17,32 +17,27 @@ const navItems = [
   { href: "/dashboard/profile", labelKey: "nav.profile", icon: "👤" },
 ];
 
-export function Sidebar() {
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { t } = useI18n();
 
   return (
-    <aside className="flex w-60 flex-col border-r border-gray-800 bg-surface-card">
-      <div className="flex h-16 items-center gap-2 border-b border-gray-800 px-6">
+    <>
+      <div className="flex h-16 items-center gap-2 border-b border-border px-6">
         <span className="text-xl font-bold text-brand-500">WinExtra</span>
-        <span className="text-xl font-bold text-white">Flow</span>
+        <span className="text-xl font-bold text-text-primary">Flow</span>
       </div>
-
       <nav className="flex-1 space-y-1 p-3">
         {navItems.map((item) => {
-          const isActive =
-            item.href === "/dashboard"
-              ? pathname === "/dashboard"
-              : pathname.startsWith(item.href);
+          const isActive = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
-                isActive
-                  ? "bg-brand-500/10 text-brand-500"
-                  : "text-gray-400 hover:bg-surface-hover hover:text-white"
+                isActive ? "bg-brand-500/10 text-brand-500" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"
               )}
             >
               <span>{item.icon}</span>
@@ -51,10 +46,28 @@ export function Sidebar() {
           );
         })}
       </nav>
-
-      <div className="border-t border-gray-800 p-4">
-        <p className="text-xs text-gray-500">WinExtraFlow v0.1.0</p>
+      <div className="border-t border-border p-4">
+        <p className="text-xs text-text-muted">WinExtraFlow v0.1.0</p>
       </div>
-    </aside>
+    </>
+  );
+}
+
+export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <>
+      {/* Mobile overlay */}
+      <div className={cn("fixed inset-0 z-40 lg:hidden", open ? "block" : "hidden")}>
+        <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+        <aside className="fixed left-0 top-0 flex h-full w-60 flex-col bg-surface-card shadow-xl">
+          <SidebarContent onNavigate={onClose} />
+        </aside>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside className="hidden lg:flex w-60 flex-col border-r border-border bg-surface-card">
+        <SidebarContent />
+      </aside>
+    </>
   );
 }

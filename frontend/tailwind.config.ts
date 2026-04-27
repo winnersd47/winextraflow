@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
@@ -13,10 +14,18 @@ const config: Config = {
           700: "#15803d",
         },
         surface: {
-          DEFAULT: "#0f1117",
-          card: "#1a1d27",
-          hover: "#242736",
+          DEFAULT: "var(--color-surface)",
+          card: "var(--color-surface-card)",
+          hover: "var(--color-surface-hover)",
         },
+      },
+      textColor: {
+        "text-primary": "var(--color-text-primary)",
+        "text-secondary": "var(--color-text-secondary)",
+        "text-muted": "var(--color-text-muted)",
+      },
+      borderColor: {
+        border: "var(--color-border)",
       },
     },
   },
