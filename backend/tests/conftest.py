@@ -1,21 +1,31 @@
-"""Shared test fixtures — in-memory SQLite async engine, test client, user helpers."""
+"""Shared test fixtures — in-memory SQLite, test client, user helpers."""
 
 import asyncio
+import os
 import uuid
 from typing import AsyncGenerator
+
+# Set test env BEFORE any app imports
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"
+os.environ["APP_DEBUG"] = "false"
+os.environ["APP_ENV"] = "test"
+os.environ["SECRET_KEY"] = "test-secret"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+# Now import app modules (they'll use the env vars above)
+import app.database as db_module
 from app.database import Base, get_db
-from app.main import app
 
-# In-memory SQLite for tests
-TEST_DATABASE_URL = "sqlite+aiosqlite:///file::memory:?cache=shared&uri=true"
+# Create a single test engine and patch the module-level references
+test_engine = create_async_engine("sqlite+aiosqlite://", echo=False)
+TestSession = async_sessionmaker(test_engine, class_=AsyncSession, expire_on_commit=False)
 
-engine = create_async_engine(TEST_DATABASE_URL, echo=False)
-TestSession = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+# Monkeypatch the database module so lifespan/services use test engine
+db_module.engine = test_engine
+db_module.async_session = TestSession
 
 
 async def override_get_db():
@@ -25,6 +35,8 @@ async def override_get_db():
         finally:
             await session.close()
 
+
+from app.main import app  # noqa: E402
 
 app.dependency_overrides[get_db] = override_get_db
 
@@ -38,11 +50,12 @@ def event_loop():
 
 @pytest.fixture(autouse=True)
 async def setup_db():
-    """Create all tables before each test and drop after."""
-    async with engine.begin() as conn:
+    """Create all tables before each test, drop after."""
+    import app.models  # noqa: F401 — register all models
+    async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
-    async with engine.begin() as conn:
+    async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
 
@@ -61,23 +74,20 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.fixture
 async def registered_user(client: AsyncClient) -> dict:
-    """Register a test user and return user data."""
     resp = await client.post("/api/v1/auth/register", json={
         "email": f"test_{uuid.uuid4().hex[:8]}@test.com",
         "username": f"user_{uuid.uuid4().hex[:8]}",
         "password": "testpass123",
     })
-    assert resp.status_code == 201
+    assert resp.status_code == 201, f"Register failed: {resp.text}"
     return resp.json()
 
 
 @pytest.fixture
 async def auth_headers(client: AsyncClient, registered_user: dict) -> dict:
-    """Login and return Authorization headers."""
     resp = await client.post("/api/v1/auth/login", json={
         "email": registered_user["email"],
         "password": "testpass123",
     })
-    assert resp.status_code == 200
-    token = resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    assert resp.status_code == 200, f"Login failed: {resp.text}"
+    return {"Authorization": f"Bearer {resp.json()['access_token']}"}

@@ -40,7 +40,7 @@ def _enrich_strategy(strategy: Strategy, provider: Provider | None) -> dict:
 async def browse_strategies(
     price_type: PriceType | None = None,
     tags: str | None = None,
-    sort_by: str = Query("ai_score", regex="^(ai_score|subscriber_count|created_at)$"),
+    sort_by: str = Query("ai_score", pattern="^(ai_score|subscriber_count|created_at)$"),
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
