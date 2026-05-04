@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_premium
 from app.database import get_db
 from app.models.exchange_account import ExchangeAccount
 from app.models.order import Order
@@ -113,7 +113,7 @@ async def execute_signal(
     signal_id: uuid.UUID,
     data: ExecuteRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_premium),
 ):
     """Manually execute a signal on a specific exchange account."""
     signal = (await db.execute(

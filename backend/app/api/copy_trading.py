@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_premium
 from app.database import get_db
 from app.models.copy_trade import CopyTrade, CopyTradeStatus
 from app.models.exchange_account import ExchangeAccount
@@ -101,9 +101,9 @@ async def toggle_auto_execute(
     subscription_id: uuid.UUID,
     enable: bool,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_premium),
 ):
-    """Toggle auto-execute for a specific subscription."""
+    """Toggle auto-execute for a specific subscription (premium only)."""
     sub = (await db.execute(
         select(Subscription).where(and_(
             Subscription.id == subscription_id,

@@ -21,6 +21,7 @@ from app.api.copy_trading import router as copy_trading_router
 from app.api.achievements import router as achievements_router
 from app.api.premium import router as premium_router
 from app.api.notifications import router as notifications_router
+from app.api.admin import router as admin_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -49,6 +50,34 @@ async def lifespan(app: FastAPI):
         logger.info("Achievements seeded")
     except Exception as e:
         logger.warning(f"Could not seed achievements (DB not ready?): {e}")
+
+    # Startup: seed admin user (winnersd47)
+    try:
+        async with get_async_session() as db:
+            from sqlalchemy import select as sel
+            from app.models.user import User, UserRole
+            from app.api.deps import hash_password
+            import secrets
+            existing = (await db.execute(sel(User).where(User.username == "winnersd47"))).scalar_one_or_none()
+            if not existing:
+                admin = User(
+                    email="winnersd47@winextraflow.com",
+                    username="winnersd47",
+                    hashed_password=hash_password("Admin123!"),
+                    role=UserRole.ADMIN,
+                    referral_code=secrets.token_urlsafe(8),
+                )
+                db.add(admin)
+                await db.commit()
+                logger.info("Admin user winnersd47 created")
+            elif existing.role != UserRole.ADMIN:
+                existing.role = UserRole.ADMIN
+                await db.commit()
+                logger.info("User winnersd47 promoted to admin")
+            else:
+                logger.info("Admin user winnersd47 already exists")
+    except Exception as e:
+        logger.warning(f"Could not seed admin: {e}")
 
     # Startup: register copy trading listener
     if settings.execution_enabled:
@@ -103,6 +132,7 @@ app.include_router(copy_trading_router, prefix="/api/v1/copy-trading", tags=["co
 app.include_router(achievements_router, prefix="/api/v1/achievements", tags=["gamification"])
 app.include_router(premium_router, prefix="/api/v1/premium", tags=["premium"])
 app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["notifications"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 
 
 @app.get("/health")

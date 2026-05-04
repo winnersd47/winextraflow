@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.config import settings
+from app.services.premium import is_premium
 from app.database import get_db
 from app.models.signal import Signal, SignalStatus
 from app.models.user import User
@@ -44,6 +45,10 @@ async def list_signals(
     if provider_id:
         query = query.where(Signal.provider_id == provider_id)
         count_query = count_query.where(Signal.provider_id == provider_id)
+
+    # Free users: limited to 10 signals
+    if not is_premium(user):
+        limit = min(limit, 10)
 
     total = (await db.execute(count_query)).scalar()
     result = await db.execute(query.offset(skip).limit(limit))

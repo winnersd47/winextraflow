@@ -91,3 +91,14 @@ async def auth_headers(client: AsyncClient, registered_user: dict) -> dict:
     })
     assert resp.status_code == 200, f"Login failed: {resp.text}"
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+
+
+@pytest.fixture
+async def premium_auth_headers(client: AsyncClient, auth_headers: dict, registered_user: dict, db: AsyncSession) -> dict:
+    """Grant premium to the test user and return auth headers."""
+    from app.models.user import User
+    from sqlalchemy import select
+    user = (await db.execute(select(User).where(User.email == registered_user["email"]))).scalar_one()
+    from app.services.premium import grant_premium_days
+    await grant_premium_days(db, user, 30)
+    return auth_headers
