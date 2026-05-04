@@ -10,6 +10,7 @@ const navItems = [
   { href: "/dashboard/leaderboard", labelKey: "nav.leaderboard", icon: "🏆" },
   { href: "/dashboard/backtest", labelKey: "nav.backtest", icon: "🧪" },
   { href: "/dashboard/marketplace", labelKey: "nav.marketplace", icon: "🛒" },
+  { href: "/dashboard/telegram", labelKey: "nav.telegram", icon: "✈️" },
   { href: "/dashboard/copy-trading", labelKey: "nav.copyTrading", icon: "📋" },
   { href: "/dashboard/execution", labelKey: "nav.execution", icon: "⚡" },
   { href: "/dashboard/referrals", labelKey: "nav.referrals", icon: "🤝" },

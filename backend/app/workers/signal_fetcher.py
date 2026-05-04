@@ -62,6 +62,23 @@ class TelegramSignalWorker:
             await self.client.disconnect()
             logger.info("Telegram client disconnected")
 
+    async def resolve_username(self, username: str) -> dict | None:
+        """Resolve a @username or t.me/username to channel_id and title."""
+        if not self.client or not self.client.is_connected():
+            logger.warning("Telegram client not connected, cannot resolve username")
+            return None
+        try:
+            username = username.lstrip("@").split("/")[-1]  # Handle @name or t.me/name
+            entity = await self.client.get_entity(username)
+            return {
+                "id": str(entity.id),
+                "title": getattr(entity, "title", username),
+                "username": getattr(entity, "username", username),
+            }
+        except Exception as e:
+            logger.error(f"Failed to resolve Telegram username '{username}': {e}")
+            return None
+
     async def _load_channels(self):
         """Load active Telegram channel providers from database."""
         async with async_session() as db:
@@ -103,11 +120,16 @@ class TelegramSignalWorker:
             if not telegram_parser.is_signal_message(message_text):
                 return
 
-            # Parse the signal
+            # Parse the signal (regex first, LLM fallback)
             parsed = telegram_parser.parse_message(message_text)
             if not parsed:
-                logger.debug(f"Could not parse signal from: {message_text[:100]}")
-                return
+                # Fallback: try LLM parser for non-standard formats
+                parsed = await telegram_parser.parse_with_llm(message_text)
+                if parsed:
+                    logger.info(f"LLM parsed signal: {parsed.action} {parsed.ticker}")
+                else:
+                    logger.debug(f"Could not parse signal from: {message_text[:100]}")
+                    return
 
             # Find provider for this channel
             chat_id = str(event.chat_id)

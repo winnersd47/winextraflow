@@ -126,6 +126,10 @@ class ApiClient {
   }
 
   // --- Providers ---
+  async createProvider(data: { name: string; source: string; description?: string }): Promise<any> {
+    return this.request("/providers", { method: "POST", body: JSON.stringify(data) });
+  }
+
   async getLeaderboard(limit = 20): Promise<ProviderList> {
     return this.request<ProviderList>(
       `/providers/leaderboard?limit=${limit}`
@@ -275,6 +279,26 @@ class ApiClient {
 
   async markAllRead(): Promise<void> {
     await this.request("/notifications/read-all", { method: "PATCH" });
+  }
+
+  // --- Telegram ---
+  async resolveTelegramChannel(username: string): Promise<{ id: string; title: string; username: string }> {
+    return this.request<any>(`/providers/telegram/resolve?username=${encodeURIComponent(username)}`);
+  }
+
+  async subscribeTelegram(providerId: string, data: { channel_id?: string; channel_username?: string; channel_name?: string }): Promise<any> {
+    return this.request(`/providers/${providerId}/subscribe`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async unsubscribeTelegram(providerId: string): Promise<any> {
+    return this.request(`/providers/${providerId}/subscribe`, { method: "DELETE" });
+  }
+
+  async getProviderStatus(providerId: string): Promise<any> {
+    return this.request(`/providers/${providerId}/status`);
   }
 
   // --- Payments ---

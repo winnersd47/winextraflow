@@ -15,7 +15,8 @@ from app.workers.signal_fetcher import telegram_worker
 
 
 class TelegramSubscribe(BaseModel):
-    channel_id: str
+    channel_id: str | None = None
+    channel_username: str | None = None  # @username — will auto-resolve to channel_id
     channel_name: str | None = None
 
 router = APIRouter()
@@ -88,7 +89,10 @@ async def subscribe_telegram_channel(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Subscribe a provider to a Telegram channel for signal monitoring."""
+    """Subscribe a provider to a Telegram channel for signal monitoring.
+
+    Accepts either channel_id directly or channel_username (@username) for auto-resolve.
+    """
     result = await db.execute(select(Provider).where(Provider.id == provider_id))
     provider = result.scalar_one_or_none()
     if not provider:
@@ -96,9 +100,23 @@ async def subscribe_telegram_channel(
     if provider.source != ProviderSource.TELEGRAM:
         raise HTTPException(status_code=400, detail="Provider is not a Telegram source")
 
-    provider.telegram_channel_id = data.channel_id
-    if data.channel_name:
-        provider.description = f"Telegram: {data.channel_name}"
+    channel_id = data.channel_id
+    channel_name = data.channel_name
+
+    # Auto-resolve @username → channel_id via Telethon
+    if not channel_id and data.channel_username:
+        resolved = await telegram_worker.resolve_username(data.channel_username)
+        if not resolved:
+            raise HTTPException(400, f"Could not resolve Telegram channel: {data.channel_username}")
+        channel_id = resolved["id"]
+        channel_name = channel_name or resolved.get("title", data.channel_username)
+
+    if not channel_id:
+        raise HTTPException(400, "Provide either channel_id or channel_username")
+
+    provider.telegram_channel_id = channel_id
+    if channel_name:
+        provider.description = f"Telegram: {channel_name}"
     provider.is_active = True
     await db.commit()
     await db.refresh(provider)
@@ -155,3 +173,15 @@ async def provider_status(
         "is_connected": is_connected,
         "total_signals": provider.total_signals,
     }
+
+
+@router.get("/telegram/resolve")
+async def resolve_telegram_channel(
+    username: str,
+    user: User = Depends(get_current_user),
+):
+    """Resolve a Telegram @username or t.me/link to channel_id and title."""
+    result = await telegram_worker.resolve_username(username)
+    if not result:
+        raise HTTPException(400, f"Could not resolve: {username}. Is Telegram connected?")
+    return result

@@ -4,9 +4,12 @@ Connects to Telegram channels via Telethon, parses trading signal messages
 and converts them into normalized Signal objects.
 """
 
+import json
 import logging
 import re
 from dataclasses import dataclass
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +164,75 @@ class TelegramParser:
             except ValueError:
                 continue
         return targets
+
+
+    @staticmethod
+    async def parse_with_llm(text: str) -> ParsedSignal | None:
+        """Fallback: use Claude API to parse non-standard signal formats.
+
+        Requires ANTHROPIC_API_KEY in environment. Returns None if unavailable.
+        """
+        import os
+        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return None
+
+        prompt = f"""Extract trading signal from this message. Return JSON only, no explanation.
+If this is NOT a trading signal, return {{"error": "not a signal"}}.
+
+Required fields: ticker (string), action ("buy" or "sell"), entry_price (number)
+Optional fields: take_profit (number or null), stop_loss (number or null)
+
+Message:
+{text}
+
+JSON:"""
+
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 200,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+                if resp.status_code != 200:
+                    logger.debug(f"LLM parser HTTP error: {resp.status_code}")
+                    return None
+
+                content = resp.json()["content"][0]["text"].strip()
+                # Extract JSON from response
+                if content.startswith("{"):
+                    data = json.loads(content)
+                else:
+                    # Try to find JSON in response
+                    start = content.find("{")
+                    end = content.rfind("}") + 1
+                    if start >= 0 and end > start:
+                        data = json.loads(content[start:end])
+                    else:
+                        return None
+
+                if "error" in data:
+                    return None
+
+                return ParsedSignal(
+                    ticker=data["ticker"].upper(),
+                    action=_normalize_action(data["action"]),
+                    entry_price=float(data["entry_price"]),
+                    take_profit=float(data["take_profit"]) if data.get("take_profit") else None,
+                    stop_loss=float(data["stop_loss"]) if data.get("stop_loss") else None,
+                )
+        except Exception as e:
+            logger.debug(f"LLM parser error: {e}")
+            return None
 
 
 telegram_parser = TelegramParser()
