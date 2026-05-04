@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
 
+    # Stripe
+    stripe_api_key: str = ""
+    stripe_webhook_secret: str = ""
+
     # Marketplace
     marketplace_enabled: bool = True
     revenue_share_author_pct: float = 70.0

@@ -276,6 +276,26 @@ class ApiClient {
   async markAllRead(): Promise<void> {
     await this.request("/notifications/read-all", { method: "PATCH" });
   }
+
+  // --- Payments ---
+  async createCheckout(plan: string): Promise<{ checkout_url: string; session_id: string; demo: boolean }> {
+    return this.request("/payments/checkout", {
+      method: "POST",
+      body: JSON.stringify({
+        plan,
+        success_url: `${window.location.origin}/dashboard/premium/success`,
+        cancel_url: `${window.location.origin}/dashboard/premium`,
+      }),
+    });
+  }
+
+  async completeDemoPayment(sessionId: string): Promise<{ status: string; plan: string; days: number }> {
+    return this.request(`/payments/complete-demo?session_id=${sessionId}`, { method: "POST" });
+  }
+
+  async getPaymentHistory(): Promise<{ total: number; items: any[] }> {
+    return this.request("/payments/history");
+  }
 }
 
 export const api = new ApiClient();

@@ -22,6 +22,7 @@ from app.api.achievements import router as achievements_router
 from app.api.premium import router as premium_router
 from app.api.notifications import router as notifications_router
 from app.api.admin import router as admin_router
+from app.api.payments import router as payments_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -135,6 +136,7 @@ app.include_router(achievements_router, prefix="/api/v1/achievements", tags=["ga
 app.include_router(premium_router, prefix="/api/v1/premium", tags=["premium"])
 app.include_router(notifications_router, prefix="/api/v1/notifications", tags=["notifications"])
 app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(payments_router, prefix="/api/v1/payments", tags=["payments"])
 
 
 @app.get("/health")
