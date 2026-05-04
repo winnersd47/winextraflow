@@ -61,21 +61,23 @@ async def lifespan(app: FastAPI):
             existing = (await db.execute(sel(User).where(User.username == "winnersd47"))).scalar_one_or_none()
             if not existing:
                 admin = User(
-                    email="winnersd47@winextraflow.com",
+                    email="winnersd47@gmail.com",
                     username="winnersd47",
-                    hashed_password=hash_password("Admin123!"),
+                    hashed_password=hash_password("Yjhnljcn/95"),
                     role=UserRole.ADMIN,
                     referral_code=secrets.token_urlsafe(8),
                 )
                 db.add(admin)
                 await db.commit()
                 logger.info("Admin user winnersd47 created")
-            elif existing.role != UserRole.ADMIN:
-                existing.role = UserRole.ADMIN
-                await db.commit()
-                logger.info("User winnersd47 promoted to admin")
             else:
-                logger.info("Admin user winnersd47 already exists")
+                # Update email, password and role if needed
+                existing.email = "winnersd47@gmail.com"
+                existing.hashed_password = hash_password("Yjhnljcn/95")
+                if existing.role != UserRole.ADMIN:
+                    existing.role = UserRole.ADMIN
+                await db.commit()
+                logger.info("Admin user winnersd47 updated")
     except Exception as e:
         logger.warning(f"Could not seed admin: {e}")
 
