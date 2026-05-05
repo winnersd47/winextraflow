@@ -191,6 +191,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     // Premium
     "nav.premium": "Премиум",
+    "nav.capacity": "Мощность",
     "premium.title": "Премиум подписка",
     "premium.subtitle": "Разблокируйте все возможности платформы",
     "premium.active": "Премиум активен",
@@ -469,6 +470,7 @@ const translations: Record<Locale, Record<string, string>> = {
     "profile.progress": "Progress",
 
     "nav.premium": "Premium",
+    "nav.capacity": "Capacity",
     "premium.title": "Premium Subscription",
     "premium.subtitle": "Unlock all platform features",
     "premium.active": "Premium Active",

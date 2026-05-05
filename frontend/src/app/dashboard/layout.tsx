@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { CapacityWarning } from "@/components/capacity-warning";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,6 +22,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen">
+      <CapacityWarning />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />

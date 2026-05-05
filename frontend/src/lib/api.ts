@@ -130,6 +130,15 @@ class ApiClient {
     return this.request("/providers", { method: "POST", body: JSON.stringify(data) });
   }
 
+  // --- Admin ---
+  async getCapacityReport(): Promise<any> {
+    return this.request("/admin/capacity");
+  }
+
+  async getCapacityAlert(): Promise<any> {
+    return this.request("/admin/capacity/alert");
+  }
+
   async getLeaderboard(limit = 20): Promise<ProviderList> {
     return this.request<ProviderList>(
       `/providers/leaderboard?limit=${limit}`

@@ -81,3 +81,35 @@ async def toggle_user_active(
     user.is_active = is_active
     await db.commit()
     return {"id": str(user.id), "username": user.username, "is_active": user.is_active}
+
+
+@router.get("/capacity")
+async def capacity_report(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Full system capacity report with scaling recommendations (admin only)."""
+    from app.services.capacity import capacity_monitor
+    return await capacity_monitor.get_full_report(db)
+
+
+@router.get("/capacity/alert")
+async def capacity_alert(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Check if scaling alert is needed (admin only)."""
+    from app.services.capacity import capacity_monitor
+    alert = await capacity_monitor.check_capacity(db)
+    if not alert:
+        return {"alert": None}
+    return {
+        "alert": {
+            "level": alert.level,
+            "title": alert.title,
+            "message": alert.message,
+            "current_tier": alert.current_tier,
+            "next_tier": alert.next_tier,
+            "action_required": alert.action_required,
+        }
+    }
