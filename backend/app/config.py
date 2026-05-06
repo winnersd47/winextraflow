@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     algorithm: str = "HS256"
 
+    # Email (SMTP)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    frontend_url: str = "http://localhost:3000"
+
     # TradingView
     tradingview_webhook_secret: str = ""
 

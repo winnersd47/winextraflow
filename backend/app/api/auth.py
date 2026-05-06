@@ -2,6 +2,7 @@ import logging
 import secrets
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy import select
@@ -89,6 +90,14 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
 
     await db.commit()
     await db.refresh(user)
+
+    # Send welcome email
+    try:
+        from app.services.email_service import email_service
+        email_service.send_welcome(user.email, user.username)
+    except Exception as e:
+        logger.warning(f"Failed to send welcome email: {e}")
+
     return user
 
 
@@ -106,3 +115,60 @@ async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(ge
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+# ─── Password Reset ───────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@router.post("/forgot-password")
+@limiter.limit("3/minute")
+async def forgot_password(request: Request, data: ForgotPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Send password reset email."""
+    from app.services.email_service import email_service
+    import jwt as pyjwt
+    from datetime import datetime, timedelta, timezone
+
+    result = await db.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        # Don't reveal whether email exists
+        return {"message": "If the email exists, a reset link has been sent"}
+
+    # Create reset token (expires in 1 hour)
+    token = pyjwt.encode(
+        {"sub": str(user.id), "type": "reset", "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
+    email_service.send_password_reset(user.email, user.username, token)
+    return {"message": "If the email exists, a reset link has been sent"}
+
+
+@router.post("/reset-password")
+@limiter.limit("5/minute")
+async def reset_password(request: Request, data: ResetPasswordRequest, db: AsyncSession = Depends(get_db)):
+    """Reset password using token from email."""
+    import jwt as pyjwt
+
+    try:
+        payload = pyjwt.decode(data.token, settings.secret_key, algorithms=[settings.algorithm])
+        if payload.get("type") != "reset":
+            raise HTTPException(400, "Invalid token type")
+        user_id = payload["sub"]
+    except pyjwt.PyJWTError:
+        raise HTTPException(400, "Invalid or expired reset token")
+
+    from uuid import UUID
+    user = await db.get(User, UUID(user_id))
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    user.hashed_password = hash_password(data.new_password)
+    await db.commit()
+    return {"message": "Password reset successfully"}

@@ -5,8 +5,27 @@ import { ThemeProvider } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WinExtraFlow",
-  description: "Trading signal aggregator with AI rating",
+  title: {
+    default: "WinExtraFlow — Trading Signals with AI Rating",
+    template: "%s | WinExtraFlow",
+  },
+  description: "Aggregate trading signals from TradingView & Telegram, rate with AI, auto-trade on exchanges. Free to start.",
+  keywords: ["trading signals", "AI rating", "copy trading", "backtesting", "crypto signals", "TradingView", "Telegram signals"],
+  authors: [{ name: "WinExtraFlow" }],
+  openGraph: {
+    title: "WinExtraFlow — Trading Signals with AI Rating",
+    description: "Aggregate signals, rate with AI, auto-trade. Free to start.",
+    url: "https://winextraflow.com",
+    siteName: "WinExtraFlow",
+    type: "website",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "WinExtraFlow — Trading Signals with AI Rating",
+    description: "Aggregate signals, rate with AI, auto-trade. Free to start.",
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function RootLayout({
