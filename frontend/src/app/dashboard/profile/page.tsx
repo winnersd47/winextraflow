@@ -223,7 +223,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <h2 className="mb-3 text-lg font-bold text-text-primary">{t("profile.achievements")}</h2>
+      <h2 className="mb-3 text-lg font-bold text-text-primary">{t("profile.achievementsList")}</h2>
       <div className="mb-4 flex gap-1">
         {CATEGORIES.map((c) => (
           <button key={c.value} onClick={() => setCategory(c.value)} className={`rounded-lg px-3 py-2 text-sm capitalize transition ${category === c.value ? "bg-brand-500/20 text-brand-500" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}>{c.label}</button>
