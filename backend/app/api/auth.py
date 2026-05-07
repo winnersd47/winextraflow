@@ -96,6 +96,16 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
     except Exception as e:
         logger.warning(f"Failed to send welcome email: {e}")
 
+    # Achievement: referrer gets "first_referral" progress
+    if referrer:
+        try:
+            from app.services.achievements import achievement_service
+            await achievement_service.increment_progress(db, referrer.id, "first_referral")
+            await achievement_service.increment_progress(db, referrer.id, "referral_5")
+            await achievement_service.increment_progress(db, referrer.id, "referral_25")
+        except Exception:
+            pass
+
     return user
 
 
@@ -113,6 +123,91 @@ async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(ge
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.patch("/profile")
+async def update_profile(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    username: str | None = None,
+    email: str | None = None,
+    current_password: str | None = None,
+    new_password: str | None = None,
+):
+    """Update user profile — username, email, password."""
+    if username and username != user.username:
+        existing = (await db.execute(select(User).where(User.username == username))).scalar_one_or_none()
+        if existing:
+            raise HTTPException(400, "Username already taken")
+        user.username = username
+    if email and email != user.email:
+        existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
+        if existing:
+            raise HTTPException(400, "Email already taken")
+        user.email = email
+    if new_password:
+        if not current_password or not verify_password(current_password, user.hashed_password):
+            raise HTTPException(400, "Current password is incorrect")
+        user.hashed_password = hash_password(new_password)
+    await db.commit()
+    await db.refresh(user)
+    return {"username": user.username, "email": user.email, "message": "Profile updated"}
+
+
+@router.get("/stats")
+async def user_stats(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get user trading statistics."""
+    from sqlalchemy import func, and_
+    from app.models.order import Order, OrderStatus
+    from app.models.signal import Signal
+    from app.services.premium import is_premium as check_premium, premium_days_left
+    from app.models.kyc import KYCVerification, KYCStatus
+
+    total_orders = (await db.execute(
+        select(func.count()).select_from(Order).where(Order.user_id == user.id)
+    )).scalar() or 0
+
+    filled_orders = (await db.execute(
+        select(func.count()).select_from(Order).where(and_(
+            Order.user_id == user.id, Order.status == OrderStatus.FILLED
+        ))
+    )).scalar() or 0
+
+    # KYC status
+    kyc = (await db.execute(
+        select(KYCVerification).where(KYCVerification.user_id == user.id)
+    )).scalar_one_or_none()
+
+    return {
+        "username": user.username,
+        "email": user.email,
+        "role": user.role.value,
+        "referral_code": user.referral_code,
+        "is_premium": check_premium(user),
+        "premium_days_left": premium_days_left(user),
+        "kyc_verified": user.kyc_verified,
+        "kyc_status": kyc.status.value if kyc else "none",
+        "total_orders": total_orders,
+        "filled_orders": filled_orders,
+        "member_since": user.created_at.isoformat() if user.created_at else None,
+        "telegram_linked": user.telegram_chat_id is not None,
+    }
+
+
+@router.delete("/account")
+async def delete_account(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Delete user account and all associated data."""
+    user.is_active = False
+    user.email = f"deleted_{user.id}@deleted"
+    user.username = f"deleted_{user.id}"
+    await db.commit()
+    return {"message": "Account deactivated. Data will be removed within 30 days."}
 
 
 @router.get("/telegram-link")

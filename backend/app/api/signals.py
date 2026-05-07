@@ -66,6 +66,13 @@ async def get_signal(
     signal = result.scalar_one_or_none()
     if not signal:
         raise HTTPException(status_code=404, detail="Signal not found")
+    # Achievement: first_signal, signal_hunter
+    try:
+        from app.services.achievements import achievement_service
+        await achievement_service.increment_progress(db, user.id, "first_signal")
+        await achievement_service.increment_progress(db, user.id, "signal_hunter")
+    except Exception:
+        pass
     return signal
 
 

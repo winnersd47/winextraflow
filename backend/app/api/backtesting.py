@@ -29,4 +29,10 @@ async def run_backtest(
         date_to=data.date_to,
         initial_capital=data.initial_capital,
     )
+    # Achievement: first_backtest
+    try:
+        from app.services.achievements import achievement_service
+        await achievement_service.increment_progress(db, user.id, "first_backtest")
+    except Exception:
+        pass
     return result

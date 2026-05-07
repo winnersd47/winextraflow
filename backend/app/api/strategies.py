@@ -158,6 +158,12 @@ async def publish_strategy(
     db.add(strategy)
     await db.commit()
     await db.refresh(strategy)
+    # Achievement: strategy_creator
+    try:
+        from app.services.achievements import achievement_service
+        await achievement_service.increment_progress(db, user.id, "strategy_creator")
+    except Exception:
+        pass
     return _enrich_strategy(strategy, provider)
 
 
@@ -199,6 +205,12 @@ async def subscribe(
 
     await db.commit()
     await db.refresh(sub)
+    # Achievement: first_subscription
+    try:
+        from app.services.achievements import achievement_service
+        await achievement_service.increment_progress(db, user.id, "first_subscription")
+    except Exception:
+        pass
     return sub
 
 

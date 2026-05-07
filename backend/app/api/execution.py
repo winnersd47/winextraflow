@@ -140,6 +140,14 @@ async def execute_signal(
         order_type=data.order_type,
         quantity=data.quantity,
     )
+    # Achievement: first_trade, trader_10, trader_100
+    try:
+        from app.services.achievements import achievement_service
+        await achievement_service.increment_progress(db, user.id, "first_trade")
+        await achievement_service.increment_progress(db, user.id, "trader_10")
+        await achievement_service.increment_progress(db, user.id, "trader_100")
+    except Exception:
+        pass
     return order
 
 
