@@ -10,7 +10,7 @@ class UserRegister(BaseModel):
     email: EmailStr
     username: str
     password: str
-    referral_code: str | None = None
+    referral_code: str  # Required — must have a valid referral code to register
 
 
 class UserLogin(BaseModel):

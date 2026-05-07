@@ -37,15 +37,13 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
     if result.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email or username already taken")
 
-    # Resolve referrer
-    referrer = None
-    if data.referral_code:
-        result = await db.execute(
-            select(User).where(User.referral_code == data.referral_code)
-        )
-        referrer = result.scalar_one_or_none()
-        if not referrer:
-            logger.warning(f"Invalid referral code: {data.referral_code}")
+    # Resolve referrer (required)
+    result = await db.execute(
+        select(User).where(User.referral_code == data.referral_code)
+    )
+    referrer = result.scalar_one_or_none()
+    if not referrer:
+        raise HTTPException(status_code=400, detail="Invalid referral code. A valid referral code is required to register.")
 
     user = User(
         email=data.email,

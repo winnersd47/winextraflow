@@ -73,11 +73,28 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest.fixture
-async def registered_user(client: AsyncClient) -> dict:
+async def seed_referrer(db: AsyncSession) -> str:
+    """Create a seed user to provide referral codes for test registrations."""
+    import secrets
+    from app.models.user import User
+    code = secrets.token_urlsafe(8)
+    db.add(User(
+        email=f"seed_{uuid.uuid4().hex[:6]}@test.com",
+        username=f"seed_{uuid.uuid4().hex[:6]}",
+        hashed_password="$2b$12$dummy",
+        referral_code=code,
+    ))
+    await db.commit()
+    return code
+
+
+@pytest.fixture
+async def registered_user(client: AsyncClient, seed_referrer: str) -> dict:
     resp = await client.post("/api/v1/auth/register", json={
         "email": f"test_{uuid.uuid4().hex[:8]}@test.com",
         "username": f"user_{uuid.uuid4().hex[:8]}",
         "password": "testpass123",
+        "referral_code": seed_referrer,
     })
     assert resp.status_code == 201, f"Register failed: {resp.text}"
     return resp.json()

@@ -5,14 +5,15 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_register_with_referral(client: AsyncClient):
-    # Register referrer
+async def test_register_with_referral(client: AsyncClient, seed_referrer: str):
+    # Register referrer (with seed code)
     resp1 = await client.post("/api/v1/auth/register", json={
         "email": "referrer@test.com", "username": "referrer", "password": "pass123",
+        "referral_code": seed_referrer,
     })
     referral_code = resp1.json()["referral_code"]
 
-    # Register with referral code
+    # Register with referrer's code
     resp2 = await client.post("/api/v1/auth/register", json={
         "email": "referred@test.com", "username": "referred", "password": "pass123",
         "referral_code": referral_code,
@@ -21,10 +22,11 @@ async def test_register_with_referral(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_referral_stats(client: AsyncClient):
+async def test_referral_stats(client: AsyncClient, seed_referrer: str):
     # Register referrer
     resp1 = await client.post("/api/v1/auth/register", json={
         "email": "ref_stats@test.com", "username": "ref_stats", "password": "pass123",
+        "referral_code": seed_referrer,
     })
     code = resp1.json()["referral_code"]
 

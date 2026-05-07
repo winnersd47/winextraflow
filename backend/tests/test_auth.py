@@ -5,11 +5,12 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_register(client: AsyncClient):
+async def test_register(client: AsyncClient, seed_referrer: str):
     resp = await client.post("/api/v1/auth/register", json={
         "email": "new@test.com",
         "username": "newuser",
         "password": "pass123",
+        "referral_code": seed_referrer,
     })
     assert resp.status_code == 201
     data = resp.json()
@@ -20,12 +21,37 @@ async def test_register(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_register_duplicate_email(client: AsyncClient):
+async def test_register_without_referral(client: AsyncClient):
+    """Registration without referral code should fail."""
+    resp = await client.post("/api/v1/auth/register", json={
+        "email": "noreferral@test.com",
+        "username": "noreferral",
+        "password": "pass123",
+    })
+    assert resp.status_code == 422  # Validation error — referral_code is required
+
+
+@pytest.mark.asyncio
+async def test_register_invalid_referral(client: AsyncClient):
+    """Registration with invalid referral code should fail."""
+    resp = await client.post("/api/v1/auth/register", json={
+        "email": "badref@test.com",
+        "username": "badref",
+        "password": "pass123",
+        "referral_code": "INVALID_CODE_123",
+    })
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_register_duplicate_email(client: AsyncClient, seed_referrer: str):
     await client.post("/api/v1/auth/register", json={
         "email": "dup@test.com", "username": "user1", "password": "pass123",
+        "referral_code": seed_referrer,
     })
     resp = await client.post("/api/v1/auth/register", json={
         "email": "dup@test.com", "username": "user2", "password": "pass123",
+        "referral_code": seed_referrer,
     })
     assert resp.status_code == 400
 
