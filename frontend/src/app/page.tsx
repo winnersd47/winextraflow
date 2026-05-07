@@ -51,7 +51,7 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="px-6 py-20 text-center lg:px-16 lg:py-32">
         <div className="mx-auto max-w-3xl">
-          <h1 className="bg-gradient-to-r from-brand-500 to-emerald-300 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl lg:text-6xl">
+          <h1 className="bg-gradient-to-r from-brand-500 to-cyan-300 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl lg:text-6xl">
             {t("landing.heroTitle")}
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary">
