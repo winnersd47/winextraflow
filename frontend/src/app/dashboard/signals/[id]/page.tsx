@@ -52,6 +52,23 @@ export default function SignalDetailPage() {
 
         {signal.ai_reasoning && <p className="mt-2 text-sm text-gray-400">{signal.ai_reasoning}</p>}
 
+        {/* Execute button */}
+        {signal.status === "active" && (
+          <button
+            onClick={async () => {
+              try {
+                const accounts = await api.getExchangeAccounts();
+                if (accounts.length === 0) { alert(t("signals.noAccounts")); return; }
+                const result = await api.executeSignal(signal.id, accounts[0].id);
+                alert(`${t("signals.executed")}: ${result.status}`);
+              } catch (err: any) { alert(err.message); }
+            }}
+            className="mt-3 rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            {t("signals.executeSignal")}
+          </button>
+        )}
+
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Stat label={t("signals.entry")} value={formatPrice(signal.entry_price)} />
           <Stat label="Take Profit" value={signal.take_profit ? formatPrice(signal.take_profit) : "—"} color="text-green-400" />

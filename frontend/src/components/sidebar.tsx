@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 
 const navItems = [
   { href: "/dashboard", labelKey: "nav.signals", icon: "📊" },
+  { href: "/dashboard/create-signal", labelKey: "nav.createSignal", icon: "➕" },
   { href: "/dashboard/leaderboard", labelKey: "nav.leaderboard", icon: "🏆" },
   { href: "/dashboard/backtest", labelKey: "nav.backtest", icon: "🧪" },
   { href: "/dashboard/marketplace", labelKey: "nav.marketplace", icon: "🛒" },

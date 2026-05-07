@@ -13,6 +13,7 @@ from app.models.user import User
 from app.schemas.signal import (
     RatingDetail,
     SignalClose,
+    SignalCreate,
     SignalList,
     SignalResponse,
     TradingViewWebhook,
@@ -92,6 +93,40 @@ async def tradingview_webhook(
         raise HTTPException(status_code=422, detail=str(e))
 
     # Auto-rate the signal
+    if settings.ai_rating_enabled:
+        await ai_rating_service.rate_and_update_signal(db, signal)
+
+    return signal
+
+
+@router.post("", response_model=SignalResponse, status_code=201)
+async def create_signal(
+    data: SignalCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Manually create a trading signal (for signal providers)."""
+    from app.models.signal import Signal as SignalModel, SignalAction
+    from app.models.provider import Provider
+    # Verify provider exists
+    provider = await db.get(Provider, data.provider_id)
+    if not provider:
+        raise HTTPException(404, "Provider not found")
+
+    signal = SignalModel(
+        provider_id=data.provider_id,
+        ticker=data.ticker.upper(),
+        action=SignalAction(data.action.value),
+        entry_price=data.entry_price,
+        take_profit=data.take_profit,
+        stop_loss=data.stop_loss,
+        timeframe=data.timeframe,
+        raw_message=data.raw_message,
+    )
+    db.add(signal)
+    await db.commit()
+    await db.refresh(signal)
+
     if settings.ai_rating_enabled:
         await ai_rating_service.rate_and_update_signal(db, signal)
 
