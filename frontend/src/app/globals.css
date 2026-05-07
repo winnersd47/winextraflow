@@ -35,26 +35,13 @@ body {
 /* Hero with ocean photo background */
 .hero-ocean {
   position: relative;
-  background: url("https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80") center/cover no-repeat;
-}
-
-.hero-ocean::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg,
-    rgba(2, 6, 15, 0.94) 0%,
-    rgba(2, 6, 15, 0.88) 50%,
-    rgba(2, 6, 15, 0.97) 100%
-  );
-}
-
-:root .hero-ocean::before {
-  background: linear-gradient(180deg,
-    rgba(240, 253, 250, 0.88) 0%,
-    rgba(240, 253, 250, 0.7) 40%,
-    rgba(240, 253, 250, 0.92) 100%
-  );
+  background:
+    linear-gradient(180deg,
+      rgba(2, 8, 20, 0.92) 0%,
+      rgba(2, 8, 20, 0.82) 50%,
+      rgba(2, 8, 20, 0.95) 100%
+    ),
+    url("https://images.unsplash.com/photo-1551244072-5d12893278ab?w=1920&q=80") center/cover no-repeat;
 }
 
 /* Wave section divider */
