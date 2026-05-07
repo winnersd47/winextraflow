@@ -72,7 +72,7 @@ export default function LandingPage() {
           <h1 className="bg-gradient-to-r from-brand-500 to-cyan-300 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl lg:text-6xl drop-shadow-lg">
             {t("landing.heroTitle")}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary drop-shadow">
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-gray-300 drop-shadow">
             {t("landing.heroSubtitle")}
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
