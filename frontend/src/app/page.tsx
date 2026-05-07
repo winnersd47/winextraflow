@@ -156,6 +156,7 @@ export default function LandingPage() {
           </div>
           <div className="flex gap-6 text-sm text-text-secondary">
             <Link href="/api-docs" className="hover:text-text-primary">{t("landing.footerApi")}</Link>
+            <Link href="/terms" className="hover:text-text-primary">{t("landing.footerTerms")}</Link>
             <Link href="/login" className="hover:text-text-primary">{t("landing.ctaLogin")}</Link>
             <Link href="/register" className="hover:text-text-primary">{t("landing.ctaStart")}</Link>
           </div>

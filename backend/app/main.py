@@ -29,6 +29,7 @@ from app.models import *  # noqa: F401,F403 — ensure all models registered for
 from app.config import settings
 from app.services.copy_trading import copy_trading_service
 from app.services.signal_aggregator import signal_aggregator
+from app.services.telegram_bot import telegram_bot
 from app.workers.signal_fetcher import telegram_worker
 
 logging.basicConfig(level=logging.INFO)
@@ -87,16 +88,34 @@ async def lifespan(app: FastAPI):
         signal_aggregator.on_new_signal(copy_trading_service.on_new_signal)
         logger.info("Copy trading listener registered")
 
-    # Startup: launch Telegram worker if configured
+    # Startup: register bot signal broadcaster
+    if telegram_bot.enabled:
+        async def _bot_signal_hook(signal):
+            await telegram_bot.broadcast_signal(
+                signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence
+            )
+        signal_aggregator.on_new_signal(_bot_signal_hook)
+        logger.info("Telegram bot signal broadcaster registered")
+
+    # Startup: launch Telegram channel worker if configured
     if settings.telegram_api_id and settings.telegram_api_hash:
         try:
             await telegram_worker.start()
             logger.info("Telegram worker started")
         except Exception as e:
             logger.warning(f"Telegram worker failed to start: {e}")
+
+    # Startup: launch Telegram bot polling
+    if telegram_bot.enabled:
+        import asyncio
+        asyncio.create_task(telegram_bot.start_polling())
+        logger.info("Telegram bot polling started")
+
     yield
-    # Shutdown: stop Telegram worker
+
+    # Shutdown
     await telegram_worker.stop()
+    await telegram_bot.stop_polling()
 
 
 limiter = Limiter(

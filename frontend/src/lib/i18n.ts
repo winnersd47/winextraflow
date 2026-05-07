@@ -199,6 +199,9 @@ const translations: Record<Locale, Record<string, string>> = {
     "profile.unlocked": "Открыто",
     "profile.hidden": "Секретное достижение",
     "profile.progress": "Прогресс",
+    "profile.tgNotifications": "Получать уведомления в Telegram",
+    "profile.tgLinkHint": "Подключите Telegram бота для получения уведомлений о сигналах",
+    "profile.tgLinkButton": "Подключить Telegram бота",
 
     // Premium
     "nav.premium": "Премиум",
@@ -304,6 +307,9 @@ const translations: Record<Locale, Record<string, string>> = {
     "landing.statUptime": "Аптайм",
     "landing.footerRights": "Все права защищены",
     "landing.footerApi": "API документация",
+    "landing.footerTerms": "Пользовательское соглашение",
+    "auth.agreeTerms": "Я принимаю условия",
+    "auth.termsLink": "Пользовательского соглашения",
 
     // Common
     "common.sort": "Сортировка",
@@ -490,6 +496,9 @@ const translations: Record<Locale, Record<string, string>> = {
     "profile.unlocked": "Unlocked",
     "profile.hidden": "Hidden Achievement",
     "profile.progress": "Progress",
+    "profile.tgNotifications": "Receive notifications in Telegram",
+    "profile.tgLinkHint": "Connect Telegram bot to get signal notifications",
+    "profile.tgLinkButton": "Connect Telegram Bot",
 
     "nav.premium": "Premium",
     "nav.capacity": "Capacity",
@@ -591,6 +600,9 @@ const translations: Record<Locale, Record<string, string>> = {
     "landing.statUptime": "Uptime",
     "landing.footerRights": "All rights reserved",
     "landing.footerApi": "API Documentation",
+    "landing.footerTerms": "Terms of Service",
+    "auth.agreeTerms": "I agree to the",
+    "auth.termsLink": "Terms of Service",
 
     "common.sort": "Sort",
   },

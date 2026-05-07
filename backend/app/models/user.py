@@ -28,6 +28,10 @@ class User(Base):
     # Premium
     premium_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    # Telegram Bot
+    telegram_chat_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+    telegram_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
+
     # Referral
     referral_code: Mapped[str | None] = mapped_column(String(20), unique=True)
     referred_by: Mapped[uuid.UUID | None] = mapped_column()

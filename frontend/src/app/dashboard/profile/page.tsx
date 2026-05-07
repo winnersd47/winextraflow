@@ -12,10 +12,15 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState("all");
+  const [tgLink, setTgLink] = useState<{ enabled: boolean; link: string | null; linked: boolean; notifications: boolean } | null>(null);
 
   useEffect(() => {
     async function load() {
-      try { setProfile(await api.getProfile()); } catch (err) { console.error(err); }
+      try {
+        const [p, tg] = await Promise.all([api.getProfile(), api.getTelegramLink()]);
+        setProfile(p);
+        setTgLink(tg);
+      } catch (err) { console.error(err); }
       finally { setLoading(false); }
     }
     load();
@@ -59,6 +64,35 @@ export default function ProfilePage() {
           <p className="mt-1 text-xs text-gray-500">{profile.xp.current_level_xp} / {profile.xp.next_level_xp} {t("profile.xpToNext")}</p>
         </div>
       </div>
+
+      {/* Telegram Bot */}
+      {tgLink?.enabled && (
+        <div className="mb-6 rounded-xl border border-border bg-surface-card p-6">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl">✈️</span>
+            <h2 className="text-lg font-bold text-text-primary">Telegram Bot</h2>
+          </div>
+          {tgLink.linked ? (
+            <div>
+              <p className="text-sm text-green-400 font-medium">✅ {t("telegram.connected")}</p>
+              <label className="mt-3 flex items-center gap-2 text-sm text-text-secondary">
+                <input type="checkbox" checked={tgLink.notifications} onChange={async (e) => {
+                  await api.toggleTelegramNotifications(e.target.checked);
+                  setTgLink({ ...tgLink, notifications: e.target.checked });
+                }} className="rounded" />
+                {t("profile.tgNotifications")}
+              </label>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-text-secondary mb-3">{t("profile.tgLinkHint")}</p>
+              <a href={tgLink.link || "#"} target="_blank" rel="noopener" className="inline-block rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600">
+                {t("profile.tgLinkButton")}
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="mb-4 flex gap-1">
         {CATEGORIES.map((c) => (

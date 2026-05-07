@@ -94,6 +94,14 @@ class ApiClient {
     return this.request<User>("/auth/me");
   }
 
+  async getTelegramLink(): Promise<{ enabled: boolean; link: string | null; linked: boolean; notifications: boolean }> {
+    return this.request("/auth/telegram-link");
+  }
+
+  async toggleTelegramNotifications(enabled: boolean): Promise<void> {
+    await this.request(`/auth/telegram-notifications?enabled=${enabled}`, { method: "PATCH" });
+  }
+
   logout() {
     localStorage.removeItem("token");
     window.location.href = "/login";

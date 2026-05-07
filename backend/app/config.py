@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     frontend_url: str = "http://localhost:3000"
 
+    # Telegram Bot
+    telegram_bot_token: str = ""
+
     # TradingView
     tradingview_webhook_secret: str = ""
 

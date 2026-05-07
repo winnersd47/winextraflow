@@ -117,6 +117,34 @@ async def me(user: User = Depends(get_current_user)):
     return user
 
 
+@router.get("/telegram-link")
+async def get_telegram_link(user: User = Depends(get_current_user)):
+    """Get Telegram bot link for account linking."""
+    from app.services.telegram_bot import telegram_bot
+    if not telegram_bot.enabled:
+        return {"enabled": False, "link": None, "linked": False}
+    bot_link = f"https://t.me/{settings.telegram_bot_token.split(':')[0]}?start=link_{user.username}" if telegram_bot.enabled else None
+    # Get bot username properly
+    return {
+        "enabled": True,
+        "link": f"https://t.me/WinExtraFlowBot?start=link_{user.username}",
+        "linked": user.telegram_chat_id is not None,
+        "notifications": user.telegram_notifications,
+    }
+
+
+@router.patch("/telegram-notifications")
+async def toggle_telegram_notifications(
+    enabled: bool,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Toggle Telegram notifications."""
+    user.telegram_notifications = enabled
+    await db.commit()
+    return {"telegram_notifications": user.telegram_notifications}
+
+
 # ─── Password Reset ───────────────────────────────────────
 
 class ForgotPasswordRequest(BaseModel):
