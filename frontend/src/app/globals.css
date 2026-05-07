@@ -35,7 +35,7 @@ body {
 /* Hero with ocean photo background */
 .hero-ocean {
   position: relative;
-  background: url("https://images.unsplash.com/photo-1530053969600-caed2596d242?w=1920&q=80") center 70%/cover no-repeat;
+  background: url("https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80") center/cover no-repeat;
 }
 
 .hero-ocean::before {
