@@ -3,25 +3,85 @@
 @tailwind utilities;
 
 :root {
-  --color-surface: #ffffff;
-  --color-surface-card: #f8f9fa;
-  --color-surface-hover: #f1f3f5;
-  --color-border: #e5e7eb;
-  --color-text-primary: #111827;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
+  --color-surface: #f0fdfa;
+  --color-surface-card: #ffffff;
+  --color-surface-hover: #ccfbf1;
+  --color-border: #99f6e4;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-wave-1: #14b8a6;
+  --color-wave-2: #0d9488;
+  --color-wave-3: #0f766e;
 }
 
 .dark {
-  --color-surface: #0f1117;
-  --color-surface-card: #1a1d27;
-  --color-surface-hover: #242736;
-  --color-border: #1f2937;
-  --color-text-primary: #f3f4f6;
-  --color-text-secondary: #9ca3af;
-  --color-text-muted: #6b7280;
+  --color-surface: #0a1628;
+  --color-surface-card: #0f1d32;
+  --color-surface-hover: #152238;
+  --color-border: #1e3a5f;
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-wave-1: #14b8a6;
+  --color-wave-2: #0d9488;
+  --color-wave-3: #0f766e;
 }
 
 body {
   @apply bg-surface text-text-primary antialiased;
+}
+
+/* Wave animation */
+@keyframes wave {
+  0% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-25%) translateY(-3px); }
+  100% { transform: translateX(-50%) translateY(0); }
+}
+
+@keyframes wave-slow {
+  0% { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(-25%) translateY(2px); }
+  100% { transform: translateX(-50%) translateY(0); }
+}
+
+.wave-bg {
+  position: relative;
+  overflow: hidden;
+}
+
+.wave-bg::before {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: -50%;
+  width: 200%;
+  height: 40px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 40'%3E%3Cpath fill='%2314b8a6' fill-opacity='0.15' d='M0,20 C360,40 720,0 1080,20 C1260,30 1350,10 1440,20 L1440,40 L0,40 Z'/%3E%3C/svg%3E");
+  background-size: 720px 40px;
+  animation: wave 8s linear infinite;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.wave-divider {
+  width: 100%;
+  height: 60px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 60'%3E%3Cpath fill='%2314b8a6' fill-opacity='0.08' d='M0,30 C240,50 480,10 720,30 C960,50 1200,10 1440,30 L1440,60 L0,60 Z'/%3E%3Cpath fill='%230d9488' fill-opacity='0.05' d='M0,35 C360,15 720,55 1080,35 C1260,25 1350,45 1440,35 L1440,60 L0,60 Z'/%3E%3C/svg%3E");
+  background-size: cover;
+}
+
+/* Sidebar wave accent */
+.sidebar-wave {
+  background: linear-gradient(180deg, transparent 0%, rgba(20, 184, 166, 0.05) 100%);
+}
+
+/* Card hover wave effect */
+.card-wave {
+  transition: all 0.3s ease;
+  border-color: var(--color-border);
+}
+.card-wave:hover {
+  border-color: var(--color-wave-1);
+  box-shadow: 0 0 20px rgba(20, 184, 166, 0.1);
 }
