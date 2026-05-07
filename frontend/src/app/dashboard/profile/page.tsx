@@ -190,7 +190,39 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Achievements */}
+      {/* Achievements System Explanation */}
+      <div className="mb-6 rounded-xl border border-brand-500/30 bg-brand-500/5 p-6">
+        <h2 className="text-lg font-bold text-text-primary">{t("profile.achievementsTitle")}</h2>
+        <p className="mt-2 text-sm text-text-secondary">{t("profile.achievementsDesc")}</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg bg-surface-card p-3 text-center">
+            <p className="text-2xl font-bold text-brand-500">{profile.unlocked_count}</p>
+            <p className="text-xs text-text-muted">{t("profile.unlocked")}</p>
+          </div>
+          <div className="rounded-lg bg-surface-card p-3 text-center">
+            <p className="text-2xl font-bold text-text-primary">{profile.total_count}</p>
+            <p className="text-xs text-text-muted">{t("profile.totalAch")}</p>
+          </div>
+          <div className="rounded-lg bg-surface-card p-3 text-center">
+            <p className="text-2xl font-bold text-yellow-400">{profile.xp.total_xp}</p>
+            <p className="text-xs text-text-muted">XP</p>
+          </div>
+          <div className="rounded-lg bg-surface-card p-3 text-center">
+            <p className="text-2xl font-bold text-brand-500">{profile.xp.level}</p>
+            <p className="text-xs text-text-muted">{t("profile.level")}</p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg bg-surface-card p-3">
+          <p className="text-xs font-medium text-text-secondary">{t("profile.achievementsBenefits")}</p>
+          <ul className="mt-2 space-y-1 text-xs text-text-muted">
+            <li>~ {t("profile.benefit1")}</li>
+            <li>~ {t("profile.benefit2")}</li>
+            <li>~ {t("profile.benefit3")}</li>
+            <li>~ {t("profile.benefit4")}</li>
+          </ul>
+        </div>
+      </div>
+
       <h2 className="mb-3 text-lg font-bold text-text-primary">{t("profile.achievements")}</h2>
       <div className="mb-4 flex gap-1">
         {CATEGORIES.map((c) => (
