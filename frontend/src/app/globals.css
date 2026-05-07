@@ -35,7 +35,7 @@ body {
 /* Hero with ocean photo background */
 .hero-ocean {
   position: relative;
-  background: url("https://images.unsplash.com/photo-1484291470158-b8f8d608850d?w=1920&q=80") center/cover no-repeat;
+  background: url("https://images.unsplash.com/photo-1530053969600-caed2596d242?w=1920&q=80") center 70%/cover no-repeat;
 }
 
 .hero-ocean::before {
@@ -43,9 +43,9 @@ body {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg,
-    rgba(2, 6, 15, 0.92) 0%,
-    rgba(2, 6, 15, 0.75) 50%,
-    rgba(2, 6, 15, 0.95) 100%
+    rgba(2, 6, 15, 0.93) 0%,
+    rgba(2, 6, 15, 0.8) 50%,
+    rgba(2, 6, 15, 0.96) 100%
   );
 }
 
