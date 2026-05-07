@@ -1,0 +1,246 @@
+"""Seed realistic test data — providers, signals, strategies, users.
+
+All test data is marked with [TEST] prefix for easy identification.
+Call seed_test_data(db) on startup when APP_ENV=development.
+"""
+
+import logging
+import random
+import secrets
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.provider import Provider, ProviderSource
+from app.models.signal import Signal, SignalAction, SignalStatus
+from app.models.strategy import Strategy, PriceType
+from app.models.user import User, UserRole
+from app.api.deps import hash_password
+
+logger = logging.getLogger(__name__)
+
+# ─── Test Providers ─────────────────────────────────────────
+
+TEST_PROVIDERS = [
+    {
+        "name": "[TEST] CryptoWhale Signals",
+        "source": ProviderSource.TELEGRAM,
+        "description": "Top crypto signals from whale tracker. 70%+ win rate.",
+        "telegram_channel_id": "-1001234567001",
+    },
+    {
+        "name": "[TEST] BTC Scalper Pro",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "Bitcoin scalping alerts. 15m-1h timeframes.",
+        "tradingview_webhook_id": "tv_btc_scalper",
+    },
+    {
+        "name": "[TEST] Altcoin Hunter",
+        "source": ProviderSource.TELEGRAM,
+        "description": "Early altcoin entries before pumps. Mid-term holds.",
+        "telegram_channel_id": "-1001234567002",
+    },
+    {
+        "name": "[TEST] Forex Flow",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "Major forex pairs. Technical analysis based.",
+        "tradingview_webhook_id": "tv_forex_flow",
+    },
+    {
+        "name": "[TEST] DeFi Alpha",
+        "source": ProviderSource.MANUAL,
+        "description": "DeFi token signals. On-chain analytics based.",
+    },
+]
+
+# ─── Test Signal Templates ──────────────────────────────────
+
+SIGNAL_TEMPLATES = [
+    # BTC signals
+    {"ticker": "BTCUSDT", "base_price": 67500, "volatility": 3000},
+    {"ticker": "BTCUSDT", "base_price": 65000, "volatility": 2500},
+    {"ticker": "BTCUSDT", "base_price": 69000, "volatility": 4000},
+    # ETH signals
+    {"ticker": "ETHUSDT", "base_price": 3450, "volatility": 200},
+    {"ticker": "ETHUSDT", "base_price": 3600, "volatility": 150},
+    # Altcoins
+    {"ticker": "SOLUSDT", "base_price": 145, "volatility": 15},
+    {"ticker": "BNBUSDT", "base_price": 580, "volatility": 30},
+    {"ticker": "XRPUSDT", "base_price": 0.55, "volatility": 0.05},
+    {"ticker": "DOGEUSDT", "base_price": 0.12, "volatility": 0.015},
+    {"ticker": "AVAXUSDT", "base_price": 35, "volatility": 4},
+    {"ticker": "ADAUSDT", "base_price": 0.45, "volatility": 0.04},
+    {"ticker": "DOTUSDT", "base_price": 7.20, "volatility": 0.8},
+    {"ticker": "MATICUSDT", "base_price": 0.70, "volatility": 0.08},
+    {"ticker": "LINKUSDT", "base_price": 14.50, "volatility": 1.5},
+    {"ticker": "NEARUSDT", "base_price": 6.80, "volatility": 0.7},
+    # Forex
+    {"ticker": "EURUSD", "base_price": 1.0850, "volatility": 0.005},
+    {"ticker": "GBPUSD", "base_price": 1.2720, "volatility": 0.006},
+    {"ticker": "USDJPY", "base_price": 155.50, "volatility": 1.5},
+]
+
+
+async def seed_test_data(db: AsyncSession):
+    """Seed realistic test data into the database."""
+
+    # Check if already seeded
+    existing = (await db.execute(
+        select(Provider).where(Provider.name.like("[TEST]%"))
+    )).scalar_one_or_none()
+    if existing:
+        logger.info("Test data already seeded, skipping")
+        return
+
+    random.seed(42)
+    now = datetime.now(timezone.utc)
+    logger.info("Seeding test data...")
+
+    # ─── Create test users ────────────────────────────────
+    test_users = []
+    for i, (username, email) in enumerate([
+        ("[TEST] trader_mike", "test_mike@winextraflow.com"),
+        ("[TEST] crypto_anna", "test_anna@winextraflow.com"),
+        ("[TEST] signal_master", "test_master@winextraflow.com"),
+    ]):
+        user = User(
+            email=email,
+            username=username,
+            hashed_password=hash_password("TestPass123"),
+            referral_code=secrets.token_urlsafe(8),
+            role=UserRole.USER,
+        )
+        db.add(user)
+        test_users.append(user)
+    await db.flush()
+
+    # ─── Create providers ─────────────────────────────────
+    providers = []
+    for p_data in TEST_PROVIDERS:
+        provider = Provider(
+            name=p_data["name"],
+            source=p_data["source"],
+            description=p_data["description"],
+            is_active=True,
+            telegram_channel_id=p_data.get("telegram_channel_id"),
+            tradingview_webhook_id=p_data.get("tradingview_webhook_id"),
+        )
+        db.add(provider)
+        providers.append(provider)
+    await db.flush()
+
+    # ─── Create signals (200 total, mixed statuses) ───────
+    total_signals = 0
+    for provider in providers:
+        num_signals = random.randint(30, 50)
+        for j in range(num_signals):
+            template = random.choice(SIGNAL_TEMPLATES)
+            is_buy = random.random() > 0.4  # 60% buys
+            entry = template["base_price"] + random.uniform(-template["volatility"], template["volatility"])
+            tp_dist = template["volatility"] * random.uniform(0.5, 2.0)
+            sl_dist = template["volatility"] * random.uniform(0.3, 1.0)
+
+            if is_buy:
+                tp = entry + tp_dist
+                sl = entry - sl_dist
+            else:
+                tp = entry - tp_dist
+                sl = entry + sl_dist
+
+            # Time: spread over last 30 days
+            created = now - timedelta(days=random.uniform(0, 30), hours=random.uniform(0, 24))
+
+            # Status: 40% active, 35% TP, 15% SL, 10% expired
+            roll = random.random()
+            if roll < 0.40:
+                status = SignalStatus.ACTIVE
+                close_price = None
+                profit_pct = None
+            elif roll < 0.75:
+                # Won — closed at TP
+                status = SignalStatus.CLOSED_TP
+                profit_pct = random.uniform(1.0, 12.0)
+                close_price = entry * (1 + profit_pct / 100) if is_buy else entry * (1 - profit_pct / 100)
+            elif roll < 0.90:
+                # Lost — closed at SL
+                status = SignalStatus.CLOSED_SL
+                profit_pct = random.uniform(-8.0, -0.5)
+                close_price = entry * (1 + profit_pct / 100) if is_buy else entry * (1 - profit_pct / 100)
+            else:
+                status = SignalStatus.EXPIRED
+                close_price = None
+                profit_pct = None
+
+            # AI confidence based on signal quality
+            confidence = random.uniform(0.35, 0.95)
+            if tp and sl:
+                confidence += 0.1
+            confidence = min(1.0, confidence)
+
+            reasoning_parts = []
+            if confidence > 0.7:
+                reasoning_parts.append("Strong: good risk management, reliable provider")
+            elif confidence > 0.5:
+                reasoning_parts.append("Average quality across factors")
+            else:
+                reasoning_parts.append("Weak: missing TP/SL or low provider history")
+
+            timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"]
+
+            signal = Signal(
+                provider_id=provider.id,
+                ticker=template["ticker"],
+                action=SignalAction.BUY if is_buy else SignalAction.SELL,
+                entry_price=round(entry, 6),
+                take_profit=round(tp, 6) if random.random() > 0.1 else None,
+                stop_loss=round(sl, 6) if random.random() > 0.15 else None,
+                timeframe=random.choice(timeframes),
+                status=status,
+                close_price=round(close_price, 6) if close_price else None,
+                profit_pct=round(profit_pct, 2) if profit_pct else None,
+                ai_confidence=round(confidence, 3),
+                ai_reasoning=reasoning_parts[0],
+                raw_message=f"[TEST] Auto-generated signal #{total_signals}",
+            )
+            # Manually set created_at via SQL later or accept default
+            db.add(signal)
+            total_signals += 1
+
+    await db.flush()
+
+    # ─── Update provider stats ────────────────────────────
+    from app.services.ai_rating import ai_rating_service
+    for provider in providers:
+        await ai_rating_service.recalculate_provider_stats(db, provider.id)
+
+    # ─── Create strategies ────────────────────────────────
+    strategy_configs = [
+        {"provider_idx": 0, "name": "[TEST] Whale Watch Alpha", "desc": "Follow the whales. BTC/ETH focus. 70%+ win rate historical.",
+         "tags": "crypto,btc,eth,whales", "price_type": PriceType.FREE},
+        {"provider_idx": 1, "name": "[TEST] BTC Scalp Machine", "desc": "High-frequency BTC scalping. 15m-1h entries with tight stops.",
+         "tags": "crypto,btc,scalping,short-term", "price_type": PriceType.PREMIUM},
+        {"provider_idx": 2, "name": "[TEST] Altseason Picks", "desc": "Altcoin gems before they pump. Mid-term 1-4 week holds.",
+         "tags": "crypto,altcoins,mid-term", "price_type": PriceType.PAID, "monthly": 19.99},
+        {"provider_idx": 3, "name": "[TEST] Forex Momentum", "desc": "Major pairs momentum trades. 4h-1d timeframes.",
+         "tags": "forex,eur,gbp,jpy", "price_type": PriceType.FREE},
+        {"provider_idx": 4, "name": "[TEST] DeFi Deep Dive", "desc": "On-chain alpha for DeFi tokens. Research-backed signals.",
+         "tags": "crypto,defi,research", "price_type": PriceType.PAID, "monthly": 29.99},
+    ]
+
+    for sc in strategy_configs:
+        strategy = Strategy(
+            author_id=test_users[sc["provider_idx"] % len(test_users)].id,
+            provider_id=providers[sc["provider_idx"]].id,
+            name=sc["name"],
+            description=sc["desc"],
+            tags=sc["tags"],
+            is_published=True,
+            price_type=sc["price_type"],
+            price_monthly=sc.get("monthly", 0),
+            subscriber_count=random.randint(5, 150),
+        )
+        db.add(strategy)
+
+    await db.commit()
+    logger.info(f"Test data seeded: {len(providers)} providers, {total_signals} signals, {len(strategy_configs)} strategies, {len(test_users)} users")
