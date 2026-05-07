@@ -36,6 +36,9 @@ slowapi==0.1.9
 # Payments
 stripe==11.4.1
 
+# File uploads
+python-multipart==0.0.18
+
 # System monitoring
 psutil==6.1.1
 

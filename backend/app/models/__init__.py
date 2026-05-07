@@ -10,5 +10,6 @@ from app.models.copy_trade import CopyTrade
 from app.models.achievement import Achievement, UserAchievement
 from app.models.notification import Notification
 from app.models.payment import Payment
+from app.models.kyc import KYCVerification
 
-__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment"]
+__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification"]

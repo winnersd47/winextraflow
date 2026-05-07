@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
@@ -60,11 +60,17 @@ async def get_current_user(
 
 
 async def require_premium(user: User = Depends(get_current_user)) -> User:
-    """Dependency that requires the user to have premium access."""
+    """Dependency that requires premium access + KYC verification."""
     from app.services.premium import is_premium as check_premium
     if not check_premium(user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Premium subscription required",
+        )
+    # Admin bypasses KYC
+    if user.role != UserRole.ADMIN and not user.kyc_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="KYC verification required. Please upload a photo with your passport.",
         )
     return user
