@@ -66,20 +66,20 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="relative px-6 py-20 text-center lg:px-16 lg:py-32 wave-bg">
+      {/* Hero — ocean photo background */}
+      <section className="hero-ocean relative px-6 py-24 text-center lg:px-16 lg:py-40">
         <div className="relative z-10 mx-auto max-w-3xl">
-          <h1 className="bg-gradient-to-r from-brand-500 to-cyan-300 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl lg:text-6xl">
+          <h1 className="bg-gradient-to-r from-brand-500 to-cyan-300 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl lg:text-6xl drop-shadow-lg">
             {t("landing.heroTitle")}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary">
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary drop-shadow">
             {t("landing.heroSubtitle")}
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
             <Link href="/register" className="rounded-xl bg-brand-600 px-8 py-3.5 text-lg font-semibold text-white transition hover:bg-brand-700 hover:shadow-lg hover:shadow-brand-500/25">
               {t("landing.ctaStart")}
             </Link>
-            <Link href="/login" className="rounded-xl border border-border px-8 py-3.5 text-lg font-semibold text-text-primary transition hover:bg-surface-hover">
+            <Link href="/login" className="rounded-xl border border-white/30 bg-white/10 backdrop-blur px-8 py-3.5 text-lg font-semibold text-white transition hover:bg-white/20">
               {t("landing.ctaLogin")}
             </Link>
           </div>
