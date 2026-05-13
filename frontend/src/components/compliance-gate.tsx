@@ -75,6 +75,7 @@ export function ComplianceGate({ path, children }: { path: string; children: Rea
   const { locale } = useI18n();
   const isRu = locale === "ru";
   const isAdmin = user?.role === "admin";
+  const [devMode, setDevMode] = useState(false);
   const [state, setState] = useState<ComplianceState>(
     _cache || { loaded: false, pct: 100, requiredCount: 0, completedCount: 0 }
   );
@@ -134,6 +135,35 @@ export function ComplianceGate({ path, children }: { path: string; children: Rea
     );
   }
 
+  // Admin dev mode — show content with warning banner
+  if (isAdmin && devMode) {
+    return (
+      <ComplianceContext.Provider value={state}>
+        <div className="mb-4 rounded-xl border-2 border-yellow-500/50 bg-yellow-500/5 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-yellow-400">
+                {isRu ? "Режим разработки" : "Dev Mode"}
+              </span>
+              <span className="text-xs text-yellow-400/60">
+                {isRu
+                  ? `Юр. соответствие: ${state.pct}% (требуется ${requiredPct}%). Раздел заблокирован для пользователей.`
+                  : `Compliance: ${state.pct}% (required ${requiredPct}%). Section is locked for users.`}
+              </span>
+            </div>
+            <button
+              onClick={() => setDevMode(false)}
+              className="rounded-lg border border-yellow-500/30 px-3 py-1 text-xs text-yellow-400 hover:bg-yellow-500/10"
+            >
+              {isRu ? "Закрыть" : "Close"}
+            </button>
+          </div>
+        </div>
+        {children}
+      </ComplianceContext.Provider>
+    );
+  }
+
   // Feature is BLOCKED
   return (
     <ComplianceContext.Provider value={state}>
@@ -169,6 +199,14 @@ export function ComplianceGate({ path, children }: { path: string; children: Rea
               >
                 {isRu ? "Загрузить документы" : "Upload Documents"}
               </Link>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setDevMode(true)}
+                className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-6 py-3 text-sm font-medium text-yellow-400 hover:bg-yellow-500/20"
+              >
+                {isRu ? "К разработке" : "Dev Preview"}
+              </button>
             )}
             <Link
               href="/dashboard"
