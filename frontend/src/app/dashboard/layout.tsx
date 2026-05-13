@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CapacityWarning } from "@/components/capacity-warning";
+import { Disclaimer } from "@/components/disclaimer";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -28,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <ErrorBoundary>{children}</ErrorBoundary>
+          <Disclaimer />
         </main>
       </div>
     </div>

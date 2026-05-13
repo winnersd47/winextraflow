@@ -186,13 +186,16 @@ export default function LandingPage() {
             <span className="font-bold text-brand-500">WinExtra</span>
             <span className="font-bold text-text-primary">Flow</span>
           </div>
-          <div className="flex gap-6 text-sm text-text-secondary">
+          <div className="flex flex-wrap justify-center gap-4 text-sm text-text-secondary">
             <Link href="/api-docs" className="hover:text-text-primary">{t("landing.footerApi")}</Link>
             <Link href="/terms" className="hover:text-text-primary">{t("landing.footerTerms")}</Link>
+            <Link href="/privacy" className="hover:text-text-primary">{t("landing.footerPrivacy")}</Link>
+            <Link href="/refund" className="hover:text-text-primary">{t("landing.footerRefund")}</Link>
+            <Link href="/cookies" className="hover:text-text-primary">{t("landing.footerCookies")}</Link>
             <Link href="/login" className="hover:text-text-primary">{t("landing.ctaLogin")}</Link>
-            <Link href="/register" className="hover:text-text-primary">{t("landing.ctaStart")}</Link>
           </div>
-          <p className="text-xs text-text-muted">&copy; 2026 WinExtraFlow. {t("landing.footerRights")}</p>
+          <p className="mt-3 text-center text-xs leading-relaxed text-text-muted">{t("landing.disclaimer")}</p>
+          <p className="mt-1 text-xs text-text-muted">&copy; 2026 WinExtraFlow. {t("landing.footerRights")}</p>
         </div>
       </footer>
     </div>

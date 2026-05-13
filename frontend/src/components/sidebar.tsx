@@ -23,6 +23,7 @@ const navItems = [
   { href: "/dashboard/kyc", labelKey: "nav.kyc", Icon: IconShield },
   { href: "/dashboard/premium", labelKey: "nav.premium", Icon: IconPearl },
   { href: "/dashboard/capacity", labelKey: "nav.capacity", Icon: IconRadar },
+  { href: "/dashboard/compliance", labelKey: "nav.compliance", Icon: IconShield },
   { href: "/dashboard/profile", labelKey: "nav.profile", Icon: IconDiver },
 ];
 

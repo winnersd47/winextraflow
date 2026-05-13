@@ -11,5 +11,6 @@ from app.models.achievement import Achievement, UserAchievement
 from app.models.notification import Notification
 from app.models.payment import Payment
 from app.models.kyc import KYCVerification
+from app.models.compliance import ComplianceDocument
 
-__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification"]
+__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification", "ComplianceDocument"]
