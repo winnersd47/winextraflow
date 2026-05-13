@@ -7,6 +7,7 @@ Call seed_test_data(db) on startup when APP_ENV=development.
 import logging
 import random
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -241,6 +242,97 @@ async def seed_test_data(db: AsyncSession):
             subscriber_count=random.randint(5, 150),
         )
         db.add(strategy)
+
+    await db.flush()
+
+    # ─── Seed copy trading data for admin ─────────────────
+    # Find admin user
+    admin = (await db.execute(
+        select(User).where(User.role == UserRole.ADMIN)
+    )).scalar_one_or_none()
+
+    if admin:
+        from app.models.exchange_account import ExchangeAccount, ExchangeName
+        from app.models.subscription import Subscription, SubscriptionStatus
+        from app.models.order import Order, OrderSide, OrderType, OrderStatus
+        from app.models.copy_trade import CopyTrade, CopyTradeStatus
+        from app.services.execution import encrypt_value
+
+        # Create demo exchange account for admin
+        demo_account = ExchangeAccount(
+            user_id=admin.id,
+            exchange=ExchangeName.DEMO,
+            label="[TEST] Demo Trading Account",
+            api_key_encrypted=encrypt_value("demo"),
+            api_secret_encrypted=encrypt_value("demo"),
+            is_active=True,
+            auto_execute=True,
+            min_confidence=0.5,
+            max_position_pct=5.0,
+        )
+        db.add(demo_account)
+        await db.flush()
+
+        # Subscribe admin to first 2 strategies with auto_execute
+        strategies = (await db.execute(
+            select(Strategy).where(Strategy.is_published == True).limit(2)
+        )).scalars().all()
+
+        for strat in strategies:
+            sub = Subscription(
+                user_id=admin.id,
+                strategy_id=strat.id,
+                status=SubscriptionStatus.ACTIVE,
+                auto_execute=True,
+            )
+            db.add(sub)
+        await db.flush()
+
+        # Create test orders (simulating past executions)
+        closed_signals = (await db.execute(
+            select(Signal).where(Signal.status.in_([
+                SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL
+            ])).limit(15)
+        )).scalars().all()
+
+        copy_trades_created = 0
+        for sig in closed_signals:
+            # Create order
+            is_filled = random.random() > 0.15  # 85% fill rate
+            order = Order(
+                user_id=admin.id,
+                signal_id=sig.id,
+                exchange_account_id=demo_account.id,
+                exchange_order_id=f"DEMO-TEST-{uuid.uuid4().hex[:8].upper()}",
+                exchange="demo",
+                symbol=sig.ticker,
+                side=OrderSide.BUY if sig.action == SignalAction.BUY else OrderSide.SELL,
+                order_type=OrderType.MARKET,
+                quantity=round(random.uniform(0.001, 0.1), 6),
+                price=sig.entry_price,
+                filled_price=sig.entry_price if is_filled else None,
+                filled_quantity=round(random.uniform(0.001, 0.1), 6) if is_filled else None,
+                status=OrderStatus.FILLED if is_filled else OrderStatus.FAILED,
+                error_message=None if is_filled else "Insufficient balance",
+            )
+            db.add(order)
+            await db.flush()
+
+            # Create copy trade record
+            strat_for_copy = strategies[copy_trades_created % len(strategies)] if strategies else None
+            if strat_for_copy:
+                ct = CopyTrade(
+                    subscriber_id=admin.id,
+                    strategy_id=strat_for_copy.id,
+                    signal_id=sig.id,
+                    order_id=order.id,
+                    status=CopyTradeStatus.EXECUTED if is_filled else CopyTradeStatus.FAILED,
+                    error_message=None if is_filled else "Insufficient balance",
+                )
+                db.add(ct)
+                copy_trades_created += 1
+
+        logger.info(f"Copy trading seed: {len(closed_signals)} orders, {copy_trades_created} copy trades")
 
     await db.commit()
     logger.info(f"Test data seeded: {len(providers)} providers, {total_signals} signals, {len(strategy_configs)} strategies, {len(test_users)} users")

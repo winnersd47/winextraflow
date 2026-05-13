@@ -54,16 +54,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not seed achievements (DB not ready?): {e}")
 
-    # Startup: seed test data (development only)
-    if settings.app_env == "development":
-        try:
-            from app.services.seed_data import seed_test_data
-            async with get_async_session() as db:
-                await seed_test_data(db)
-        except Exception as e:
-            logger.warning(f"Could not seed test data: {e}")
-
-    # Startup: seed admin user (winnersd47)
+    # Startup: seed admin user (winnersd47) — BEFORE test data so admin exists
     try:
         async with get_async_session() as db:
             from sqlalchemy import select as sel
@@ -92,6 +83,15 @@ async def lifespan(app: FastAPI):
                 logger.info("Admin user winnersd47 updated")
     except Exception as e:
         logger.warning(f"Could not seed admin: {e}")
+
+    # Startup: seed test data (development only) — AFTER admin exists
+    if settings.app_env == "development":
+        try:
+            from app.services.seed_data import seed_test_data
+            async with get_async_session() as db:
+                await seed_test_data(db)
+        except Exception as e:
+            logger.warning(f"Could not seed test data: {e}")
 
     # Startup: register copy trading listener
     if settings.execution_enabled:
