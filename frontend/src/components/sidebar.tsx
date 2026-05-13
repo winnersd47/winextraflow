@@ -24,6 +24,7 @@ const navItems = [
   { href: "/dashboard/referrals", labelKey: "nav.referrals", Icon: IconNet, adminOnly: false },
   { href: "/dashboard/kyc", labelKey: "nav.kyc", Icon: IconShield, adminOnly: false },
   { href: "/dashboard/premium", labelKey: "nav.premium", Icon: IconPearl, adminOnly: false },
+  { href: "/dashboard/revenue", labelKey: "nav.revenue", Icon: IconPearl, adminOnly: true },
   { href: "/dashboard/capacity", labelKey: "nav.capacity", Icon: IconRadar, adminOnly: true },
   { href: "/dashboard/compliance", labelKey: "nav.compliance", Icon: IconShield, adminOnly: true },
   { href: "/dashboard/profile", labelKey: "nav.profile", Icon: IconDiver, adminOnly: false },

@@ -116,3 +116,13 @@ async def capacity_alert(
             "action_required_ru": alert.action_required_ru,
         }
     }
+
+
+@router.get("/revenue")
+async def revenue_report(
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_admin),
+):
+    """Annual revenue report with business stage and tax alerts (admin only)."""
+    from app.services.revenue import revenue_service
+    return await revenue_service.get_full_report(db)
