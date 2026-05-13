@@ -22,6 +22,7 @@ from app.schemas.signal import (
     TradingViewWebhook,
 )
 from app.services.ai_rating import ai_rating_service
+from app.services.signal_aggregator import signal_aggregator
 from app.services.tradingview import tradingview_service
 
 router = APIRouter()
@@ -107,6 +108,12 @@ async def tradingview_webhook(
     if settings.ai_rating_enabled:
         await ai_rating_service.rate_and_update_signal(db, signal)
 
+    # Notify WebSocket listeners (real-time broadcast)
+    try:
+        await signal_aggregator._notify_listeners(signal)
+    except Exception as e:
+        logger.warning(f"WS broadcast failed: {e}")
+
     return signal
 
 
@@ -140,6 +147,12 @@ async def create_signal(
 
     if settings.ai_rating_enabled:
         await ai_rating_service.rate_and_update_signal(db, signal)
+
+    # Notify WebSocket listeners (real-time broadcast)
+    try:
+        await signal_aggregator._notify_listeners(signal)
+    except Exception as e:
+        logger.warning(f"WS broadcast failed: {e}")
 
     return signal
 
