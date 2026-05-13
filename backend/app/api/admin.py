@@ -107,9 +107,12 @@ async def capacity_alert(
         "alert": {
             "level": alert.level,
             "title": alert.title,
+            "title_ru": alert.title_ru,
             "message": alert.message,
+            "message_ru": alert.message_ru,
             "current_tier": alert.current_tier,
             "next_tier": alert.next_tier,
             "action_required": alert.action_required,
+            "action_required_ru": alert.action_required_ru,
         }
     }

@@ -30,6 +30,7 @@ class CapacityThreshold:
     recommended_cpu: int
     recommended_ram_gb: int
     recommended_action: str
+    recommended_action_ru: str
     monthly_cost_usd: int
 
 
@@ -42,6 +43,7 @@ TIERS = [
         recommended_cpu=1,
         recommended_ram_gb=1,
         recommended_action="Current setup is sufficient",
+        recommended_action_ru="Текущая конфигурация достаточна",
         monthly_cost_usd=10,
     ),
     CapacityThreshold(
@@ -51,6 +53,7 @@ TIERS = [
         recommended_cpu=2,
         recommended_ram_gb=4,
         recommended_action="Add second app server + dedicated PostgreSQL",
+        recommended_action_ru="Добавить второй сервер приложений + выделенный PostgreSQL",
         monthly_cost_usd=50,
     ),
     CapacityThreshold(
@@ -60,6 +63,7 @@ TIERS = [
         recommended_cpu=4,
         recommended_ram_gb=8,
         recommended_action="Load balancer + 2 app servers + DB replicas + Redis cluster",
+        recommended_action_ru="Балансировщик нагрузки + 2 сервера + реплики БД + кластер Redis",
         monthly_cost_usd=200,
     ),
     CapacityThreshold(
@@ -69,6 +73,7 @@ TIERS = [
         recommended_cpu=8,
         recommended_ram_gb=32,
         recommended_action="Kubernetes cluster + managed DB + CDN + dedicated workers",
+        recommended_action_ru="Кластер Kubernetes + управляемая БД + CDN + выделенные воркеры",
         monthly_cost_usd=1000,
     ),
     CapacityThreshold(
@@ -78,6 +83,7 @@ TIERS = [
         recommended_cpu=16,
         recommended_ram_gb=64,
         recommended_action="Multi-region deployment + sharding + auto-scaling",
+        recommended_action_ru="Мультирегиональное развёртывание + шардирование + авто-масштабирование",
         monthly_cost_usd=5000,
     ),
 ]
@@ -87,10 +93,13 @@ TIERS = [
 class CapacityAlert:
     level: str  # "info", "warning", "critical"
     title: str
+    title_ru: str
     message: str
+    message_ru: str
     current_tier: str
     next_tier: str | None
     action_required: str
+    action_required_ru: str
     metrics: dict
 
 
@@ -172,35 +181,56 @@ class CapacityMonitor:
         ram_critical = metrics["system"]["ram_percent"] > 85
 
         # Determine alert level
+        cpu_pct = metrics['system']['cpu_percent']
+        ram_pct = metrics['system']['ram_percent']
+
         if usage_pct > 90 or cpu_critical or ram_critical:
             level = "critical"
             title = "SCALING REQUIRED"
+            title_ru = "ТРЕБУЕТСЯ МАСШТАБИРОВАНИЕ"
             message = (
                 f"System at {usage_pct:.0f}% capacity ({total_users:,} users). "
-                f"CPU: {metrics['system']['cpu_percent']}%, RAM: {metrics['system']['ram_percent']}%. "
+                f"CPU: {cpu_pct}%, RAM: {ram_pct}%. "
                 f"Immediate action required to prevent degradation."
+            )
+            message_ru = (
+                f"Система загружена на {usage_pct:.0f}% ({total_users:,} пользователей). "
+                f"CPU: {cpu_pct}%, RAM: {ram_pct}%. "
+                f"Требуется немедленное действие для предотвращения деградации."
             )
         elif usage_pct > 70:
             level = "warning"
             title = "Approaching capacity limit"
+            title_ru = "Приближение к лимиту мощности"
             message = (
                 f"System at {usage_pct:.0f}% capacity ({total_users:,} users). "
                 f"Plan scaling to next tier soon."
             )
+            message_ru = (
+                f"Система загружена на {usage_pct:.0f}% ({total_users:,} пользователей). "
+                f"Планируйте масштабирование до следующего уровня."
+            )
         elif usage_pct > 50:
             level = "info"
             title = "Capacity check"
+            title_ru = "Проверка мощности"
             message = f"System at {usage_pct:.0f}% capacity ({total_users:,} users). Running normally."
+            message_ru = f"Система загружена на {usage_pct:.0f}% ({total_users:,} пользователей). Работает нормально."
         else:
             return None  # No alert needed
+
+        target_tier = next_tier if next_tier and usage_pct > 70 else current_tier
 
         return CapacityAlert(
             level=level,
             title=title,
+            title_ru=title_ru,
             message=message,
+            message_ru=message_ru,
             current_tier=current_tier.name,
             next_tier=next_tier.name if next_tier else None,
-            action_required=next_tier.recommended_action if next_tier and usage_pct > 70 else current_tier.recommended_action,
+            action_required=target_tier.recommended_action,
+            action_required_ru=target_tier.recommended_action_ru,
             metrics=metrics,
         )
 
@@ -234,8 +264,11 @@ class CapacityMonitor:
             "alert": {
                 "level": alert.level,
                 "title": alert.title,
+                "title_ru": alert.title_ru,
                 "message": alert.message,
+                "message_ru": alert.message_ru,
                 "action_required": alert.action_required,
+                "action_required_ru": alert.action_required_ru,
             } if alert else None,
             "tiers": [
                 {
