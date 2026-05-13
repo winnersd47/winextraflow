@@ -11,6 +11,12 @@ class BacktestRequest(BaseModel):
     date_to: datetime | None = None
     initial_capital: float = 10000.0
 
+    def model_post_init(self, __context: object) -> None:
+        if self.initial_capital <= 0:
+            raise ValueError("initial_capital must be positive")
+        if self.initial_capital > 100_000_000:
+            raise ValueError("initial_capital too large")
+
 
 class TradeResultSchema(BaseModel):
     signal_id: str

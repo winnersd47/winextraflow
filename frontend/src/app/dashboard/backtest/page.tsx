@@ -16,28 +16,46 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState("");
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isRu = locale === "ru";
 
   const handleRun = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    const cap = parseFloat(capital);
+    if (!cap || cap <= 0) {
+      setError(isRu ? "Капитал должен быть положительным числом" : "Capital must be a positive number");
+      return;
+    }
     setLoading(true);
     setResult(null);
     try {
-      setResult(await api.runBacktest({ provider_id: providerId || undefined, ticker: ticker || undefined, initial_capital: parseFloat(capital) || 10000 }));
-    } catch (err: any) { setError(err.message || "Backtest failed"); }
-    finally { setLoading(false); }
+      setResult(await api.runBacktest({ provider_id: providerId || undefined, ticker: ticker || undefined, initial_capital: cap }));
+    } catch (err: any) {
+      setError(err.message || "Backtest failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-2 text-2xl font-bold text-white">{t("backtest.title")}</h1>
-      <p className="mb-6 text-sm text-gray-400">{t("backtest.subtitle")}</p>
+      <h1 className="mb-2 text-2xl font-bold text-text-primary">{t("backtest.title")}</h1>
+      <p className="mb-4 text-sm text-text-secondary">{t("backtest.subtitle")}</p>
 
-      <form onSubmit={handleRun} className="mb-6 flex flex-wrap gap-3 rounded-xl border border-gray-800 bg-surface-card p-4">
-        <input type="text" placeholder={t("backtest.providerId")} value={providerId} onChange={(e) => setProviderId(e.target.value)} className="flex-1 rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white outline-none focus:border-brand-500" />
-        <input type="text" placeholder={t("backtest.ticker")} value={ticker} onChange={(e) => setTicker(e.target.value)} className="w-32 rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white outline-none focus:border-brand-500" />
-        <input type="number" placeholder={t("backtest.capital")} value={capital} onChange={(e) => setCapital(e.target.value)} className="w-32 rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white outline-none focus:border-brand-500" />
+      {/* Legal disclaimer */}
+      <div className="mb-6 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3">
+        <p className="text-xs leading-relaxed text-yellow-400/80">
+          {isRu
+            ? "Результаты бэктестинга основаны на исторических данных и НЕ гарантируют будущую доходность. Прошлые результаты торговли не являются индикатором будущих результатов. Бэктестинг не учитывает проскальзывание, комиссии биржи, ликвидность и рыночные условия реального времени. Используйте результаты исключительно в информационных целях."
+            : "Backtesting results are based on historical data and DO NOT guarantee future returns. Past trading performance is not an indicator of future results. Backtesting does not account for slippage, exchange fees, liquidity, and real-time market conditions. Use results for informational purposes only."}
+        </p>
+      </div>
+
+      <form onSubmit={handleRun} className="mb-6 flex flex-wrap gap-3 rounded-xl border border-border bg-surface-card p-4">
+        <input type="text" placeholder={t("backtest.providerId")} value={providerId} onChange={(e) => setProviderId(e.target.value)} className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500" />
+        <input type="text" placeholder={t("backtest.ticker")} value={ticker} onChange={(e) => setTicker(e.target.value)} className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500" />
+        <input type="number" placeholder={t("backtest.capital")} value={capital} onChange={(e) => setCapital(e.target.value)} min="1" max="100000000" className="w-32 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500" />
         <button type="submit" disabled={loading} className="rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white transition hover:bg-brand-700 disabled:opacity-50">{loading ? t("backtest.running") : t("backtest.run")}</button>
       </form>
 
@@ -52,8 +70,17 @@ export default function BacktestPage() {
             <MC label={t("backtest.maxDrawdown")} value={`${result.max_drawdown_pct.toFixed(1)}%`} color="text-red-400" />
           </div>
 
-          <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
-            <h2 className="mb-4 text-lg font-bold text-white">{t("backtest.details")}</h2>
+          {/* Simulated results warning */}
+          <div className="rounded-lg bg-surface px-4 py-2 text-center">
+            <p className="text-xs text-text-muted">
+              {isRu
+                ? "* Результаты симуляции. Реальная торговля может существенно отличаться."
+                : "* Simulated results. Actual trading may differ significantly."}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-border bg-surface-card p-6">
+            <h2 className="mb-4 text-lg font-bold text-text-primary">{t("backtest.details")}</h2>
             <div className="grid grid-cols-2 gap-y-3 text-sm sm:grid-cols-3">
               <D label={t("backtest.closedTrades")} value={String(result.closed_signals)} />
               <D label={t("backtest.activeSignals")} value={String(result.active_signals)} />
@@ -70,32 +97,65 @@ export default function BacktestPage() {
 
           {result.equity_curve.length > 1 && (
             <div className="rounded-xl border border-border bg-surface-card p-6">
-              <h2 className="mb-4 text-lg font-bold text-text-primary">{t("backtest.equityCurve")}</h2>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-text-primary">{t("backtest.equityCurve")}</h2>
+                <span className="text-xs text-text-muted">
+                  {isRu ? "* Гипотетическая кривая, не реальный результат" : "* Hypothetical curve, not actual results"}
+                </span>
+              </div>
               <EquityChart data={result.equity_curve} initialCapital={parseFloat(capital) || 10000} />
             </div>
           )}
 
-          <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
-            <h2 className="mb-4 text-lg font-bold text-white">{t("backtest.trades")} ({result.trades.length})</h2>
+          <div className="rounded-xl border border-border bg-surface-card p-6">
+            <h2 className="mb-4 text-lg font-bold text-text-primary">{t("backtest.trades")} ({result.trades.length})</h2>
             <div className="max-h-96 overflow-y-auto">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-gray-700 text-gray-400">
-                  <tr><th className="pb-2">Ticker</th><th className="pb-2">Action</th><th className="pb-2">{t("signals.entry")}</th><th className="pb-2">Close</th><th className="pb-2">Profit</th><th className="pb-2">{t("signals.status")}</th></tr>
+                <thead className="border-b border-border text-text-muted">
+                  <tr>
+                    <th className="pb-2">{isRu ? "Тикер" : "Ticker"}</th>
+                    <th className="pb-2">{isRu ? "Действие" : "Action"}</th>
+                    <th className="pb-2">{t("signals.entry")}</th>
+                    <th className="pb-2">{isRu ? "Закрытие" : "Close"}</th>
+                    <th className="pb-2">{isRu ? "Прибыль" : "Profit"}</th>
+                    <th className="pb-2">{t("signals.status")}</th>
+                  </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-800">
+                <tbody className="divide-y divide-border">
                   {result.trades.map((tr) => (
-                    <tr key={tr.signal_id} className="text-gray-300">
-                      <td className="py-2 font-medium text-white">{tr.ticker}</td>
+                    <tr key={tr.signal_id} className="text-text-secondary">
+                      <td className="py-2 font-medium text-text-primary">{tr.ticker}</td>
                       <td className={`py-2 uppercase ${tr.action === "buy" ? "text-green-400" : "text-red-400"}`}>{tr.action}</td>
                       <td className="py-2">{tr.entry_price}</td>
                       <td className="py-2">{tr.close_price}</td>
                       <td className={`py-2 font-medium ${tr.profit_pct >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPercent(tr.profit_pct)}</td>
-                      <td className="py-2 text-gray-400">{tr.status}</td>
+                      <td className="py-2 text-text-muted">{tr.status}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Bottom disclaimer */}
+          <div className="rounded-lg border border-border bg-surface-card px-4 py-3 text-xs text-text-muted">
+            {isRu ? (
+              <p>
+                Бэктестинг проводится на исторических данных платформы. Результаты не учитывают: комиссии бирж,
+                проскальзывание (slippage), спреды, ликвидность рынка, задержки исполнения. Реальная торговля
+                сопряжена с существенными рисками, включая полную потерю инвестированных средств.
+                Данные результаты НЕ являются инвестиционной рекомендацией и предоставляются исключительно
+                в информационных целях в соответствии с политикой использования платформы.
+              </p>
+            ) : (
+              <p>
+                Backtesting is conducted on the platform&apos;s historical data. Results do not account for:
+                exchange fees, slippage, spreads, market liquidity, execution delays. Real trading involves
+                significant risks, including total loss of invested funds. These results are NOT investment
+                advice and are provided for informational purposes only in accordance with the platform&apos;s
+                usage policy.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -103,9 +163,9 @@ export default function BacktestPage() {
   );
 }
 
-function MC({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
-  return <div className="rounded-xl border border-gray-800 bg-surface-card p-4"><p className="text-xs text-gray-500">{label}</p><p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p></div>;
+function MC({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
+  return <div className="rounded-xl border border-border bg-surface-card p-4"><p className="text-xs text-text-muted">{label}</p><p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p></div>;
 }
 function D({ label, value }: { label: string; value: string }) {
-  return <div><span className="text-gray-500">{label}: </span><span className="font-medium text-white">{value}</span></div>;
+  return <div><span className="text-text-muted">{label}: </span><span className="font-medium text-text-primary">{value}</span></div>;
 }
