@@ -111,8 +111,36 @@ class EvolutionaryRegistry:
             ("consensus_dynamics", "Consensus Dynamics", "Влияние соседей + подавление при высокой волатильности", [5, 7], 0.35, "emerging"),
             ("adaptive_allocation", "Adaptive Capital Allocation", "Адаптивное распределение капитала", [7], 0.25, "planned"),
             ("population_logic", "Strategy Population Competition", "Конкуренция популяции стратегий (cells compete)", [7], 0.35, "emerging"),
-            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.1, "planned"),
-            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.05, "planned"),
+            # From #22474: ML Pipeline
+            ("onnx_inference", "ONNX Model Inference", "LSTM→ONNX инференс в терминале без Python", [7], 0.45, "emerging"),
+            ("feature_pipeline", "Feature Preprocessing Pipeline", "PCA + StandardScaler + matrix ops в MQL5", [7, 5], 0.5, "emerging"),
+            # From #22562: GDformer
+            ("learnable_memory", "Learnable Market Memory", "Обучаемый словарь Key-Value для сопоставления режимов", [7], 0.5, "emerging"),
+            ("pattern_abstention", "Pattern Abstention Logic", "Отказ от сделки при отсутствии надёжного паттерна", [7, 5], 0.45, "emerging"),
+            # From #19697 + #19589: Statistical levels
+            ("statistical_levels", "Statistical S/R Levels", "Уровни из mean/median/mode/percentiles + Z-score", [2, 3], 0.55, "emerging"),
+            ("kde_mode_estimation", "KDE Modal Estimation", "Ядерная оценка плотности для нахождения моды цены", [2, 3, 6], 0.4, "emerging"),
+            # From #19931 + #18361: Copulas
+            ("copula_dependency", "Copula Dependency Modeling", "Архимедовы + эллиптические копулы для зависимостей", [6], 0.55, "emerging"),
+            ("tail_dependency_model", "Tail Dependency Coefficients", "Оценка совместных экстремальных событий", [6, 7], 0.5, "emerging"),
+            # From #20020: Bitwise patterns
+            ("bitwise_pattern_encoding", "Bitwise Pattern Encoding", "Побитовая кодировка комбинаций индикаторов", [5], 0.4, "emerging"),
+            # From #19850: ML label fix
+            ("label_uniqueness_weighting", "Label Uniqueness Weighting", "Взвешивание по уникальности для устранения IID-нарушения", [7], 0.6, "emerging"),
+            ("purged_kfold", "Purged K-Fold CV", "Кросс-валидация с очисткой от утечек данных", [7], 0.55, "emerging"),
+            # From #19460: Market DNA
+            ("market_dna_profiling", "Market DNA Profiler", "17-метрический генетический отпечаток тикера", [2, 3, 7], 0.5, "emerging"),
+            ("cosine_regime_shift", "Cosine Distance Regime Shift", "Детекция смены режима через косинусное расстояние", [1, 2, 3, 4], 0.45, "emerging"),
+            # From #21507: Cointegration
+            ("cointegration_engine", "Cointegration Testing Engine", "Engle-Granger + Johansen для парного трейдинга", [6], 0.55, "emerging"),
+            ("structural_break_detection", "Structural Break Detection", "CUSUM + Chow тесты для обнаружения разломов", [6, 7], 0.45, "emerging"),
+            # From #19365: BOS/ChOCh
+            ("structure_break_detector", "BOS/ChOCh Structure Detector", "Break of Structure + Change of Character на фракталах", [4, 1], 0.5, "emerging"),
+            # From #19077: Trendlines
+            ("least_squares_trendline", "Algorithmic Trendline Engine", "Линии тренда через метод наименьших квадратов", [1, 3], 0.45, "emerging"),
+            # Foundation layers (future)
+            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.15, "planned"),
+            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.1, "planned"),
         ]
         for name, desc_en, desc_ru, sids, strength, status in components:
             self.components[name] = ArchitecturalComponent(
