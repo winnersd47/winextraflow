@@ -23,6 +23,7 @@ const navItems = [
   { href: "/dashboard/execution", labelKey: "nav.execution", Icon: IconBolt, adminOnly: false },
   { href: "/dashboard/referrals", labelKey: "nav.referrals", Icon: IconNet, adminOnly: false },
   { href: "/dashboard/kyc", labelKey: "nav.kyc", Icon: IconShield, adminOnly: false },
+  { href: "/dashboard/store", labelKey: "nav.store", Icon: IconShip, adminOnly: false },
   { href: "/dashboard/premium", labelKey: "nav.premium", Icon: IconPearl, adminOnly: false },
   { href: "/dashboard/revenue", labelKey: "nav.revenue", Icon: IconPearl, adminOnly: true },
   { href: "/dashboard/capacity", labelKey: "nav.capacity", Icon: IconRadar, adminOnly: true },

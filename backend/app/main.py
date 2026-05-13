@@ -25,6 +25,7 @@ from app.api.admin import router as admin_router
 from app.api.payments import router as payments_router
 from app.api.kyc import router as kyc_router
 from app.api.compliance import router as compliance_router
+from app.api.products import router as products_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -182,6 +183,7 @@ app.include_router(admin_router, prefix="/api/v1/admin", tags=["admin"])
 app.include_router(payments_router, prefix="/api/v1/payments", tags=["payments"])
 app.include_router(kyc_router, prefix="/api/v1/kyc", tags=["kyc"])
 app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["compliance"])
+app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 
 
 @app.get("/health")
