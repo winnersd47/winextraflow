@@ -64,9 +64,23 @@ export default function ExecutionPage() {
             <div>
               <label className="mb-1 block text-xs text-gray-400">{t("execution.exchange")}</label>
               <select value={formExchange} onChange={(e) => setFormExchange(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white">
-                <option value="demo">Demo (Paper Trading)</option>
-                <option value="binance">Binance</option>
-                <option value="bybit">Bybit</option>
+                <optgroup label={t("execution.groupPaper")}>
+                  <option value="demo">Demo (Paper Trading)</option>
+                </optgroup>
+                <optgroup label={t("execution.groupCrypto")}>
+                  <option value="binance">Binance</option>
+                  <option value="bybit">Bybit</option>
+                  <option value="okx">OKX</option>
+                  <option value="kraken">Kraken</option>
+                </optgroup>
+                <optgroup label={t("execution.groupForex")}>
+                  <option value="metatrader5">MetaTrader 5</option>
+                  <option value="interactive_brokers">Interactive Brokers</option>
+                </optgroup>
+                <optgroup label={t("execution.groupStocks")}>
+                  <option value="tinkoff">Tinkoff Invest</option>
+                  <option value="exante">Exante</option>
+                </optgroup>
               </select>
             </div>
             <div>
@@ -97,7 +111,12 @@ export default function ExecutionPage() {
             {accounts.map((acc) => (
               <div key={acc.id} className="flex items-center justify-between rounded-xl border border-gray-800 bg-surface-card p-4">
                 <div className="flex items-center gap-3">
-                  <span className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${acc.exchange === "demo" ? "bg-purple-500/20 text-purple-400" : "bg-yellow-500/20 text-yellow-400"}`}>{acc.exchange}</span>
+                  <span className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${
+                    acc.exchange === "demo" ? "bg-purple-500/20 text-purple-400" :
+                    ["binance","bybit","okx","kraken"].includes(acc.exchange) ? "bg-yellow-500/20 text-yellow-400" :
+                    ["metatrader5","interactive_brokers"].includes(acc.exchange) ? "bg-blue-500/20 text-blue-400" :
+                    "bg-green-500/20 text-green-400"
+                  }`}>{acc.exchange === "interactive_brokers" ? "IBKR" : acc.exchange === "metatrader5" ? "MT5" : acc.exchange}</span>
                   <span className="font-medium text-white">{acc.label}</span>
                 </div>
                 <div className="flex items-center gap-4 text-sm">

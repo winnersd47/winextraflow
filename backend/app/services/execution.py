@@ -17,8 +17,15 @@ from app.models.exchange_account import ExchangeAccount, ExchangeName
 from app.models.order import Order, OrderSide, OrderStatus, OrderType
 from app.models.signal import Signal, SignalAction
 from app.services.exchanges.base import BaseExchangeAdapter, OrderResult
-from app.services.exchanges.binance import BinanceAdapter
 from app.services.exchanges.demo import DemoAdapter
+from app.services.exchanges.binance import BinanceAdapter
+from app.services.exchanges.bybit import BybitAdapter
+from app.services.exchanges.okx import OKXAdapter
+from app.services.exchanges.kraken import KrakenAdapter
+from app.services.exchanges.metatrader5 import MetaTrader5Adapter
+from app.services.exchanges.interactive_brokers import InteractiveBrokersAdapter
+from app.services.exchanges.tinkoff import TinkoffAdapter
+from app.services.exchanges.exante import ExanteAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +57,17 @@ def _get_adapter(account: ExchangeAccount) -> BaseExchangeAdapter:
 
     adapters = {
         ExchangeName.DEMO: DemoAdapter,
+        # Crypto
         ExchangeName.BINANCE: BinanceAdapter,
+        ExchangeName.BYBIT: BybitAdapter,
+        ExchangeName.OKX: OKXAdapter,
+        ExchangeName.KRAKEN: KrakenAdapter,
+        # Forex / CFD
+        ExchangeName.METATRADER5: MetaTrader5Adapter,
+        ExchangeName.INTERACTIVE_BROKERS: InteractiveBrokersAdapter,
+        # Stocks & Multi-asset
+        ExchangeName.TINKOFF: TinkoffAdapter,
+        ExchangeName.EXANTE: ExanteAdapter,
     }
     adapter_cls = adapters.get(account.exchange, DemoAdapter)
     return adapter_cls(api_key, api_secret)

@@ -187,6 +187,10 @@ const translations: Record<Locale, Record<string, string>> = {
     "execution.qty": "Кол-во",
     "execution.price": "Цена",
     "execution.time": "Время",
+    "execution.groupPaper": "Бумажная торговля",
+    "execution.groupCrypto": "Криптовалюта",
+    "execution.groupForex": "Форекс / CFD",
+    "execution.groupStocks": "Акции и мультиактивы",
 
     // Referrals
     "referrals.title": "Реферальная программа",
@@ -554,6 +558,10 @@ const translations: Record<Locale, Record<string, string>> = {
     "execution.qty": "Qty",
     "execution.price": "Price",
     "execution.time": "Time",
+    "execution.groupPaper": "Paper Trading",
+    "execution.groupCrypto": "Cryptocurrency",
+    "execution.groupForex": "Forex / CFD",
+    "execution.groupStocks": "Stocks & Multi-asset",
 
     "referrals.title": "Referral Program",
     "referrals.subtitle": "Invite friends and earn Premium days",

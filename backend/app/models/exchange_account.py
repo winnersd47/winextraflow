@@ -10,9 +10,22 @@ from app.database import Base
 
 
 class ExchangeName(str, enum.Enum):
+    # ─── Paper Trading ───────────────────────────────────
+    DEMO = "demo"
+
+    # ─── Crypto ──────────────────────────────────────────
     BINANCE = "binance"
     BYBIT = "bybit"
-    DEMO = "demo"
+    OKX = "okx"
+    KRAKEN = "kraken"
+
+    # ─── Forex / CFD ─────────────────────────────────────
+    METATRADER5 = "metatrader5"          # MetaTrader 5 (Forex, CFD, Futures)
+    INTERACTIVE_BROKERS = "interactive_brokers"  # Stocks, Options, Futures, Forex
+
+    # ─── Stocks & Multi-asset ────────────────────────────
+    TINKOFF = "tinkoff"                  # Tinkoff Invest (RU stocks, bonds, ETF)
+    EXANTE = "exante"                    # EU/US stocks, options, futures
 
 
 class ExchangeAccount(Base):
