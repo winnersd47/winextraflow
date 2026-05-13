@@ -285,6 +285,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Premium
     "nav.premium": "Премиум",
     "nav.capacity": "Мощность",
+    "nav.intelligence": "Аналитика",
     "nav.store": "Магазин",
     "nav.revenue": "Доходы",
     "nav.compliance": "Юр. соответствие",
@@ -671,6 +672,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     "nav.premium": "Premium",
     "nav.capacity": "Capacity",
+    "nav.intelligence": "Intelligence",
     "nav.store": "Store",
     "nav.revenue": "Revenue",
     "nav.compliance": "Compliance",

@@ -33,6 +33,7 @@ const FEATURE_TIERS: Record<string, number> = {
   "/dashboard/create-signal": 0,
   "/dashboard/kyc": 0,
   "/dashboard/telegram": 0,
+  "/dashboard/intelligence": 0,
   "/dashboard/store": 30,
   "/dashboard/premium": 30,
   "/dashboard/referrals": 30,
