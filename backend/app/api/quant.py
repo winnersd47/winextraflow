@@ -193,3 +193,13 @@ async def evolution_state(user: User = Depends(get_current_user)):
     """Full evolutionary state of the architecture — branches, components, roadmap."""
     from app.services.quant.evolution import evolutionary_registry
     return evolutionary_registry.get_state()
+
+
+@router.get("/articles")
+async def processed_articles(user: User = Depends(get_current_user)):
+    """List all MQL5 articles processed by the evolutionary protocol."""
+    from app.services.quant.article_log import article_log
+    return {
+        "articles": article_log.get_all(),
+        "stats": article_log.get_stats(),
+    }
