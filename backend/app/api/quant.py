@@ -186,3 +186,10 @@ async def intelligence_dashboard(
             4: "Evolutionary Ecosystem + Digital Twin (PLANNED)",
         },
     }
+
+
+@router.get("/evolution")
+async def evolution_state(user: User = Depends(get_current_user)):
+    """Full evolutionary state of the architecture — branches, components, roadmap."""
+    from app.services.quant.evolution import evolutionary_registry
+    return evolutionary_registry.get_state()

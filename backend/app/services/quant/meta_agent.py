@@ -243,6 +243,26 @@ class MetaAgent:
             f"MetaAgent: {signal.ticker} → {rec} (score={meta_score:.2f}, "
             f"strategy={classification.strategy_id}, regime={market_state.regime.value})"
         )
+
+        # Record evolutionary event
+        try:
+            from app.services.quant.evolution import evolutionary_registry
+            detected = ["regime_detection", "signal_confidence", "strategy_classification"]
+            if signal.take_profit and signal.stop_loss:
+                detected.append("risk_reward_analysis")
+            if provider and provider.ai_score:
+                detected.append("provider_scoring")
+            if market_state.regime != MarketRegime.UNKNOWN:
+                detected.append("dynamic_weighting")
+            evolutionary_registry.record_signal_evolution(
+                strategy_id=classification.strategy_id,
+                meta_score=meta_score,
+                regime=market_state.regime.value,
+                components_detected=detected,
+            )
+        except Exception as e:
+            logger.warning(f"Evolution recording failed: {e}")
+
         return decision
 
 
