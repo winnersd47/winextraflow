@@ -104,6 +104,8 @@ const translations: Record<Locale, Record<string, string>> = {
     "providers.sharpe": "Шарп",
     "providers.drawdown": "Просадка",
     "providers.aiScore": "AI рейтинг",
+    "providers.avgProfit": "Ср. прибыль",
+    "providers.profitFactor": "Профит-фактор",
     "providers.signals": "сигналов",
 
     // Backtest
@@ -494,6 +496,8 @@ const translations: Record<Locale, Record<string, string>> = {
     "providers.sharpe": "Sharpe",
     "providers.drawdown": "Drawdown",
     "providers.aiScore": "AI Score",
+    "providers.avgProfit": "Avg Profit",
+    "providers.profitFactor": "Profit Factor",
     "providers.signals": "signals",
 
     "backtest.title": "Backtesting",
