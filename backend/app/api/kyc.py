@@ -75,10 +75,13 @@ async def upload_kyc_photo(
     if existing and existing.status == KYCStatus.PENDING:
         raise HTTPException(400, "Verification already pending. Please wait for admin review.")
 
-    # Save file
-    ext = photo.filename.split(".")[-1] if photo.filename else "jpg"
+    # Save file — whitelist extensions to prevent malicious uploads
+    ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png"}
+    ext = (photo.filename.rsplit(".", 1)[-1].lower() if photo.filename and "." in photo.filename else "jpg")
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(400, f"File extension '.{ext}' not allowed. Use JPG or PNG.")
     filename = f"{user.id}_{uuid.uuid4().hex[:8]}.{ext}"
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    filepath = os.path.join(os.path.abspath(UPLOAD_DIR), filename)
     with open(filepath, "wb") as f:
         f.write(contents)
 

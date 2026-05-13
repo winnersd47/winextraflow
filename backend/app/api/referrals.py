@@ -86,7 +86,6 @@ async def referral_tree(
                 user=ReferralUserInfo(
                     id=referred_user.id,
                     username=referred_user.username,
-                    email=referred_user.email,
                     created_at=referred_user.created_at,
                 ),
                 level=ref.level,

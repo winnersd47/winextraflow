@@ -9,7 +9,11 @@ from typing import AsyncGenerator
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite://"
 os.environ["APP_DEBUG"] = "false"
 os.environ["APP_ENV"] = "test"
-os.environ["SECRET_KEY"] = "test-secret"
+os.environ["SECRET_KEY"] = "test-secret-key-only-for-tests-not-production-use"
+os.environ["ENCRYPTION_KEY"] = "test-encryption-key-only-for-tests-not-prod"
+os.environ["ADMIN_USERNAME"] = "testadmin"
+os.environ["ADMIN_PASSWORD"] = "TestAdminPass123"
+os.environ["ADMIN_EMAIL"] = "testadmin@test.com"
 
 import pytest
 from httpx import ASGITransport, AsyncClient

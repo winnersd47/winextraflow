@@ -1,8 +1,11 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import get_current_user
 from app.config import settings
@@ -97,7 +100,8 @@ async def tradingview_webhook(
             raw_message=data.model_dump_json(),
         )
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        logger.warning(f"Webhook validation error: {e}")
+        raise HTTPException(status_code=422, detail="Invalid webhook data")
 
     # Auto-rate the signal
     if settings.ai_rating_enabled:
@@ -158,7 +162,8 @@ async def close_signal(
             db, signal, data.close_price, data.status
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"Signal close error: {e}")
+        raise HTTPException(status_code=400, detail="Invalid close parameters")
     return signal
 
 

@@ -98,8 +98,8 @@ class StripeService:
                 payload, signature, settings.stripe_webhook_secret
             )
         except (ValueError, stripe.error.SignatureVerificationError) as e:
-            logger.error(f"Stripe webhook error: {e}")
-            return {"error": str(e)}
+            logger.error(f"Stripe webhook verification failed: {e}")
+            return {"error": "Webhook signature verification failed"}
 
         if event["type"] == "checkout.session.completed":
             session = event["data"]["object"]

@@ -12,11 +12,20 @@ from app.services.notifications import notification_service
 
 router = APIRouter()
 
-PROMO_CODES = {
-    "WELCOME7": 7,
-    "PREMIUM30": 30,
-    "TRIAL3": 3,
-}
+import os
+
+# Load promo codes from env: PROMO_CODES="WELCOME7:7,PREMIUM30:30,TRIAL3:3"
+def _load_promo_codes() -> dict[str, int]:
+    raw = os.getenv("PROMO_CODES", "WELCOME7:7,TRIAL3:3")
+    codes = {}
+    for item in raw.split(","):
+        if ":" in item:
+            code, days = item.strip().split(":", 1)
+            codes[code.upper()] = int(days)
+    return codes
+
+PROMO_CODES = _load_promo_codes()
+MAX_ADMIN_GRANT_DAYS = 365  # Safety cap
 
 
 @router.get("/status", response_model=PremiumStatus)
@@ -43,7 +52,7 @@ async def activate_premium(
             raise HTTPException(400, "Invalid promo code")
 
     if data.days and user.role == UserRole.ADMIN:
-        days = data.days
+        days = min(data.days, MAX_ADMIN_GRANT_DAYS)
 
     if days <= 0:
         raise HTTPException(400, "No days to activate")

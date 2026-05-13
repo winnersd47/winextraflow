@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { WSMessage, WSNewSignal } from "@/types";
 
-const WS_URL = "ws://localhost:8000/api/v1/ws/signals";
+function getWsUrl(): string {
+  if (typeof window === "undefined") return "ws://localhost:8000/api/v1/ws/signals";
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}/api/v1/ws/signals`;
+}
+const WS_URL = getWsUrl();
 
 export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
   const wsRef = useRef<WebSocket | null>(null);

@@ -71,12 +71,12 @@ class BinanceAdapter(BaseExchangeAdapter):
                 status="filled" if data["status"] == "FILLED" else "pending",
             )
         except Exception as e:
-            logger.error(f"Binance order error: {e}")
+            logger.error(f"Binance market order error: {e}")
             return OrderResult(
                 exchange_order_id="", symbol=symbol, side=side,
                 order_type="market", quantity=quantity, price=None,
                 filled_price=None, filled_quantity=None,
-                status="failed", error=str(e),
+                status="failed", error="Exchange connection error",
             )
 
     async def place_limit_order(
@@ -109,11 +109,12 @@ class BinanceAdapter(BaseExchangeAdapter):
                 status="filled" if data["status"] == "FILLED" else "pending",
             )
         except Exception as e:
+            logger.error(f"Binance limit order error: {e}")
             return OrderResult(
                 exchange_order_id="", symbol=symbol, side=side,
                 order_type="limit", quantity=quantity, price=price,
                 filled_price=None, filled_quantity=None,
-                status="failed", error=str(e),
+                status="failed", error="Exchange connection error",
             )
 
     async def get_balance(self, asset: str = "USDT") -> float:

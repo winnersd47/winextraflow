@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 def _get_fernet() -> Fernet:
-    """Derive a Fernet key from the app secret key."""
-    key = settings.secret_key.encode()
-    # Pad/hash to 32 bytes for Fernet
+    """Derive a Fernet key from the dedicated encryption key."""
     import hashlib
+    key = settings.encryption_key.encode()
     derived = hashlib.sha256(key).digest()
     return Fernet(base64.urlsafe_b64encode(derived))
 
@@ -106,9 +105,10 @@ class ExecutionService:
                 else:
                     quantity = 0.0
             except Exception as e:
+                logger.error(f"Quantity calculation error for signal {signal.id}: {e}")
                 return await self._create_failed_order(
                     db, user_id=user_id, signal=signal, account=account,
-                    error=f"Failed to calculate quantity: {e}",
+                    error="Failed to calculate order quantity",
                 )
 
         if quantity <= 0:
@@ -129,9 +129,10 @@ class ExecutionService:
                     signal.ticker, side.value, quantity, signal.entry_price
                 )
         except Exception as e:
+            logger.error(f"Exchange error for signal {signal.id}: {e}")
             return await self._create_failed_order(
                 db, user_id=user_id, signal=signal, account=account,
-                error=f"Exchange error: {e}",
+                error="Exchange order execution failed",
             )
 
         # Create Order record

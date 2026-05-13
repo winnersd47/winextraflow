@@ -80,8 +80,11 @@ async def update_account(
     if not account:
         raise HTTPException(404, "Account not found")
 
+    # Whitelist safe fields to prevent mass assignment
+    SAFE_FIELDS = {"auto_execute", "min_confidence", "max_position_pct", "is_active"}
     for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(account, field, value)
+        if field in SAFE_FIELDS:
+            setattr(account, field, value)
     await db.commit()
     await db.refresh(account)
     return account

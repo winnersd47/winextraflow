@@ -54,35 +54,35 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not seed achievements (DB not ready?): {e}")
 
-    # Startup: seed admin user (winnersd47) — BEFORE test data so admin exists
-    try:
-        async with get_async_session() as db:
-            from sqlalchemy import select as sel
-            from app.models.user import User, UserRole
-            from app.api.deps import hash_password
-            import secrets
-            existing = (await db.execute(sel(User).where(User.username == "winnersd47"))).scalar_one_or_none()
-            if not existing:
-                admin = User(
-                    email="winnersd47@gmail.com",
-                    username="winnersd47",
-                    hashed_password=hash_password("Yjhnljcn/95"),
-                    role=UserRole.ADMIN,
-                    referral_code=secrets.token_urlsafe(8),
-                )
-                db.add(admin)
-                await db.commit()
-                logger.info("Admin user winnersd47 created")
-            else:
-                # Update email, password and role if needed
-                existing.email = "winnersd47@gmail.com"
-                existing.hashed_password = hash_password("Yjhnljcn/95")
-                if existing.role != UserRole.ADMIN:
-                    existing.role = UserRole.ADMIN
-                await db.commit()
-                logger.info("Admin user winnersd47 updated")
-    except Exception as e:
-        logger.warning(f"Could not seed admin: {e}")
+    # Startup: seed admin user from env vars — BEFORE test data so admin exists
+    if settings.admin_username and settings.admin_password:
+        try:
+            async with get_async_session() as db:
+                from sqlalchemy import select as sel
+                from app.models.user import User, UserRole
+                from app.api.deps import hash_password
+                import secrets
+                existing = (await db.execute(sel(User).where(User.username == settings.admin_username))).scalar_one_or_none()
+                if not existing:
+                    admin = User(
+                        email=settings.admin_email or f"{settings.admin_username}@admin.local",
+                        username=settings.admin_username,
+                        hashed_password=hash_password(settings.admin_password),
+                        role=UserRole.ADMIN,
+                        referral_code=secrets.token_urlsafe(8),
+                    )
+                    db.add(admin)
+                    await db.commit()
+                    logger.info(f"Admin user {settings.admin_username} created")
+                else:
+                    if existing.role != UserRole.ADMIN:
+                        existing.role = UserRole.ADMIN
+                        await db.commit()
+                    logger.info(f"Admin user {settings.admin_username} verified")
+        except Exception as e:
+            logger.warning(f"Could not seed admin: {e}")
+    else:
+        logger.info("No ADMIN_USERNAME/ADMIN_PASSWORD env vars — skipping admin seed")
 
     # Startup: seed test data (development only) — AFTER admin exists
     if settings.app_env == "development":
@@ -146,11 +146,24 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Requested-With"],
 )
+
+# ─── Security headers middleware ──────────────────────────
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    if settings.app_env != "development":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(signals_router, prefix="/api/v1/signals", tags=["signals"])

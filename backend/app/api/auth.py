@@ -146,6 +146,8 @@ async def update_profile(
             raise HTTPException(400, "Email already taken")
         user.email = email
     if new_password:
+        if len(new_password) < 8:
+            raise HTTPException(400, "Password must be at least 8 characters")
         if not current_password or not verify_password(current_password, user.hashed_password):
             raise HTTPException(400, "Current password is incorrect")
         user.hashed_password = hash_password(new_password)
@@ -216,8 +218,7 @@ async def get_telegram_link(user: User = Depends(get_current_user)):
     from app.services.telegram_bot import telegram_bot
     if not telegram_bot.enabled:
         return {"enabled": False, "link": None, "linked": False}
-    bot_link = f"https://t.me/{settings.telegram_bot_token.split(':')[0]}?start=link_{user.username}" if telegram_bot.enabled else None
-    # Get bot username properly
+    # Use bot username, never expose token
     return {
         "enabled": True,
         "link": f"https://t.me/WinExtraFlowBot?start=link_{user.username}",
@@ -290,6 +291,8 @@ async def reset_password(request: Request, data: ResetPasswordRequest, db: Async
     if not user:
         raise HTTPException(404, "User not found")
 
+    if len(data.new_password) < 8:
+        raise HTTPException(400, "Password must be at least 8 characters")
     user.hashed_password = hash_password(data.new_password)
     await db.commit()
     return {"message": "Password reset successfully"}

@@ -54,8 +54,13 @@ async def create_checkout(
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """Stripe webhook handler — processes payment events."""
+    from app.config import settings as cfg
+    if not cfg.stripe_webhook_secret:
+        raise HTTPException(503, "Webhook not configured")
     payload = await request.body()
     signature = request.headers.get("stripe-signature", "")
+    if not signature:
+        raise HTTPException(400, "Missing stripe-signature header")
     result = await stripe_service.handle_webhook(db, payload, signature)
     if "error" in result:
         raise HTTPException(400, result["error"])
