@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 import { Header } from "@/components/header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CapacityWarning } from "@/components/capacity-warning";
 import { Disclaimer } from "@/components/disclaimer";
+import { ComplianceGate } from "@/components/compliance-gate";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -28,7 +30,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-          <ErrorBoundary>{children}</ErrorBoundary>
+          <ErrorBoundary>
+            <ComplianceGate path={pathname}>
+              {children}
+            </ComplianceGate>
+          </ErrorBoundary>
           <Disclaimer />
         </main>
       </div>
