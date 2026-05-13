@@ -83,7 +83,7 @@ async def test_bulk_signal_query_performance(db: AsyncSession):
 
 
 @pytest.mark.asyncio
-async def test_bulk_user_registration(client: AsyncClient):
+async def test_bulk_user_registration(client: AsyncClient, seed_referrer: str):
     """Test: register 100 users concurrently."""
     start = time.perf_counter()
     tasks = []
@@ -92,6 +92,7 @@ async def test_bulk_user_registration(client: AsyncClient):
             "email": f"load_{i}_{uuid.uuid4().hex[:4]}@test.com",
             "username": f"loaduser_{i}_{uuid.uuid4().hex[:4]}",
             "password": "TestPass123",
+            "referral_code": seed_referrer,
         }))
     results = await asyncio.gather(*tasks)
     elapsed = time.perf_counter() - start
@@ -258,8 +259,17 @@ async def test_concurrent_signal_list(client: AsyncClient, auth_headers: dict, d
 
 
 @pytest.mark.asyncio
-async def test_concurrent_webhook_ingestion(client: AsyncClient):
+async def test_concurrent_webhook_ingestion(client: AsyncClient, db: AsyncSession):
     """Test: 100 concurrent TradingView webhook submissions."""
+    # Pre-create TradingView provider to avoid race condition
+    from app.models.provider import Provider, ProviderSource
+    existing = (await db.execute(
+        __import__("sqlalchemy").select(Provider).where(Provider.name == "TradingView Default")
+    )).scalar_one_or_none()
+    if not existing:
+        db.add(Provider(name="TradingView Default", source=ProviderSource.TRADINGVIEW))
+        await db.commit()
+
     start = time.perf_counter()
     tasks = []
     for i in range(100):
