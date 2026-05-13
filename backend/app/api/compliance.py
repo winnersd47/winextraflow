@@ -202,12 +202,38 @@ async def _ensure_checklist_seeded(db: AsyncSession):
     await db.commit()
 
 
+@router.get("/level")
+async def compliance_level(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Public endpoint — returns compliance % for feature gating.
+
+    Available to ALL authenticated users (not just admin).
+    Returns only the percentage, not the full checklist details.
+    """
+    await _ensure_checklist_seeded(db)
+
+    result = await db.execute(
+        select(ComplianceDocument).where(ComplianceDocument.is_required == True)
+    )
+    docs = result.scalars().all()
+    total = len(docs)
+    completed = sum(
+        1 for d in docs
+        if d.status in (ComplianceStatus.VERIFIED, ComplianceStatus.UPLOADED, ComplianceStatus.NOT_REQUIRED)
+    )
+    pct = round(completed / total * 100) if total > 0 else 0
+
+    return {"compliance_pct": pct, "total_required": total, "total_completed": completed}
+
+
 @router.get("/status")
 async def compliance_status(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_admin),
 ):
-    """Full compliance checklist with statuses and warnings."""
+    """Full compliance checklist with statuses and warnings (admin only)."""
     await _ensure_checklist_seeded(db)
 
     result = await db.execute(
