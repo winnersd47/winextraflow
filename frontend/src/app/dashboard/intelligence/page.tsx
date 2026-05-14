@@ -119,7 +119,7 @@ export default function IntelligencePage() {
                   <p>Для каждого последнего сигнала система показывает:</p>
                   <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
                     <li><strong>Тип стратегии</strong> — как классифицирован сигнал (Trend Following, Breakout, ML/AI и др.)</li>
-                    <li><strong>Meta Score</strong> — интегральная оценка (0-100%). Учитывает AI-уверенность, историю провайдера, R:R, совместимость с режимом.</li>
+                    <li><strong>Качество сигнала</strong> — интегральная оценка (0-100%). Учитывает AI-уверенность, историю провайдера, соотношение риск/прибыль, совместимость с режимом рынка.</li>
                     <li><strong>Рекомендация</strong> — от "Уверенная покупка" до "Категорически избегать".</li>
                     <li><strong>Совместимость с режимом</strong> — красная метка если стратегия не подходит текущему состоянию рынка.</li>
                   </ul>
@@ -128,7 +128,7 @@ export default function IntelligencePage() {
                   <h3 className="font-bold text-text-primary">4. Практические действия</h3>
                   <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
                     <li>Если режим = "Высокая волатильность" → уменьшите размер позиций на 50%</li>
-                    <li>Если Meta Score сигнала ниже 40% → лучше пропустить сделку</li>
+                    <li>Если Качество сигнала ниже 40% → лучше пропустить сделку</li>
                     <li>Если "Режим не подходит" → стратегия сигнала не совместима с текущим рынком, риск выше</li>
                     <li>Используйте Бэктест для проверки провайдера перед подпиской на его стратегию</li>
                   </ul>
@@ -153,13 +153,13 @@ export default function IntelligencePage() {
                 </div>
                 <div>
                   <h3 className="font-bold text-text-primary">3. AI Signal Evaluation (Premium)</h3>
-                  <p>For each recent signal the system shows: Strategy type, Meta Score (0-100%), Recommendation, and Regime compatibility.</p>
+                  <p>For each recent signal the system shows: Strategy type, Signal Quality (0-100%), Recommendation, and Regime compatibility.</p>
                 </div>
                 <div>
                   <h3 className="font-bold text-text-primary">4. Practical actions</h3>
                   <ul className="mt-2 ml-4 list-disc space-y-1 text-text-muted">
                     <li>High volatility regime → reduce position sizes by 50%</li>
-                    <li>Meta Score below 40% → consider skipping the trade</li>
+                    <li>Signal Quality below 40% → consider skipping the trade</li>
                     <li>"Regime mismatch" → strategy doesn't fit current market, higher risk</li>
                     <li>Use Backtest to verify a provider before subscribing to their strategy</li>
                   </ul>
@@ -239,7 +239,7 @@ export default function IntelligencePage() {
 
         {!isPremium ? (
           <div className="rounded-xl border border-border bg-surface-card p-8 text-center">
-            <p className="text-text-secondary">{isRu ? "AI-оценка сигналов с классификацией стратегий и Meta Score доступна в Premium." : "AI signal evaluation with strategy classification and Meta Score is available in Premium."}</p>
+            <p className="text-text-secondary">{isRu ? "AI-оценка сигналов с классификацией стратегий и оценкой качества доступна в Premium." : "AI signal evaluation with strategy classification and Signal Quality is available in Premium."}</p>
             <a href="/dashboard/premium" className="mt-3 inline-block rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700">
               {isRu ? "Подключить Premium" : "Get Premium"}
             </a>
@@ -265,7 +265,7 @@ export default function IntelligencePage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="text-right">
-                      <p className="text-xs text-text-muted">Meta Score</p>
+                      <p className="text-xs text-text-muted">{isRu ? "Качество" : "Quality"}</p>
                       <p className={`text-lg font-bold ${e.meta_score >= 0.6 ? "text-green-400" : e.meta_score >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
                         {(e.meta_score * 100).toFixed(0)}%
                       </p>
