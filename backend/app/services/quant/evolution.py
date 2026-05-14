@@ -138,8 +138,33 @@ class EvolutionaryRegistry:
             ("structure_break_detector", "BOS/ChOCh Structure Detector", "Break of Structure + Change of Character на фракталах", [4, 1], 0.5, "emerging"),
             # From #19077: Trendlines
             ("least_squares_trendline", "Algorithmic Trendline Engine", "Линии тренда через метод наименьших квадратов", [1, 3], 0.45, "emerging"),
+            # From batch 2 (#20327): Volume Profile
+            ("volume_profile_engine", "Volume Profile Engine", "200-бинный профиль объёма: POC, VAH/VAL, HVN/LVN", [2, 3, 6], 0.55, "emerging"),
+            ("market_memory_layer", "Market Memory Layer", "Институциональная память: объём как предиктивный фреймворк", [2, 3], 0.5, "emerging"),
+            # From #20271: Bayesian indicator selection
+            ("bayesian_ucb_optimizer", "Bayesian UCB Indicator Optimizer", "Байесовский multi-armed bandit для выбора индикаторов", [6, 7], 0.5, "emerging"),
+            ("kendall_distance_corr", "Kendall+Distance Correlation", "Тау Кендалла + дистанционная корреляция для независимости", [6, 5], 0.45, "emerging"),
+            # From #20287: Options Greeks
+            ("delta_gamma_engine", "Delta/Gamma Hedging Engine", "Дельта-нейтральное хеджирование + гамма-скальпинг", [6], 0.4, "emerging"),
+            # From #19290: Microstructure
+            ("tick_microstructure", "Tick Microstructure Analysis", "Реконструкция потока ордеров из тиков (без стакана)", [5, 6], 0.5, "emerging"),
+            ("vwap_engine", "Rolling VWAP Engine", "VWAP на тиковом буфере с кольцевым хранилищем", [5], 0.45, "emerging"),
+            # From #22377: Markov features
+            ("markov_chain_features", "Markov Chain Feature Preprocessor", "3-state Markov → transition matrix → 15 ML-фичей", [7], 0.5, "emerging"),
+            ("entropy_signal_filter", "Shannon Entropy Signal Filter", "Фильтрация неопределённых сигналов через энтропию", [7, 5], 0.45, "emerging"),
+            # From #22403: Bayesian regime
+            ("bayesian_regime_detection", "Bayesian Adaptive Regime Detection", "Байесовский вывод с adaptive forgetting для нестационарных рынков", [7, 2], 0.55, "emerging"),
+            ("change_point_detector", "Change-Point Detector", "Обнаружение точки смены режима за 17-20 наблюдений", [7, 1, 4], 0.5, "emerging"),
+            # From #17518: Bimodal profile
+            ("bimodal_profile", "Bimodal Market Profile", "Детекция мультикластерных сессий + дельта-профиль", [3, 2], 0.45, "emerging"),
+            ("absorption_detector", "Absorption/Exhaustion Detector", "Обнаружение исчерпания: POC delta > 40% активности", [3, 4], 0.4, "emerging"),
+            # From #22242: GPU compute
+            ("gpu_pattern_engine", "GPU Pattern Matching Engine", "OpenCL параллельное сопоставление свечных паттернов", [7, 4], 0.4, "emerging"),
+            ("monte_carlo_simulator", "Monte Carlo Trade Simulator", "Симуляция исходов сделок с worst-case моделированием", [7, 6], 0.45, "emerging"),
+            # From #22390: Metaheuristic optimization
+            ("metaheuristic_optimizer", "Metaheuristic Parameter Optimizer", "BOA/GA/PSO для оптимизации параметров стратегий", [7], 0.35, "emerging"),
             # Foundation layers (future)
-            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.15, "planned"),
+            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.2, "planned"),
             ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.1, "planned"),
         ]
         for name, desc_en, desc_ru, sids, strength, status in components:
