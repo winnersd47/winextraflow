@@ -32,7 +32,7 @@ function estimatedProfit(signal: Signal): { pct: number | null; label: string; c
   return { pct: null, label: "—", color: "text-text-muted" };
 }
 
-export function SignalCard({ signal }: { signal: Signal }) {
+export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Signal; strategyLabel?: string; regimeLabel?: string }) {
   const isActive = signal.status === "active";
   const isProfitable = signal.profit_pct !== null && signal.profit_pct > 0;
   const { t } = useI18n();
@@ -50,6 +50,12 @@ export function SignalCard({ signal }: { signal: Signal }) {
             {signal.action}
           </span>
           <RatingBadge confidence={signal.ai_confidence} />
+          {strategyLabel && (
+            <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">{strategyLabel}</span>
+          )}
+          {regimeLabel && (
+            <span className="rounded bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">{regimeLabel}</span>
+          )}
         </div>
         <span className="text-xs text-text-muted">{timeAgo(signal.created_at)}</span>
       </div>

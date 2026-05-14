@@ -233,6 +233,9 @@ export default function ProfilePage() {
         {filtered.map((ach) => <AchCard key={ach.id} a={ach} t={t} />)}
       </div>
 
+      {/* Revenue — admin only */}
+      {stats.role === "admin" && <RevenueBlock />}
+
       {/* Delete Account */}
       <div className="mt-8 rounded-xl border border-red-500/30 bg-red-500/5 p-4">
         <p className="text-sm text-red-400 font-medium">{t("profile.dangerZone")}</p>
@@ -275,6 +278,56 @@ function AchCard({ a, t }: { a: AchievementResponse; t: (k: string) => string })
           <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface"><div className="h-full rounded-full bg-brand-500/60" style={{ width: `${Math.min(100, pct)}%` }} /></div>
         </div>
       )}
+    </div>
+  );
+}
+
+function RevenueBlock() {
+  const [data, setData] = useState<any>(null);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const resp = await fetch("/api/v1/admin/revenue", { headers: { Authorization: `Bearer ${token}` } });
+        if (resp.ok) setData(await resp.json());
+      } catch {}
+    };
+    load();
+  }, []);
+  if (!data) return null;
+  const { revenue, stage, alerts } = data;
+  const pct = stage.usage_pct;
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-surface-card p-6">
+      <h2 className="mb-4 text-lg font-bold text-text-primary">Доходы и налоги ({revenue.year})</h2>
+      {alerts.map((a: any, i: number) => (
+        <div key={i} className={`mb-3 rounded-lg p-3 text-sm ${a.level === "critical" ? "bg-red-500/10 text-red-400" : a.level === "warning" ? "bg-yellow-500/10 text-yellow-400" : "bg-blue-500/10 text-blue-400"}`}>
+          <strong>{a.title_ru}</strong>: {a.message_ru}
+        </div>
+      ))}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <div className="rounded-lg bg-surface p-3 text-center">
+          <p className="text-xs text-text-muted">Доход (USD)</p>
+          <p className="text-xl font-bold text-text-primary">${revenue.total_usd.toLocaleString()}</p>
+        </div>
+        <div className="rounded-lg bg-surface p-3 text-center">
+          <p className="text-xs text-text-muted">Доход (RUB)</p>
+          <p className="text-xl font-bold text-text-primary">{revenue.total_rub.toLocaleString("ru-RU")} R</p>
+        </div>
+        <div className="rounded-lg bg-surface p-3 text-center">
+          <p className="text-xs text-text-muted">Статус</p>
+          <p className="text-sm font-bold text-brand-500">{stage.name_ru}</p>
+        </div>
+      </div>
+      <div className="mb-2 flex justify-between text-xs text-text-muted">
+        <span>{revenue.total_rub.toLocaleString("ru-RU")} руб</span>
+        <span>{pct}% / {stage.max_revenue_rub.toLocaleString("ru-RU")} руб</span>
+      </div>
+      <div className="h-3 overflow-hidden rounded-full bg-surface">
+        <div className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-red-500" : pct >= 70 ? "bg-yellow-500" : "bg-green-500"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+      </div>
+      <p className="mt-2 text-xs text-text-muted">Осталось до лимита: {stage.remaining_rub.toLocaleString("ru-RU")} руб (налог {stage.tax_rate})</p>
+      <a href="/dashboard/revenue" className="mt-3 inline-block text-xs text-brand-500 hover:underline">Подробный отчёт →</a>
     </div>
   );
 }
