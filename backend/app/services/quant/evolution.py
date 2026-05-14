@@ -163,9 +163,26 @@ class EvolutionaryRegistry:
             ("monte_carlo_simulator", "Monte Carlo Trade Simulator", "Симуляция исходов сделок с worst-case моделированием", [7, 6], 0.45, "emerging"),
             # From #22390: Metaheuristic optimization
             ("metaheuristic_optimizer", "Metaheuristic Parameter Optimizer", "BOA/GA/PSO для оптимизации параметров стратегий", [7], 0.35, "emerging"),
-            # Foundation layers (future)
-            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.2, "planned"),
-            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.1, "planned"),
+            # From batch 3 (#22502/#22432/#22396): ReGEN-TAD Risk Assessment
+            ("multi_circuit_risk", "Multi-Circuit Risk Verification", "3 параллельных выхода: прогноз + уточнение + реконструкция → несогласованность = риск", [7], 0.55, "emerging"),
+            ("risk_tokenization", "Risk Tokenization Module", "Конвертация дивергенции Transformer↔LSTM в risk-token в пространстве решений", [7], 0.5, "emerging"),
+            ("anomaly_ensemble_scoring", "6-Metric Anomaly Ensemble", "Реконструкция + прогноз + плотность + остатки + распределение + атрибуция", [7, 6], 0.5, "emerging"),
+            ("confidence_divergence", "Confidence Divergence Detector", "Обнаружение моментов когда уверенность модели не соответствует реальности", [7], 0.55, "emerging"),
+            # From #22230: LLM Meta-Prompting
+            ("llm_signal_generator", "LLM Signal Generator", "Генерация BUY/SELL через Claude API с JSON-парсингом", [7], 0.45, "emerging"),
+            ("meta_prompt_optimizer", "Self-Improving Prompt Optimizer", "Meta-LLM переписывает промпт из анализа ошибок = градиентный спуск в языке", [7], 0.5, "emerging"),
+            # From #19576: Execution discipline
+            ("atr_dynamic_trailing", "ATR Dynamic Trailing System", "Динамический трейлинг nLoss=a*ATR с сессионным фильтром", [1, 4], 0.5, "emerging"),
+            ("execution_discipline", "Execution Discipline Engine", "Ежедневный лимит убытков + итеративная проверка маржи + паралич исполнения", [1, 5], 0.45, "emerging"),
+            # From #19137: Sentiment
+            ("sentiment_oscillator", "Multi-TF Sentiment Oscillator", "3-feature candle → multi-TF fusion → EMA smoothing → [-100,+100]", [5, 1], 0.45, "emerging"),
+            # From #22383: Event architecture
+            ("event_driven_bus", "Event-Driven Message Bus", "Индикаторы → custom events → агрегация → исполнение (decoupled)", [5, 7], 0.5, "emerging"),
+            # From #22196: News filter
+            ("economic_calendar_filter", "Economic Calendar Volatility Shield", "Фильтр новостей: снижение размера позиций перед NFP/CPI/GDP", [5, 1, 4], 0.4, "emerging"),
+            # Foundation layers (future → closer)
+            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.25, "planned"),
+            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.15, "planned"),
         ]
         for name, desc_en, desc_ru, sids, strength, status in components:
             self.components[name] = ArchitecturalComponent(
