@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 # ─── Test Providers ─────────────────────────────────────────
 
 TEST_PROVIDERS = [
+    # Crypto
     {
         "name": "[TEST] CryptoWhale Signals",
         "source": ProviderSource.TELEGRAM,
@@ -42,6 +43,7 @@ TEST_PROVIDERS = [
         "description": "Early altcoin entries before pumps. Mid-term holds.",
         "telegram_channel_id": "-1001234567002",
     },
+    # Forex
     {
         "name": "[TEST] Forex Flow",
         "source": ProviderSource.TRADINGVIEW,
@@ -49,23 +51,54 @@ TEST_PROVIDERS = [
         "tradingview_webhook_id": "tv_forex_flow",
     },
     {
+        "name": "[TEST] Forex Breakout Lab",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "Breakout strategies on EUR/GBP/JPY pairs. Session-based entries.",
+        "tradingview_webhook_id": "tv_forex_breakout",
+    },
+    # DeFi / On-chain
+    {
         "name": "[TEST] DeFi Alpha",
         "source": ProviderSource.MANUAL,
         "description": "DeFi token signals. On-chain analytics based.",
+    },
+    # Stocks / Indices
+    {
+        "name": "[TEST] US Tech Momentum",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "AAPL, MSFT, NVDA, TSLA momentum signals. Daily timeframe.",
+        "tradingview_webhook_id": "tv_us_tech",
+    },
+    {
+        "name": "[TEST] RU Market Navigator",
+        "source": ProviderSource.TELEGRAM,
+        "description": "SBER, GAZP, LKOH, YNDX signals for MOEX. Mid-term holds.",
+        "telegram_channel_id": "-1001234567003",
+    },
+    # Multi-asset / Commodities
+    {
+        "name": "[TEST] Commodities AI",
+        "source": ProviderSource.MANUAL,
+        "description": "Gold, Silver, Oil signals powered by AI analysis.",
+    },
+    {
+        "name": "[TEST] Index Trend Surfer",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "SP500, NASDAQ, DAX trend-following signals. 4h-1d.",
+        "tradingview_webhook_id": "tv_indices",
     },
 ]
 
 # ─── Test Signal Templates ──────────────────────────────────
 
 SIGNAL_TEMPLATES = [
-    # BTC signals
+    # ─── Crypto majors ───
     {"ticker": "BTCUSDT", "base_price": 67500, "volatility": 3000},
     {"ticker": "BTCUSDT", "base_price": 65000, "volatility": 2500},
     {"ticker": "BTCUSDT", "base_price": 69000, "volatility": 4000},
-    # ETH signals
     {"ticker": "ETHUSDT", "base_price": 3450, "volatility": 200},
     {"ticker": "ETHUSDT", "base_price": 3600, "volatility": 150},
-    # Altcoins
+    # ─── Crypto altcoins ───
     {"ticker": "SOLUSDT", "base_price": 145, "volatility": 15},
     {"ticker": "BNBUSDT", "base_price": 580, "volatility": 30},
     {"ticker": "XRPUSDT", "base_price": 0.55, "volatility": 0.05},
@@ -76,10 +109,40 @@ SIGNAL_TEMPLATES = [
     {"ticker": "MATICUSDT", "base_price": 0.70, "volatility": 0.08},
     {"ticker": "LINKUSDT", "base_price": 14.50, "volatility": 1.5},
     {"ticker": "NEARUSDT", "base_price": 6.80, "volatility": 0.7},
-    # Forex
+    {"ticker": "AAVEUSDT", "base_price": 95, "volatility": 10},
+    {"ticker": "UNIUSDT", "base_price": 7.50, "volatility": 0.8},
+    {"ticker": "ARBUSDT", "base_price": 1.10, "volatility": 0.12},
+    # ─── Forex majors ───
     {"ticker": "EURUSD", "base_price": 1.0850, "volatility": 0.005},
     {"ticker": "GBPUSD", "base_price": 1.2720, "volatility": 0.006},
     {"ticker": "USDJPY", "base_price": 155.50, "volatility": 1.5},
+    {"ticker": "USDCHF", "base_price": 0.8830, "volatility": 0.004},
+    {"ticker": "AUDUSD", "base_price": 0.6620, "volatility": 0.005},
+    {"ticker": "USDCAD", "base_price": 1.3650, "volatility": 0.005},
+    {"ticker": "EURGBP", "base_price": 0.8530, "volatility": 0.003},
+    {"ticker": "EURJPY", "base_price": 168.70, "volatility": 1.2},
+    {"ticker": "GBPJPY", "base_price": 197.80, "volatility": 1.8},
+    # ─── US Stocks ───
+    {"ticker": "AAPL", "base_price": 192.50, "volatility": 8},
+    {"ticker": "MSFT", "base_price": 415.00, "volatility": 15},
+    {"ticker": "NVDA", "base_price": 880.00, "volatility": 50},
+    {"ticker": "TSLA", "base_price": 245.00, "volatility": 20},
+    {"ticker": "GOOGL", "base_price": 175.30, "volatility": 7},
+    {"ticker": "AMZN", "base_price": 185.60, "volatility": 8},
+    {"ticker": "META", "base_price": 505.00, "volatility": 20},
+    # ─── RU Stocks (MOEX) ───
+    {"ticker": "SBER", "base_price": 305.0, "volatility": 12},
+    {"ticker": "GAZP", "base_price": 163.0, "volatility": 8},
+    {"ticker": "LKOH", "base_price": 7200.0, "volatility": 300},
+    {"ticker": "YNDX", "base_price": 3800.0, "volatility": 150},
+    {"ticker": "GMKN", "base_price": 155.0, "volatility": 7},
+    # ─── Commodities & Indices ───
+    {"ticker": "XAUUSD", "base_price": 2350.0, "volatility": 40},
+    {"ticker": "XAGUSD", "base_price": 29.50, "volatility": 1.5},
+    {"ticker": "USOIL", "base_price": 78.50, "volatility": 3},
+    {"ticker": "SPX500", "base_price": 5320.0, "volatility": 60},
+    {"ticker": "NAS100", "base_price": 18750.0, "volatility": 250},
+    {"ticker": "DAX40", "base_price": 18200.0, "volatility": 200},
 ]
 
 
@@ -104,6 +167,11 @@ async def seed_test_data(db: AsyncSession):
         ("[TEST] trader_mike", "test_mike@winextraflow.com"),
         ("[TEST] crypto_anna", "test_anna@winextraflow.com"),
         ("[TEST] signal_master", "test_master@winextraflow.com"),
+        ("[TEST] forex_pro", "test_forex@winextraflow.com"),
+        ("[TEST] stock_guru", "test_stocks@winextraflow.com"),
+        ("[TEST] algo_bot", "test_algo@winextraflow.com"),
+        ("[TEST] whale_watcher", "test_whale@winextraflow.com"),
+        ("[TEST] moex_trader", "test_moex@winextraflow.com"),
     ]):
         user = User(
             email=email,
@@ -131,10 +199,10 @@ async def seed_test_data(db: AsyncSession):
         providers.append(provider)
     await db.flush()
 
-    # ─── Create signals (200 total, mixed statuses) ───────
+    # ─── Create signals (500-800 total, mixed statuses) ────
     total_signals = 0
     for provider in providers:
-        num_signals = random.randint(30, 50)
+        num_signals = random.randint(50, 80)
         for j in range(num_signals):
             template = random.choice(SIGNAL_TEMPLATES)
             is_buy = random.random() > 0.4  # 60% buys
@@ -149,8 +217,8 @@ async def seed_test_data(db: AsyncSession):
                 tp = entry - tp_dist
                 sl = entry + sl_dist
 
-            # Time: spread over last 30 days
-            created = now - timedelta(days=random.uniform(0, 30), hours=random.uniform(0, 24))
+            # Time: spread over last 90 days
+            created = now - timedelta(days=random.uniform(0, 90), hours=random.uniform(0, 24))
 
             # Status: 40% active, 35% TP, 15% SL, 10% expired
             roll = random.random()
@@ -217,16 +285,31 @@ async def seed_test_data(db: AsyncSession):
 
     # ─── Create strategies ────────────────────────────────
     strategy_configs = [
+        # Crypto
         {"provider_idx": 0, "name": "[TEST] Whale Watch Alpha", "desc": "Follow the whales. BTC/ETH focus. 70%+ win rate historical.",
          "tags": "crypto,btc,eth,whales", "price_type": PriceType.FREE},
         {"provider_idx": 1, "name": "[TEST] BTC Scalp Machine", "desc": "High-frequency BTC scalping. 15m-1h entries with tight stops.",
          "tags": "crypto,btc,scalping,short-term", "price_type": PriceType.PREMIUM},
         {"provider_idx": 2, "name": "[TEST] Altseason Picks", "desc": "Altcoin gems before they pump. Mid-term 1-4 week holds.",
          "tags": "crypto,altcoins,mid-term", "price_type": PriceType.PAID, "monthly": 19.99},
+        # Forex
         {"provider_idx": 3, "name": "[TEST] Forex Momentum", "desc": "Major pairs momentum trades. 4h-1d timeframes.",
          "tags": "forex,eur,gbp,jpy", "price_type": PriceType.FREE},
-        {"provider_idx": 4, "name": "[TEST] DeFi Deep Dive", "desc": "On-chain alpha for DeFi tokens. Research-backed signals.",
+        {"provider_idx": 4, "name": "[TEST] Forex Breakout Master", "desc": "Session-based breakout entries on EUR/GBP/JPY. High R:R.",
+         "tags": "forex,breakout,session", "price_type": PriceType.PAID, "monthly": 14.99},
+        # DeFi
+        {"provider_idx": 5, "name": "[TEST] DeFi Deep Dive", "desc": "On-chain alpha for DeFi tokens. Research-backed signals.",
          "tags": "crypto,defi,research", "price_type": PriceType.PAID, "monthly": 29.99},
+        # Stocks
+        {"provider_idx": 6, "name": "[TEST] US Tech Rocket", "desc": "AAPL, NVDA, TSLA momentum signals. Daily timeframe, trend-following.",
+         "tags": "stocks,us,tech,momentum", "price_type": PriceType.PAID, "monthly": 24.99},
+        {"provider_idx": 7, "name": "[TEST] MOEX Value Picks", "desc": "SBER, GAZP, LKOH value + momentum. Mid-term 1-3 months.",
+         "tags": "stocks,ru,moex,value", "price_type": PriceType.FREE},
+        # Commodities / Indices
+        {"provider_idx": 8, "name": "[TEST] Gold & Silver AI", "desc": "XAUUSD, XAGUSD signals powered by AI analysis. All timeframes.",
+         "tags": "commodities,gold,silver,ai", "price_type": PriceType.PREMIUM},
+        {"provider_idx": 9, "name": "[TEST] Index Trend Surfer", "desc": "SP500, NASDAQ, DAX trend-following. 4h-1d confirmed breakouts.",
+         "tags": "indices,sp500,nasdaq,dax,trend", "price_type": PriceType.PAID, "monthly": 19.99},
     ]
 
     for sc in strategy_configs:
@@ -273,9 +356,9 @@ async def seed_test_data(db: AsyncSession):
         db.add(demo_account)
         await db.flush()
 
-        # Subscribe admin to first 2 strategies with auto_execute
+        # Subscribe admin to first 4 strategies with auto_execute
         strategies = (await db.execute(
-            select(Strategy).where(Strategy.is_published == True).limit(2)
+            select(Strategy).where(Strategy.is_published == True).limit(4)
         )).scalars().all()
 
         for strat in strategies:
@@ -292,7 +375,7 @@ async def seed_test_data(db: AsyncSession):
         closed_signals = (await db.execute(
             select(Signal).where(Signal.status.in_([
                 SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL
-            ])).limit(15)
+            ])).limit(40)
         )).scalars().all()
 
         copy_trades_created = 0
