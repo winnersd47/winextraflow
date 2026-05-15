@@ -15,7 +15,7 @@ export default function PaymentSuccessPage() {
   useEffect(() => {
     if (sessionId && sessionId.startsWith("demo_")) {
       // Demo payment — complete via API
-      api.completeDemoPayment(sessionId).then(() => setCompleted(true)).catch(console.error);
+      api.completeDemoPayment(sessionId).then(() => setCompleted(true)).catch(() => {});
     } else {
       // Real Stripe — webhook handles it, just show success
       setCompleted(true);

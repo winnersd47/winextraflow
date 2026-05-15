@@ -8,15 +8,15 @@ export function StrategyCard({ strategy }: { strategy: StrategyResponse }) {
   const tags = strategy.tags?.split(",").map((t) => t.trim()).filter(Boolean) || [];
 
   return (
-    <Link href={`/dashboard/marketplace/${strategy.id}`} className="block rounded-xl border border-gray-800 bg-surface-card p-5 transition hover:border-gray-700 hover:bg-surface-hover">
+    <Link href={`/dashboard/marketplace/${strategy.id}`} className="block rounded-xl border border-border bg-surface-card p-5 transition hover:border-border hover:bg-surface-hover">
       <div className="flex items-start justify-between">
         <div>
-          <h3 className="text-lg font-bold text-white">{strategy.name}</h3>
-          {strategy.description && <p className="mt-1 text-sm text-gray-400 line-clamp-2">{strategy.description}</p>}
+          <h3 className="text-lg font-bold text-text-primary">{strategy.name}</h3>
+          {strategy.description && <p className="mt-1 text-sm text-text-secondary line-clamp-2">{strategy.description}</p>}
         </div>
         <PriceBadge type={strategy.price_type} price={strategy.price_monthly} t={t} />
       </div>
-      {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300">{tag}</span>)}</div>}
+      {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="rounded bg-surface-hover px-2 py-0.5 text-xs text-text-secondary">{tag}</span>)}</div>}
       <div className="mt-4 flex items-center gap-6 text-sm">
         <S label={t("providers.aiScore")} value={formatConfidence(strategy.ai_score)} color={confidenceColor(strategy.ai_score)} />
         <S label={t("providers.winRate")} value={strategy.win_rate !== null ? `${(strategy.win_rate * 100).toFixed(0)}%` : "—"} />
@@ -28,8 +28,8 @@ export function StrategyCard({ strategy }: { strategy: StrategyResponse }) {
   );
 }
 
-function S({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
-  return <div><p className="text-xs text-gray-500">{label}</p><p className={`font-semibold ${color}`}>{value}</p></div>;
+function S({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
+  return <div><p className="text-xs text-text-muted">{label}</p><p className={`font-semibold ${color}`}>{value}</p></div>;
 }
 
 function PriceBadge({ type, price, t }: { type: string; price: number; t: (k: string) => string }) {

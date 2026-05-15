@@ -29,7 +29,6 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
 
     ws.onopen = () => {
       setConnected(true);
-      console.log("[WS] Connected");
     };
 
     ws.onmessage = (event) => {
@@ -38,14 +37,12 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
         if (data.type === "new_signal" && onSignalRef.current) {
           onSignalRef.current(data as WSNewSignal);
         }
-      } catch (e) {
-        console.error("[WS] Parse error:", e);
+      } catch {
       }
     };
 
     ws.onclose = () => {
       setConnected(false);
-      console.log("[WS] Disconnected, reconnecting in 3s...");
       reconnectTimeout.current = setTimeout(connect, 3000);
     };
 

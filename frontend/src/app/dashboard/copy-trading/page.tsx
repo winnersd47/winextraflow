@@ -28,17 +28,17 @@ export default function CopyTradingPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h1 className="mb-2 text-2xl font-bold text-white">{t("copyTrading.title")}</h1>
-      <p className="mb-6 text-sm text-gray-400">{t("copyTrading.subtitle")}</p>
+      <h1 className="mb-2 text-2xl font-bold text-text-primary">{t("copyTrading.title")}</h1>
+      <p className="mb-6 text-sm text-text-secondary">{t("copyTrading.subtitle")}</p>
 
       {status && (
         <>
-          <div className="mb-6 rounded-xl border border-gray-800 bg-surface-card p-4">
+          <div className="mb-6 rounded-xl border border-border bg-surface-card p-4">
             <div className="flex items-center gap-3">
               <span className={`h-3 w-3 rounded-full ${status.enabled ? "bg-green-500" : "bg-gray-500"}`} />
-              <span className="font-medium text-white">{status.enabled ? t("copyTrading.active") : t("copyTrading.inactive")}</span>
+              <span className="font-medium text-text-primary">{status.enabled ? t("copyTrading.active") : t("copyTrading.inactive")}</span>
             </div>
-            {!status.enabled && <p className="mt-2 text-sm text-gray-400">{t("copyTrading.howToEnable")}</p>}
+            {!status.enabled && <p className="mt-2 text-sm text-text-secondary">{t("copyTrading.howToEnable")}</p>}
           </div>
           <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <SC label={t("copyTrading.autoSubs")} value={String(status.active_subscriptions)} />
@@ -49,9 +49,9 @@ export default function CopyTradingPage() {
         </>
       )}
 
-      <div className="mb-6 rounded-xl border border-gray-800 bg-surface-card p-4">
-        <h3 className="mb-2 font-semibold text-white">{t("copyTrading.howTitle")}</h3>
-        <ol className="space-y-1 text-sm text-gray-400">
+      <div className="mb-6 rounded-xl border border-border bg-surface-card p-4">
+        <h3 className="mb-2 font-semibold text-text-primary">{t("copyTrading.howTitle")}</h3>
+        <ol className="space-y-1 text-sm text-text-secondary">
           <li>{t("copyTrading.step1")}</li>
           <li>{t("copyTrading.step2")}</li>
           <li>{t("copyTrading.step3")}</li>
@@ -59,21 +59,21 @@ export default function CopyTradingPage() {
         </ol>
       </div>
 
-      <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
-        <h2 className="mb-4 text-lg font-bold text-white">{t("copyTrading.history")} ({trades.length})</h2>
+      <div className="rounded-xl border border-border bg-surface-card p-6">
+        <h2 className="mb-4 text-lg font-bold text-text-primary">{t("copyTrading.history")} ({trades.length})</h2>
         {trades.length === 0 ? (
-          <p className="py-8 text-center text-gray-400">{t("copyTrading.noTrades")}</p>
+          <p className="py-8 text-center text-text-secondary">{t("copyTrading.noTrades")}</p>
         ) : (
           <div className="space-y-2">
             {trades.map((trade) => (
               <div key={trade.id} className="flex items-center justify-between rounded-lg bg-surface p-3">
                 <div className="flex items-center gap-3">
-                  <span className={`rounded px-2 py-0.5 text-xs font-bold ${trade.status === "executed" ? "bg-green-500/20 text-green-400" : trade.status === "failed" ? "bg-red-500/20 text-red-400" : trade.status === "skipped" ? "bg-yellow-500/20 text-yellow-400" : "bg-gray-500/20 text-gray-400"}`}>{trade.status}</span>
-                  <span className="text-sm text-gray-300">Signal: {trade.signal_id.slice(0, 8)}...</span>
+                  <span className={`rounded px-2 py-0.5 text-xs font-bold ${trade.status === "executed" ? "bg-green-500/20 text-green-400" : trade.status === "failed" ? "bg-red-500/20 text-red-400" : trade.status === "skipped" ? "bg-yellow-500/20 text-yellow-400" : "bg-gray-500/20 text-text-secondary"}`}>{trade.status}</span>
+                  <span className="text-sm text-text-secondary">Signal: {trade.signal_id.slice(0, 8)}...</span>
                 </div>
                 <div className="text-right">
                   {trade.error_message && <p className="text-xs text-red-400">{trade.error_message}</p>}
-                  <p className="text-xs text-gray-500">{timeAgo(trade.created_at)}</p>
+                  <p className="text-xs text-text-muted">{timeAgo(trade.created_at)}</p>
                 </div>
               </div>
             ))}
@@ -84,6 +84,6 @@ export default function CopyTradingPage() {
   );
 }
 
-function SC({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
-  return <div className="rounded-xl border border-gray-800 bg-surface-card p-4"><p className="text-xs text-gray-500">{label}</p><p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p></div>;
+function SC({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
+  return <div className="rounded-xl border border-border bg-surface-card p-4"><p className="text-xs text-text-muted">{label}</p><p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p></div>;
 }

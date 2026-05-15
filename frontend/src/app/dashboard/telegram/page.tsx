@@ -85,8 +85,7 @@ export default function TelegramPage() {
     try {
       await api.unsubscribeTelegram(providerId);
       load();
-    } catch (err: any) {
-      console.error(err);
+    } catch {
     }
   };
 

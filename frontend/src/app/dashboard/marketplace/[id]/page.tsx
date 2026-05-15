@@ -39,27 +39,27 @@ export default function StrategyDetailPage() {
   };
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
-  if (!strategy) return <div className="py-20 text-center text-gray-400">{t("marketplace.empty")}</div>;
+  if (!strategy) return <div className="py-20 text-center text-text-secondary">{t("marketplace.empty")}</div>;
 
   const tags = strategy.tags?.split(",").map((t) => t.trim()).filter(Boolean) || [];
 
   return (
     <div className="mx-auto max-w-3xl">
-      <button onClick={() => router.back()} className="mb-4 text-sm text-gray-400 hover:text-white">&larr; {t("marketplace.backTo")}</button>
+      <button onClick={() => router.back()} className="mb-4 text-sm text-text-secondary hover:text-text-primary">&larr; {t("marketplace.backTo")}</button>
 
-      <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
+      <div className="rounded-xl border border-border bg-surface-card p-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">{strategy.name}</h1>
-            <p className="mt-1 text-sm text-gray-500">{strategy.subscriber_count} {t("marketplace.subscribers").toLowerCase()}</p>
+            <h1 className="text-3xl font-bold text-text-primary">{strategy.name}</h1>
+            <p className="mt-1 text-sm text-text-muted">{strategy.subscriber_count} {t("marketplace.subscribers").toLowerCase()}</p>
           </div>
-          <button onClick={handleSubscribe} disabled={subscribing} className={`rounded-lg px-6 py-2.5 text-sm font-medium transition ${subscribed ? "border border-gray-600 text-gray-400 hover:border-red-500 hover:text-red-400" : "bg-brand-600 text-white hover:bg-brand-700"} disabled:opacity-50`}>
+          <button onClick={handleSubscribe} disabled={subscribing} className={`rounded-lg px-6 py-2.5 text-sm font-medium transition ${subscribed ? "border border-border text-text-secondary hover:border-red-500 hover:text-red-400" : "bg-brand-600 text-white hover:bg-brand-700"} disabled:opacity-50`}>
             {subscribing ? "..." : subscribed ? t("marketplace.unsubscribe") : t("marketplace.subscribe")}
           </button>
         </div>
 
-        {strategy.description && <p className="mt-4 text-gray-300">{strategy.description}</p>}
-        {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="rounded bg-gray-700 px-2 py-0.5 text-xs text-gray-300">{tag}</span>)}</div>}
+        {strategy.description && <p className="mt-4 text-text-secondary">{strategy.description}</p>}
+        {tags.length > 0 && <div className="mt-3 flex flex-wrap gap-1">{tags.map((tag) => <span key={tag} className="rounded bg-surface-hover px-2 py-0.5 text-xs text-text-secondary">{tag}</span>)}</div>}
 
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <MC label={t("providers.aiScore")} value={formatConfidence(strategy.ai_score)} color={confidenceColor(strategy.ai_score)} />
@@ -71,8 +71,8 @@ export default function StrategyDetailPage() {
 
         <div className="mt-6 rounded-lg bg-surface p-4">
           <div className="flex items-center justify-between">
-            <span className="text-gray-400">{t("marketplace.pricing")}</span>
-            <span className="text-lg font-bold text-white">
+            <span className="text-text-secondary">{t("marketplace.pricing")}</span>
+            <span className="text-lg font-bold text-text-primary">
               {strategy.price_type === "free" ? t("marketplace.priceFree") : strategy.price_type === "premium" ? t("marketplace.pricePremium") : `$${strategy.price_monthly}/mo`}
             </span>
           </div>
@@ -82,6 +82,6 @@ export default function StrategyDetailPage() {
   );
 }
 
-function MC({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
-  return <div className="rounded-lg bg-surface p-3 text-center"><p className="text-xs text-gray-500">{label}</p><p className={`mt-1 text-xl font-bold ${color}`}>{value}</p></div>;
+function MC({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
+  return <div className="rounded-lg bg-surface p-3 text-center"><p className="text-xs text-text-muted">{label}</p><p className={`mt-1 text-xl font-bold ${color}`}>{value}</p></div>;
 }

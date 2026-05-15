@@ -36,21 +36,21 @@ export default function SignalDetailPage() {
   }, [id]);
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
-  if (!signal) return <div className="py-20 text-center text-gray-400">{t("signals.empty")}</div>;
+  if (!signal) return <div className="py-20 text-center text-text-secondary">{t("signals.empty")}</div>;
 
   return (
     <div className="mx-auto max-w-3xl">
-      <button onClick={() => router.back()} className="mb-4 text-sm text-gray-400 hover:text-white">&larr; {t("signals.back")}</button>
+      <button onClick={() => router.back()} className="mb-4 text-sm text-text-secondary hover:text-text-primary">&larr; {t("signals.back")}</button>
 
-      <div className="rounded-xl border border-gray-800 bg-surface-card p-6">
+      <div className="rounded-xl border border-border bg-surface-card p-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-white">{signal.ticker}</h1>
+          <h1 className="text-3xl font-bold text-text-primary">{signal.ticker}</h1>
           <span className={`rounded px-3 py-1 text-sm font-bold uppercase ${actionColor(signal.action)} ${signal.action === "buy" ? "bg-green-500/10" : "bg-red-500/10"}`}>{signal.action}</span>
           <RatingBadge confidence={signal.ai_confidence} size="lg" />
-          <span className="ml-auto text-sm text-gray-500">{timeAgo(signal.created_at)}</span>
+          <span className="ml-auto text-sm text-text-muted">{timeAgo(signal.created_at)}</span>
         </div>
 
-        {signal.ai_reasoning && <p className="mt-2 text-sm text-gray-400">{signal.ai_reasoning}</p>}
+        {signal.ai_reasoning && <p className="mt-2 text-sm text-text-secondary">{signal.ai_reasoning}</p>}
 
         {/* Execute button */}
         {signal.status === "active" && (
@@ -79,33 +79,33 @@ export default function SignalDetailPage() {
         {signal.profit_pct !== null && (
           <div className="mt-4 rounded-lg bg-surface p-4">
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">{t("signals.result")}</span>
+              <span className="text-text-secondary">{t("signals.result")}</span>
               <span className={`text-2xl font-bold ${signal.profit_pct >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPercent(signal.profit_pct)}</span>
             </div>
-            {signal.close_price && <p className="mt-1 text-sm text-gray-500">{t("signals.closedAt")} {formatPrice(signal.close_price)}</p>}
+            {signal.close_price && <p className="mt-1 text-sm text-text-muted">{t("signals.closedAt")} {formatPrice(signal.close_price)}</p>}
           </div>
         )}
       </div>
 
       {rating && (
-        <div className="mt-6 rounded-xl border border-gray-800 bg-surface-card p-6">
-          <h2 className="mb-4 text-lg font-bold text-white">{t("signals.aiRating")}</h2>
+        <div className="mt-6 rounded-xl border border-border bg-surface-card p-6">
+          <h2 className="mb-4 text-lg font-bold text-text-primary">{t("signals.aiRating")}</h2>
           <div className="mb-4 flex items-center gap-3">
-            <span className="text-3xl font-bold text-white">{formatConfidence(rating.final_confidence)}</span>
+            <span className="text-3xl font-bold text-text-primary">{formatConfidence(rating.final_confidence)}</span>
             <span className={`text-sm ${confidenceColor(rating.final_confidence)}`}>confidence</span>
           </div>
-          <p className="mb-6 text-sm text-gray-400">{rating.reasoning}</p>
+          <p className="mb-6 text-sm text-text-secondary">{rating.reasoning}</p>
           <div className="space-y-3">
             {Object.entries(rating.factors).map(([key, factor]) => (
               <div key={key} className="rounded-lg bg-surface p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium capitalize text-white">{key.replace(/_/g, " ")}</span>
-                  <span className="text-sm text-gray-400">{(factor.weight * 100).toFixed(0)}%</span>
+                  <span className="text-sm font-medium capitalize text-text-primary">{key.replace(/_/g, " ")}</span>
+                  <span className="text-sm text-text-secondary">{(factor.weight * 100).toFixed(0)}%</span>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-700">
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-hover">
                   <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${factor.score * 100}%` }} />
                 </div>
-                <p className="mt-1 text-xs text-gray-500">{factor.reason}</p>
+                <p className="mt-1 text-xs text-text-muted">{factor.reason}</p>
               </div>
             ))}
           </div>
@@ -115,6 +115,6 @@ export default function SignalDetailPage() {
   );
 }
 
-function Stat({ label, value, color = "text-white" }: { label: string; value: string; color?: string }) {
-  return (<div><span className="text-xs text-gray-500">{label}</span><p className={`text-lg font-semibold ${color}`}>{value}</p></div>);
+function Stat({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
+  return (<div><span className="text-xs text-text-muted">{label}</span><p className={`text-lg font-semibold ${color}`}>{value}</p></div>);
 }

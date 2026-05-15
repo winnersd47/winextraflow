@@ -127,22 +127,22 @@ export default function MarketplacePage() {
         </div>
       )}
       <div className="mb-4 flex flex-wrap gap-3">
-        <input type="text" placeholder={t("marketplace.filterTags")} value={tagsFilter} onChange={(e) => setTagsFilter(e.target.value)} className="rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white outline-none focus:border-brand-500" />
+        <input type="text" placeholder={t("marketplace.filterTags")} value={tagsFilter} onChange={(e) => setTagsFilter(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500" />
         <div className="flex gap-1">
           {PRICE_FILTERS.map((f) => (
-            <button key={f.value} onClick={() => setPriceFilter(f.value)} className={`rounded-lg px-3 py-2 text-sm transition ${priceFilter === f.value ? "bg-brand-500/20 text-brand-500" : "text-gray-400 hover:bg-surface-hover hover:text-white"}`}>{f.label}</button>
+            <button key={f.value} onClick={() => setPriceFilter(f.value)} className={`rounded-lg px-3 py-2 text-sm transition ${priceFilter === f.value ? "bg-brand-500/20 text-brand-500" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}>{f.label}</button>
           ))}
         </div>
-        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-gray-700 bg-surface px-3 py-2 text-sm text-white">
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary">
           {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{t("common.sort")}: {o.label}</option>)}
         </select>
       </div>
       {loading ? (
         <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
       ) : strategies.length === 0 ? (
-        <div className="rounded-xl border border-gray-800 bg-surface-card p-12 text-center">
-          <p className="text-gray-400">{t("marketplace.empty")}</p>
-          <p className="mt-1 text-sm text-gray-500">{t("marketplace.emptyHint")}</p>
+        <div className="rounded-xl border border-border bg-surface-card p-12 text-center">
+          <p className="text-text-secondary">{t("marketplace.empty")}</p>
+          <p className="mt-1 text-sm text-text-muted">{t("marketplace.emptyHint")}</p>
         </div>
       ) : (
         <div className="space-y-3">{strategies.map((s) => <StrategyCard key={s.id} strategy={s} />)}</div>
