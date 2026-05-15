@@ -177,8 +177,8 @@ export default function StorePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-border bg-surface-card p-6">
                 <h3 className="text-lg font-bold text-text-primary">Monthly</h3>
-                <p className="mt-1 text-4xl font-extrabold text-text-primary">$29<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
-                <p className="mt-1 text-xs text-text-muted">30 {isRu ? "дней" : "days"}</p>
+                <p className="mt-1 text-4xl font-extrabold text-text-primary">{isRu ? "2 600 ₽" : "$29"}<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
+                <p className="mt-1 text-xs text-text-muted">30 {isRu ? "дней" : "days"}{isRu ? " (~$29)" : ""}</p>
                 <button onClick={() => handleBuyPremium("monthly")} disabled={!!buying}
                   className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
                   {buying === "monthly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
@@ -189,8 +189,8 @@ export default function StorePage() {
                   <h3 className="text-lg font-bold text-text-primary">Yearly</h3>
                   <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">{isRu ? "Экономия 30%" : "Save 30%"}</span>
                 </div>
-                <p className="mt-1 text-4xl font-extrabold text-brand-500">$249<span className="text-base font-normal text-text-muted">/{isRu ? "год" : "yr"}</span></p>
-                <p className="mt-1 text-xs text-text-muted">365 {isRu ? "дней" : "days"}</p>
+                <p className="mt-1 text-4xl font-extrabold text-brand-500">{isRu ? "22 400 ₽" : "$249"}<span className="text-base font-normal text-text-muted">/{isRu ? "год" : "yr"}</span></p>
+                <p className="mt-1 text-xs text-text-muted">365 {isRu ? "дней" : "days"}{isRu ? " (~$249)" : ""}</p>
                 <button onClick={() => handleBuyPremium("yearly")} disabled={!!buying}
                   className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
                   {buying === "yearly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
@@ -264,7 +264,7 @@ export default function StorePage() {
             {apiPlans.map((p: any) => (
               <div key={p.key} className="rounded-xl border border-border bg-surface-card p-6">
                 <h3 className="text-lg font-bold text-text-primary">{p.name}</h3>
-                <p className="mt-1 text-3xl font-bold text-brand-500">${p.price_usd}<span className="text-sm text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
+                <p className="mt-1 text-3xl font-bold text-brand-500">{isRu ? `${(p.price_usd * 90).toLocaleString("ru-RU")} ₽` : `$${p.price_usd}`}<span className="text-sm text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
                 <ul className="mt-4 space-y-2 text-sm text-text-secondary">
                   <li>{isRu ? "Лимит:" : "Rate:"} {p.rate_limit}</li>
                   <li>{isRu ? "Сигналы:" : "Signals:"} {p.signals ? "+" : "-"}</li>
@@ -287,8 +287,8 @@ export default function StorePage() {
             )}
             <div className="flex gap-3">
               <select value={newKeyPlan} onChange={e => setNewKeyPlan(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary">
-                <option value="basic">Basic ($49/mo)</option>
-                <option value="pro">Pro ($99/mo)</option>
+                <option value="basic">Basic ({isRu ? "4 400 ₽/мес" : "$49/mo"})</option>
+                <option value="pro">Pro ({isRu ? "8 900 ₽/мес" : "$99/mo"})</option>
               </select>
               <input type="text" placeholder={isRu ? "Название" : "Label"} value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)} className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none" />
               <button onClick={createKey} className="rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700">{isRu ? "Создать" : "Create"}</button>
@@ -330,7 +330,7 @@ export default function StorePage() {
                 </div>
                 <button onClick={() => generateReport(p.id)} disabled={generatingReport === p.id}
                   className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                  {generatingReport === p.id ? "..." : "$9.99"}
+                  {generatingReport === p.id ? "..." : isRu ? "899 ₽" : "$9.99"}
                 </button>
               </div>
             ))}
@@ -354,8 +354,8 @@ export default function StorePage() {
       {activeTab === "telegram" && tgInfo && (
         <div className="rounded-xl border border-border bg-surface-card p-8 text-center">
           <h2 className="text-2xl font-bold text-text-primary">{tgInfo.channel_name}</h2>
-          <p className="mt-2 text-4xl font-bold text-brand-500">${tgInfo.price_usd}<span className="text-lg text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
-          <p className="mt-1 text-sm text-text-muted">{tgInfo.price_rub} {isRu ? "руб" : "RUB"}</p>
+          <p className="mt-2 text-4xl font-bold text-brand-500">{isRu ? `${tgInfo.price_rub} ₽` : `$${tgInfo.price_usd}`}<span className="text-lg text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
+          {isRu && <p className="mt-1 text-sm text-text-muted">~${tgInfo.price_usd}</p>}
           <ul className="mx-auto mt-6 max-w-md space-y-2 text-left text-sm text-text-secondary">
             {(isRu ? tgInfo.features_ru : tgInfo.features)?.map((f: string, i: number) => (
               <li key={i} className="flex items-center gap-2"><span className="text-green-400">+</span> {f}</li>
@@ -391,7 +391,7 @@ export default function StorePage() {
                   {c.is_free ? (
                     <span className="text-lg font-bold text-green-400">{isRu ? "Бесплатно" : "Free"}</span>
                   ) : (
-                    <span className="text-lg font-bold text-brand-500">${c.price_usd}</span>
+                    <span className="text-lg font-bold text-brand-500">{isRu ? (c.price_usd > 0 ? `${(c.price_usd * 90).toLocaleString("ru-RU")} ₽` : "") : (c.price_usd > 0 ? `$${c.price_usd}` : "")}</span>
                   )}
                 </div>
               </div>
