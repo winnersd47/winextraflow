@@ -136,7 +136,11 @@ class ReadinessMonitor:
         first_signal = (await db.execute(
             select(Signal.created_at).order_by(Signal.created_at).limit(1)
         )).scalar()
-        platform_days = (now - first_signal).days if first_signal else 0
+        if first_signal:
+            fs = first_signal if first_signal.tzinfo else first_signal.replace(tzinfo=timezone.utc)
+            platform_days = (now - fs).days
+        else:
+            platform_days = 0
 
         # ─── L3 Metrics ──────────────────────────────────────
         l3_metrics = [
