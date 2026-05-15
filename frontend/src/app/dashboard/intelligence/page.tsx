@@ -47,6 +47,7 @@ export default function IntelligencePage() {
   const [readiness, setReadiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
+  const [showL3L4, setShowL3L4] = useState(false);
   const { locale } = useI18n();
   const { user } = useAuth();
   const isRu = locale === "ru";
@@ -351,14 +352,103 @@ export default function IntelligencePage() {
             </div>
           </div>
 
-          {/* Feedback Loop Stats */}
-          {readiness.feedback_stats && (
-            <div className="rounded-lg bg-surface px-4 py-3">
-              <div className="flex items-center justify-between text-xs">
+          {/* Feedback Loop Stats + Dev Button */}
+          <div className="flex items-center justify-between rounded-lg bg-surface px-4 py-3">
+            {readiness.feedback_stats && (
+              <div className="flex items-center gap-4 text-xs">
                 <span className="text-text-muted">Feedback Loop: {readiness.feedback_stats.total_records} {isRu ? "записей" : "records"}</span>
                 <span className={`font-bold ${readiness.feedback_stats.accuracy_pct >= 60 ? "text-green-400" : readiness.feedback_stats.accuracy_pct > 0 ? "text-yellow-400" : "text-text-muted"}`}>
                   {isRu ? "Точность" : "Accuracy"}: {readiness.feedback_stats.accuracy_pct}%
                 </span>
+              </div>
+            )}
+            {isPremium && (
+              <button
+                onClick={() => setShowL3L4(!showL3L4)}
+                className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-1.5 text-xs font-medium text-yellow-400 hover:bg-yellow-500/20"
+              >
+                {showL3L4 ? (isRu ? "Скрыть" : "Hide") : (isRu ? "К разработке L3/L4" : "Dev Preview L3/L4")}
+              </button>
+            )}
+          </div>
+
+          {/* ═══ L3/L4 DEV PREVIEW ═══ */}
+          {showL3L4 && (
+            <div className="rounded-xl border-2 border-yellow-500/30 bg-yellow-500/5 p-6">
+              <div className="mb-4 flex items-center gap-2">
+                <span className="text-sm font-bold text-yellow-400">{isRu ? "Режим разработки: база L3 и L4" : "Dev Preview: L3 & L4 Foundation"}</span>
+              </div>
+
+              {/* L3 Blueprint */}
+              <div className="mb-6">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-text-primary">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-yellow-500/20 text-xs font-bold text-yellow-400">L3</span>
+                  Multi-Agent Decision + Reinforcement Learning
+                </h3>
+                <div className="mb-3 rounded-lg bg-surface p-4 font-mono text-xs text-text-secondary">
+                  <p className="text-text-muted">{isRu ? "Архитектура:" : "Architecture:"}</p>
+                  <pre className="mt-1 whitespace-pre-wrap">{`Signal → [Agent 1: Entry Decision (DQN)]
+       → [Agent 2: Risk/Position Size]
+       → [Agent 3: Timing Optimizer]
+       → [Consensus: Weighted Vote]
+       → Execution / Skip`}</pre>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { name: isRu ? "DQN Entry Agent" : "DQN Entry Agent", desc: isRu ? "Обучается на закрытых сигналах: 'стоило ли входить?' Reward = profit_pct." : "Trained on closed signals: 'was this trade worth entering?' Reward = profit_pct.", status: isRu ? "Данные копятся" : "Data accumulating" },
+                    { name: isRu ? "Risk Agent" : "Risk Agent", desc: isRu ? "Определяет размер позиции на основе волатильности, режима рынка, и уверенности Entry Agent." : "Determines position size based on volatility, market regime, and Entry Agent confidence.", status: isRu ? "Схема готова" : "Schema ready" },
+                    { name: isRu ? "Timing Agent" : "Timing Agent", desc: isRu ? "Оптимизирует момент входа: ожидание отката, подтверждение объёмом, сессионный фильтр." : "Optimizes entry timing: pullback wait, volume confirmation, session filter.", status: isRu ? "Компоненты из статей" : "Components from articles" },
+                    { name: isRu ? "Consensus Engine" : "Consensus Engine", desc: isRu ? "Взвешенное голосование агентов. Вес каждого агента = его историческая точность." : "Weighted agent voting. Each agent's weight = its historical accuracy.", status: isRu ? "Дизайн" : "Design phase" },
+                  ].map((item, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-surface-card p-3">
+                      <p className="text-xs font-bold text-text-primary">{item.name}</p>
+                      <p className="mt-1 text-xs text-text-muted">{item.desc}</p>
+                      <span className="mt-2 inline-block rounded bg-yellow-500/10 px-2 py-0.5 text-xs text-yellow-400">{item.status}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-text-muted">
+                  {isRu
+                    ? "Компоненты из обработанных статей: cellular_automaton (#22211), markov_chain_features (#22377), bayesian_regime_detection (#22403), meta_prompt_optimizer (#22230), population_logic, genome_mutation."
+                    : "Components from processed articles: cellular_automaton (#22211), markov_chain_features (#22377), bayesian_regime_detection (#22403), meta_prompt_optimizer (#22230), population_logic, genome_mutation."}
+                </p>
+              </div>
+
+              {/* L4 Blueprint */}
+              <div>
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-text-primary">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-surface-hover text-xs font-bold text-text-muted">L4</span>
+                  Evolutionary Ecosystem + Digital Twin
+                </h3>
+                <div className="mb-3 rounded-lg bg-surface p-4 font-mono text-xs text-text-secondary">
+                  <p className="text-text-muted">{isRu ? "Архитектура:" : "Architecture:"}</p>
+                  <pre className="mt-1 whitespace-pre-wrap">{`Population of 1000+ Strategy Variants
+  ↓ Compete on Digital Twin (virtual market)
+  ↓ Fitness = Sharpe * Consistency * Regime_Fit
+  ↓ Top 10% reproduce (crossover + mutation)
+  ↓ Bottom 10% eliminated
+  ↓ Survivors deployed to real market
+  ↓ Feedback → next generation`}</pre>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { name: isRu ? "Digital Twin" : "Digital Twin", desc: isRu ? "Виртуальная копия рынка из исторических данных. Стратегии тестируются здесь до реального деплоя." : "Virtual market replica from historical data. Strategies tested here before live deployment.", status: isRu ? "Планируется" : "Planned" },
+                    { name: isRu ? "Evolutionary Engine" : "Evolutionary Engine", desc: isRu ? "Генетические алгоритмы: crossover параметров лучших стратегий, мутация весов, отбор по Sharpe." : "Genetic algorithms: crossover of best strategy params, weight mutation, selection by Sharpe.", status: isRu ? "Планируется" : "Planned" },
+                    { name: isRu ? "Strategy Population" : "Strategy Population", desc: isRu ? "1000+ вариантов стратегий конкурируют. Слабые вымирают каждое поколение." : "1000+ strategy variants compete. Weak ones die each generation.", status: isRu ? "Фундамент заложен" : "Foundation laid" },
+                    { name: isRu ? "Auto-Deployment" : "Auto-Deployment", desc: isRu ? "Победители эволюции автоматически деплоятся на реальные биржи с лимитированным капиталом." : "Evolution winners auto-deploy to real exchanges with limited capital.", status: isRu ? "Требует лицензию" : "Requires license" },
+                  ].map((item, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-surface-card p-3">
+                      <p className="text-xs font-bold text-text-primary">{item.name}</p>
+                      <p className="mt-1 text-xs text-text-muted">{item.desc}</p>
+                      <span className="mt-2 inline-block rounded bg-surface-hover px-2 py-0.5 text-xs text-text-muted">{item.status}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs text-text-muted">
+                  {isRu
+                    ? "Компоненты: monte_carlo_simulator (#22242), metaheuristic_optimizer (#22390, #18132), gpu_pattern_engine (#22242), multi_circuit_risk (#22502), risk_tokenization (#22432)."
+                    : "Components: monte_carlo_simulator (#22242), metaheuristic_optimizer (#22390, #18132), gpu_pattern_engine (#22242), multi_circuit_risk (#22502), risk_tokenization (#22432)."}
+                </p>
               </div>
             </div>
           )}
