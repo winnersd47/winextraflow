@@ -46,6 +46,8 @@ export default function IntelligencePage() {
   const [data, setData] = useState<any>(null);
   const [readiness, setReadiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [showL3L4, setShowL3L4] = useState(false);
   const { locale } = useI18n();
@@ -53,20 +55,26 @@ export default function IntelligencePage() {
   const isRu = locale === "ru";
   const isPremium = user?.role === "premium" || user?.role === "admin";
 
+  const loadData = async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true);
+    try {
+      const token = localStorage.getItem("token");
+      const [resp, rReady] = await Promise.all([
+        fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } }),
+        fetch("/api/v1/quant/readiness", { headers: { Authorization: `Bearer ${token}` } }),
+      ]);
+      if (resp.ok) setData(await resp.json());
+      if (rReady.ok) setReadiness(await rReady.json());
+      setLastUpdate(new Date());
+    } catch {}
+    finally { setLoading(false); setRefreshing(false); }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const [resp, rReady] = await Promise.all([
-          fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } }),
-          fetch("/api/v1/quant/readiness", { headers: { Authorization: `Bearer ${token}` } }),
-        ]);
-        if (resp.ok) setData(await resp.json());
-        if (rReady.ok) setReadiness(await rReady.json());
-      } catch {}
-      finally { setLoading(false); }
-    };
-    load();
+    loadData();
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => loadData(), 60_000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
@@ -86,14 +94,32 @@ export default function IntelligencePage() {
             {isRu
               ? "Автоматический анализ рынка на основе всех сигналов платформы. Помогает понять текущее состояние рынка и оценить качество сигналов перед принятием решений."
               : "Automatic market analysis based on all platform signals. Helps understand current market conditions and evaluate signal quality before making decisions."}
+            {lastUpdate && (
+              <span className="ml-3 text-xs text-text-muted">
+                {isRu ? "Обновлено" : "Updated"}: {lastUpdate.toLocaleTimeString()}
+              </span>
+            )}
           </p>
         </div>
+        <div className="flex flex-shrink-0 gap-2">
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface-card px-3 py-2 text-sm text-text-primary hover:bg-surface-hover disabled:opacity-50"
+          >
+            <svg className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 16h5v5" />
+            </svg>
+            {refreshing ? (isRu ? "..." : "...") : (isRu ? "Обновить" : "Refresh")}
+          </button>
         <button
           onClick={() => setShowGuide(!showGuide)}
           className="flex-shrink-0 rounded-lg border border-border px-4 py-2 text-sm text-text-secondary hover:bg-surface-hover"
         >
           {isRu ? (showGuide ? "Скрыть инструкцию" : "Как пользоваться?") : (showGuide ? "Hide guide" : "How to use?")}
         </button>
+        </div>
       </div>
 
       {/* ═══ HOW-TO GUIDE ═══ */}
