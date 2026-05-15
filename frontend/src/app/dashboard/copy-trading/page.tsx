@@ -6,20 +6,39 @@ import { useI18n } from "@/lib/i18n";
 import { timeAgo } from "@/lib/utils";
 import type { CopyTradingStatus, CopyTradeResponse } from "@/types";
 
+const PAGE_SIZE = 10;
+
 export default function CopyTradingPage() {
   const [status, setStatus] = useState<CopyTradingStatus | null>(null);
-  const [trades, setTrades] = useState<CopyTradeResponse[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingPage, setLoadingPage] = useState(false);
   const { t, locale } = useI18n();
   const isRu = locale === "ru";
+
+  const loadPage = async (p: number) => {
+    setLoadingPage(true);
+    try {
+      const token = localStorage.getItem("token");
+      const h = await fetch(`/api/v1/copy-trading/history?skip=${p * PAGE_SIZE}&limit=${PAGE_SIZE}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(r => r.json());
+      setTrades(h.items);
+      setTotal(h.total);
+      setPage(p);
+    } catch {}
+    finally { setLoadingPage(false); }
+  };
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, h] = await Promise.all([api.getCopyTradingStatus(), api.getCopyTradeHistory()]);
+        const [s] = await Promise.all([api.getCopyTradingStatus()]);
         setStatus(s);
-        setTrades(h.items);
-      } catch (err) { console.error(err); }
+        await loadPage(0);
+      } catch {}
       finally { setLoading(false); }
     }
     load();
@@ -61,7 +80,7 @@ export default function CopyTradingPage() {
       </div>
 
       <div className="rounded-xl border border-border bg-surface-card p-6">
-        <h2 className="mb-4 text-lg font-bold text-text-primary">{t("copyTrading.history")} ({trades.length})</h2>
+        <h2 className="mb-4 text-lg font-bold text-text-primary">{t("copyTrading.history")} ({total})</h2>
         {trades.length === 0 ? (
           <p className="py-8 text-center text-text-secondary">{t("copyTrading.noTrades")}</p>
         ) : (
@@ -147,7 +166,37 @@ export default function CopyTradingPage() {
                 })}
               </tbody>
             </table>
+            {loadingPage && (
+              <div className="flex justify-center py-4"><div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+            )}
           </div>
+
+          {/* Pagination */}
+          {total > PAGE_SIZE && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-xs text-text-muted">
+                {isRu
+                  ? `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} из ${total}`
+                  : `${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} of ${total}`}
+              </p>
+              <div className="flex gap-1">
+                {Array.from({ length: Math.ceil(total / PAGE_SIZE) }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => loadPage(i)}
+                    disabled={loadingPage}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                      i === page
+                        ? "bg-brand-500 text-white"
+                        : "bg-surface-hover text-text-secondary hover:text-text-primary"
+                    }`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         )}
       </div>
     </div>
