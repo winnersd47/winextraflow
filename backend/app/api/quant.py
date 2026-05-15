@@ -11,7 +11,7 @@ Implements the Autonomous Market Intelligence Architecture:
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -141,12 +141,25 @@ async def intelligence_dashboard(
     # Overall regime
     overall = await regime_detector.detect(db)
 
-    # Top ticker regimes
-    top_tickers = overall.dominant_tickers[:5]
+    # All meaningful ticker regimes (min 3 signals each)
+    from sqlalchemy import distinct
+    all_tickers_result = await db.execute(
+        select(Signal.ticker, func.count().label("cnt"))
+        .group_by(Signal.ticker)
+        .having(func.count() >= 3)
+        .order_by(func.count().desc())
+    )
+    all_tickers = [row[0] for row in all_tickers_result.all()]
+
     ticker_regimes = {}
-    for t in top_tickers:
+    for t in all_tickers:
         state = await regime_detector.detect(db, ticker=t)
-        ticker_regimes[t] = {"regime": state.regime.value, "confidence": state.confidence}
+        if state.regime.value != "unknown":
+            ticker_regimes[t] = {
+                "regime": state.regime.value,
+                "confidence": state.confidence,
+                "signals": state.buy_ratio,
+            }
 
     # Evaluate latest 10 signals
     recent = (await db.execute(
