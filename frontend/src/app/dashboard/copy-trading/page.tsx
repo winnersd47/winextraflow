@@ -84,6 +84,7 @@ export default function CopyTradingPage() {
         {trades.length === 0 ? (
           <p className="py-8 text-center text-text-secondary">{t("copyTrading.noTrades")}</p>
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-border text-xs text-text-muted">
@@ -197,6 +198,7 @@ export default function CopyTradingPage() {
               </div>
             </div>
           )}
+          </>
         )}
       </div>
     </div>
