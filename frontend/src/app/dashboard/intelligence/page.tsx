@@ -66,7 +66,7 @@ export default function IntelligencePage() {
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
   if (!data) return <div className="py-20 text-center text-text-muted">Failed to load</div>;
 
-  const { market, ticker_regimes, evaluations, architecture_level, architecture_levels } = data;
+  const { market, ticker_regimes, evaluations, top_quality, architecture_level, architecture_levels } = data;
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -230,10 +230,10 @@ export default function IntelligencePage() {
         </div>
       )}
 
-      {/* ═══ SIGNAL EVALUATIONS (L2 — Premium) ═══ */}
+      {/* ═══ SIGNAL EVALUATIONS (L2 — Premium) — two columns ═══ */}
       <div className="mb-6">
         <div className="mb-3 flex items-center gap-2">
-          <h2 className="text-sm font-bold text-text-muted">{isRu ? "AI-ОЦЕНКА ПОСЛЕДНИХ СИГНАЛОВ" : "AI SIGNAL EVALUATION"}</h2>
+          <h2 className="text-sm font-bold text-text-muted">{isRu ? "AI-ОЦЕНКА СИГНАЛОВ" : "AI SIGNAL EVALUATION"}</h2>
           <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">L2 Premium</span>
         </div>
 
@@ -245,38 +245,30 @@ export default function IntelligencePage() {
             </a>
           </div>
         ) : (
-          <div className="space-y-2">
-            {evaluations.map((e: any) => (
-              <div key={e.signal_id} className="rounded-xl border border-border bg-surface-card p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-text-primary">{e.ticker}</span>
-                    <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
-                      {isRu ? e.strategy_name_ru : e.strategy_name}
-                    </span>
-                    <span className={`rounded px-2 py-0.5 text-xs ${REGIME_COLORS[e.regime] || ""}`}>
-                      {isRu ? (REGIME_RU[e.regime] || e.regime) : e.regime.replace("_", " ")}
-                    </span>
-                    {!e.regime_compatible && (
-                      <span className="rounded bg-red-500/10 px-2 py-0.5 text-xs text-red-400">
-                        {isRu ? "Режим не подходит" : "Regime mismatch"}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs text-text-muted">{isRu ? "Качество" : "Quality"}</p>
-                      <p className={`text-lg font-bold ${e.meta_score >= 0.6 ? "text-green-400" : e.meta_score >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
-                        {(e.meta_score * 100).toFixed(0)}%
-                      </p>
-                    </div>
-                    <span className={`rounded-lg px-3 py-1.5 text-xs font-bold ${REC_COLORS[e.recommendation] || ""}`}>
-                      {isRu ? e.recommendation_ru : e.recommendation.replace("_", " ")}
-                    </span>
-                  </div>
-                </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Left: Latest 10 signals */}
+            <div>
+              <h3 className="mb-2 text-xs font-bold text-text-muted">
+                {isRu ? "ПОСЛЕДНИЕ СИГНАЛЫ" : "LATEST SIGNALS"} ({evaluations.length})
+              </h3>
+              <div className="space-y-1.5">
+                {evaluations.map((e: any) => <EvalCard key={e.signal_id} e={e} isRu={isRu} />)}
               </div>
-            ))}
+            </div>
+            {/* Right: Top 10 by quality */}
+            <div>
+              <h3 className="mb-2 text-xs font-bold text-text-muted">
+                {isRu ? "ТОП ПО КАЧЕСТВУ" : "TOP QUALITY"} ({(top_quality || []).length})
+              </h3>
+              <div className="space-y-1.5">
+                {(top_quality || []).map((e: any, i: number) => <EvalCard key={e.signal_id} e={e} isRu={isRu} rank={i + 1} />)}
+                {(!top_quality || top_quality.length === 0) && (
+                  <p className="rounded-xl border border-border bg-surface-card p-4 text-center text-xs text-text-muted">
+                    {isRu ? "Недостаточно данных" : "Not enough data"}
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -313,6 +305,63 @@ export default function IntelligencePage() {
         {isRu
           ? "Рыночная аналитика основана на внутренних данных платформы и НЕ является инвестиционной рекомендацией. Режимы и оценки носят информационный характер. Перед принятием торговых решений проведите собственный анализ."
           : "Market analytics are based on internal platform data and are NOT investment advice. Regimes and evaluations are for informational purposes only. Conduct your own analysis before making trading decisions."}
+      </div>
+    </div>
+  );
+}
+
+const REGIME_COLORS_STATIC: Record<string, string> = {
+  trending_up: "text-green-400 bg-green-500/10", trending_down: "text-red-400 bg-red-500/10",
+  ranging: "text-blue-400 bg-blue-500/10", high_volatility: "text-orange-400 bg-orange-500/10",
+  low_volatility: "text-gray-400 bg-gray-500/10", breakout: "text-yellow-400 bg-yellow-500/10",
+  unknown: "text-text-muted bg-surface",
+};
+const REGIME_RU_STATIC: Record<string, string> = {
+  trending_up: "Тренд вверх", trending_down: "Тренд вниз", ranging: "Боковик",
+  high_volatility: "Выс. вол.", low_volatility: "Низк. вол.", breakout: "Пробой", unknown: "?",
+};
+const REC_COLORS_STATIC: Record<string, string> = {
+  strong_buy: "text-green-400 bg-green-500/20", buy: "text-green-300 bg-green-500/10",
+  neutral: "text-gray-400 bg-gray-500/10", avoid: "text-orange-400 bg-orange-500/10",
+  strong_avoid: "text-red-400 bg-red-500/10",
+};
+
+function EvalCard({ e, isRu, rank }: { e: any; isRu: boolean; rank?: number }) {
+  return (
+    <div className="rounded-lg border border-border bg-surface-card p-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          {rank && (
+            <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              rank <= 3 ? "bg-brand-500/20 text-brand-500" : "bg-surface text-text-muted"
+            }`}>{rank}</span>
+          )}
+          <span className="text-sm font-bold text-text-primary">{e.ticker}</span>
+          {e.action && (
+            <span className={`text-xs font-bold uppercase ${e.action === "buy" ? "text-green-400" : "text-red-400"}`}>
+              {e.action}
+            </span>
+          )}
+          <span className="truncate rounded bg-purple-500/10 px-1.5 py-0.5 text-xs text-purple-400">
+            {isRu ? e.strategy_name_ru : e.strategy_name}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <span className={`rounded px-1.5 py-0.5 text-xs ${REGIME_COLORS_STATIC[e.regime] || ""}`}>
+            {isRu ? (REGIME_RU_STATIC[e.regime] || e.regime) : (e.regime || "").replace("_", " ")}
+          </span>
+          {!e.regime_compatible && (
+            <span className="rounded bg-red-500/10 px-1.5 py-0.5 text-xs text-red-400">!</span>
+          )}
+          <div className="w-12 text-right">
+            <p className={`text-sm font-bold ${e.meta_score >= 0.6 ? "text-green-400" : e.meta_score >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
+              {(e.meta_score * 100).toFixed(0)}%
+            </p>
+          </div>
+          <span className={`rounded-md px-2 py-1 text-xs font-bold ${REC_COLORS_STATIC[e.recommendation] || ""}`}>
+            {isRu ? e.recommendation_ru : (e.recommendation || "").replace("_", " ")}
+          </span>
+        </div>
       </div>
     </div>
   );

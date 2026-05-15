@@ -148,18 +148,19 @@ async def intelligence_dashboard(
         state = await regime_detector.detect(db, ticker=t)
         ticker_regimes[t] = {"regime": state.regime.value, "confidence": state.confidence}
 
-    # Evaluate latest 5 active signals
+    # Evaluate latest 10 signals
     recent = (await db.execute(
-        select(Signal).order_by(Signal.created_at.desc()).limit(5)
+        select(Signal).order_by(Signal.created_at.desc()).limit(10)
     )).scalars().all()
 
-    evaluations = []
-    for sig in recent:
+    async def _eval(sig: Signal) -> dict:
         provider = await db.get(Provider, sig.provider_id) if sig.provider_id else None
         d = await meta_agent.evaluate(db, sig, provider)
-        evaluations.append({
+        return {
             "signal_id": d.signal_id,
             "ticker": d.ticker,
+            "action": sig.action.value,
+            "entry_price": sig.entry_price,
             "strategy_name": d.strategy_name,
             "strategy_name_ru": d.strategy_name_ru,
             "meta_score": d.meta_score,
@@ -167,7 +168,30 @@ async def intelligence_dashboard(
             "recommendation_ru": d.recommendation_ru,
             "regime": d.regime,
             "regime_compatible": d.regime_compatible,
-        })
+        }
+
+    evaluations = [await _eval(sig) for sig in recent]
+
+    # Top 10 by quality — scan more signals to find the best
+    from app.models.signal import SignalStatus
+    candidates = (await db.execute(
+        select(Signal).where(Signal.ai_confidence.isnot(None))
+        .order_by(Signal.ai_confidence.desc())
+        .limit(30)
+    )).scalars().all()
+
+    top_evals = []
+    seen_ids = {e["signal_id"] for e in evaluations}
+    for sig in candidates:
+        if str(sig.id) in seen_ids:
+            continue
+        ev = await _eval(sig)
+        top_evals.append(ev)
+        seen_ids.add(ev["signal_id"])
+        if len(top_evals) >= 10:
+            break
+
+    top_evals.sort(key=lambda x: x["meta_score"], reverse=True)
 
     return {
         "market": {
@@ -175,9 +199,11 @@ async def intelligence_dashboard(
             "confidence": overall.confidence,
             "volatility": overall.volatility_proxy,
             "signal_frequency": overall.signal_frequency,
+            "buy_ratio": overall.buy_ratio,
         },
         "ticker_regimes": ticker_regimes,
         "evaluations": evaluations,
+        "top_quality": top_evals,
         "architecture_level": 2,
         "architecture_levels": {
             1: "Regime Detection + Strategy Mapping + Execution",
