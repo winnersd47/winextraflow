@@ -259,16 +259,19 @@ function SC({ label, value, color }: { label: string; value: string; color?: str
 
 function AchCard({ a, t }: { a: AchievementResponse; t: (k: string) => string }) {
   const pct = a.requirement_value > 0 ? (a.progress / a.requirement_value) * 100 : 0;
+  // Use i18n translation if available, fallback to backend value
+  const achName = t(`ach.${a.code}.name`) !== `ach.${a.code}.name` ? t(`ach.${a.code}.name`) : a.name;
+  const achDesc = t(`ach.${a.code}.desc`) !== `ach.${a.code}.desc` ? t(`ach.${a.code}.desc`) : a.description;
   return (
     <div className={`rounded-xl border p-4 transition ${a.is_unlocked ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-surface-card opacity-70"}`}>
       <div className="flex items-start gap-3">
-        <span className="text-2xl">{a.is_hidden && !a.is_unlocked ? "❓" : a.icon}</span>
+        <span className="text-2xl">{a.is_hidden && !a.is_unlocked ? "?" : a.icon}</span>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-text-primary">{a.is_hidden && !a.is_unlocked ? t("profile.hidden") : a.name}</h3>
+            <h3 className="font-semibold text-text-primary">{a.is_hidden && !a.is_unlocked ? t("profile.hidden") : achName}</h3>
             {a.is_unlocked && <span className="rounded bg-brand-500/20 px-1.5 py-0.5 text-xs text-brand-500">{t("profile.unlocked")}</span>}
           </div>
-          <p className="mt-0.5 text-xs text-text-secondary">{a.is_hidden && !a.is_unlocked ? "???" : a.description}</p>
+          <p className="mt-0.5 text-xs text-text-secondary">{a.is_hidden && !a.is_unlocked ? "???" : achDesc}</p>
           {a.xp_reward > 0 && <p className="mt-1 text-xs text-yellow-400">+{a.xp_reward} XP</p>}
         </div>
       </div>
