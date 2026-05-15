@@ -13,8 +13,8 @@ import {
 } from "@/components/sea-icons";
 
 const navItems = [
-  { href: "/dashboard", labelKey: "nav.signals", Icon: IconWave, adminOnly: false },
-  { href: "/dashboard/create-signal", labelKey: "nav.createSignal", Icon: IconPlus, adminOnly: false },
+  { href: "/dashboard", labelKey: "nav.signals", Icon: IconWave, adminOnly: false, analystOnly: false },
+  { href: "/dashboard/create-signal", labelKey: "nav.createSignal", Icon: IconPlus, adminOnly: false, analystOnly: true },
   { href: "/dashboard/leaderboard", labelKey: "nav.leaderboard", Icon: IconCompass, adminOnly: false },
   { href: "/dashboard/backtest", labelKey: "nav.backtest", Icon: IconAnchor, adminOnly: false },
   { href: "/dashboard/marketplace", labelKey: "nav.marketplace", Icon: IconShip, adminOnly: false },
@@ -54,6 +54,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {navItems.map((item) => {
           // Admin-only items (capacity, compliance) hidden for regular users
           if (item.adminOnly && !isAdmin) return null;
+
+          // Analyst-only items (create signal) — visible to analyst + admin
+          if (item.analystOnly && !isAdmin && user?.role !== "analyst") return null;
 
           // Check if feature is accessible based on compliance level
           const accessible = compliance.loaded

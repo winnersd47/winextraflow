@@ -10,6 +10,7 @@ from app.database import Base
 
 class UserRole(str, enum.Enum):
     USER = "user"
+    ANALYST = "analyst"    # Employee — can create/publish signals
     PREMIUM = "premium"
     ADMIN = "admin"
 

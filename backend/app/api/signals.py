@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_analyst
 from app.config import settings
 from app.services.premium import is_premium
 from app.database import get_db
@@ -121,9 +121,9 @@ async def tradingview_webhook(
 async def create_signal(
     data: SignalCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_analyst),
 ):
-    """Manually create a trading signal (for signal providers)."""
+    """Create a trading signal. Requires Analyst or Admin role."""
     from app.models.signal import Signal as SignalModel, SignalAction
     from app.models.provider import Provider
     # Verify provider exists

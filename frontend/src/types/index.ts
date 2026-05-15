@@ -7,7 +7,7 @@ export type SignalStatus =
   | "closed_manual"
   | "expired";
 export type ProviderSource = "tradingview" | "telegram" | "manual";
-export type UserRole = "user" | "premium" | "admin";
+export type UserRole = "user" | "analyst" | "premium" | "admin";
 
 // --- User ---
 export interface User {

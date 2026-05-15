@@ -158,18 +158,18 @@ async def test_backtest_achievement(client: AsyncClient, auth_headers: dict, db:
 # ═══════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_publish_strategy_achievement(client: AsyncClient, auth_headers: dict, db: AsyncSession, registered_user: dict):
+async def test_publish_strategy_achievement(client: AsyncClient, premium_auth_headers: dict, db: AsyncSession, registered_user: dict):
     """Publishing a strategy should increment strategy_creator."""
     await _seed_achievements(db)
 
-    # Create provider first
-    prov = await client.post("/api/v1/providers", headers=auth_headers, json={
+    # Create provider first (requires analyst/admin)
+    prov = await client.post("/api/v1/providers", headers=premium_auth_headers, json={
         "name": f"AchProv_{uuid.uuid4().hex[:6]}", "source": "manual",
     })
     provider_id = prov.json()["id"]
 
     # Publish strategy
-    strat = await client.post("/api/v1/strategies", headers=auth_headers, json={
+    strat = await client.post("/api/v1/strategies", headers=premium_auth_headers, json={
         "provider_id": provider_id,
         "name": f"AchStrat_{uuid.uuid4().hex[:6]}",
     })
@@ -188,15 +188,15 @@ async def test_publish_strategy_achievement(client: AsyncClient, auth_headers: d
 # ═══════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_subscribe_strategy_achievement(client: AsyncClient, auth_headers: dict, db: AsyncSession, registered_user: dict):
+async def test_subscribe_strategy_achievement(client: AsyncClient, premium_auth_headers: dict, auth_headers: dict, db: AsyncSession, registered_user: dict):
     """Subscribing to a strategy should increment first_subscription."""
     await _seed_achievements(db)
 
-    # Create provider + strategy
-    prov = await client.post("/api/v1/providers", headers=auth_headers, json={
+    # Create provider + strategy (requires analyst/admin)
+    prov = await client.post("/api/v1/providers", headers=premium_auth_headers, json={
         "name": f"SubProv_{uuid.uuid4().hex[:6]}", "source": "manual",
     })
-    strat = await client.post("/api/v1/strategies", headers=auth_headers, json={
+    strat = await client.post("/api/v1/strategies", headers=premium_auth_headers, json={
         "provider_id": prov.json()["id"],
         "name": f"SubStrat_{uuid.uuid4().hex[:6]}",
     })

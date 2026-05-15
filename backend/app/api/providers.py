@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from pydantic import BaseModel
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_analyst
 from app.database import get_db
 from app.models.provider import Provider, ProviderSource
 from app.models.user import User
@@ -73,7 +73,7 @@ async def get_provider(
 async def create_provider(
     data: ProviderCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_analyst),
 ):
     provider = Provider(**data.model_dump())
     db.add(provider)

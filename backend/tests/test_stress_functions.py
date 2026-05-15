@@ -373,17 +373,17 @@ async def test_referral_chain_3_levels(client: AsyncClient, seed_referrer: str):
 # ═══════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_marketplace_publish_subscribe_flow(client: AsyncClient, auth_headers: dict, db: AsyncSession):
+async def test_marketplace_publish_subscribe_flow(client: AsyncClient, premium_auth_headers: dict, auth_headers: dict, db: AsyncSession):
     """Emulate: create provider → publish strategy → subscribe → unsubscribe."""
-    # Create provider
-    prov = await client.post("/api/v1/providers", headers=auth_headers, json={
+    # Create provider (requires analyst/admin role)
+    prov = await client.post("/api/v1/providers", headers=premium_auth_headers, json={
         "name": f"StressProv_{uuid.uuid4().hex[:6]}", "source": "manual",
     })
     assert prov.status_code == 201
     provider_id = prov.json()["id"]
 
     # Publish strategy
-    strat = await client.post("/api/v1/strategies", headers=auth_headers, json={
+    strat = await client.post("/api/v1/strategies", headers=premium_auth_headers, json={
         "provider_id": provider_id,
         "name": f"Stress Strategy {uuid.uuid4().hex[:6]}",
         "description": "Test strategy for stress testing",

@@ -59,6 +59,16 @@ async def get_current_user(
     return user
 
 
+async def require_analyst(user: User = Depends(get_current_user)) -> User:
+    """Dependency that requires analyst or admin role (signal creators)."""
+    if user.role not in (UserRole.ANALYST, UserRole.ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Analyst or Admin role required to create signals",
+        )
+    return user
+
+
 async def require_premium(user: User = Depends(get_current_user)) -> User:
     """Dependency that requires premium access + KYC verification."""
     from app.services.premium import is_premium as check_premium
