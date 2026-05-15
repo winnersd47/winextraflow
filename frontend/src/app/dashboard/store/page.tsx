@@ -14,7 +14,13 @@ export default function StorePage() {
   const [courses, setCourses] = useState<any[]>([]);
   const [tgInfo, setTgInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("api");
+  const [activeTab, setActiveTab] = useState("premium");
+  const [premiumStatus, setPremiumStatus] = useState<any>(null);
+  const [promo, setPromo] = useState("");
+  const [buying, setBuying] = useState("");
+  const [premiumError, setPremiumError] = useState("");
+  const [premiumSuccess, setPremiumSuccess] = useState("");
+  const [payments, setPayments] = useState<any[]>([]);
   const [newKeyPlan, setNewKeyPlan] = useState("basic");
   const [newKeyLabel, setNewKeyLabel] = useState("");
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -27,23 +33,63 @@ export default function StorePage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [plans, keys, rp, edu, tg] = await Promise.all([
+        const [plans, keys, rp, edu, tg, ps, ph] = await Promise.all([
           fetch("/api/v1/products/api-keys/plans", { headers }).then(r => r.json()),
           fetch("/api/v1/products/api-keys", { headers }).then(r => r.json()),
           fetch("/api/v1/products/reports/providers", { headers }).then(r => r.json()),
           fetch("/api/v1/products/education", { headers }).then(r => r.json()),
           fetch("/api/v1/products/telegram-premium", { headers }).then(r => r.json()),
+          fetch("/api/v1/premium/status", { headers }).then(r => r.json()),
+          fetch("/api/v1/payments/history", { headers }).then(r => r.json()),
         ]);
         setApiPlans(plans.plans || []);
         setApiKeys(keys.keys || []);
         setReportProviders(rp.providers || []);
         setCourses(edu.courses || []);
         setTgInfo(tg);
+        setPremiumStatus(ps);
+        setPayments(ph?.items || []);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     };
     load();
   }, []);
+
+  const handleBuyPremium = async (plan: string) => {
+    setPremiumError(""); setBuying(plan);
+    try {
+      const resp = await fetch("/api/v1/payments/checkout", {
+        method: "POST", headers,
+        body: JSON.stringify({ plan }),
+      });
+      const result = await resp.json();
+      if (result.demo) {
+        await fetch(`/api/v1/payments/complete-demo?session_id=${result.session_id}`, { method: "POST", headers });
+        setPremiumSuccess(isRu ? "Premium активирован!" : "Premium activated!");
+        const ps = await fetch("/api/v1/premium/status", { headers }).then(r => r.json());
+        setPremiumStatus(ps);
+      } else {
+        window.location.href = result.checkout_url;
+      }
+    } catch (err: any) { setPremiumError(err.message); }
+    finally { setBuying(""); }
+  };
+
+  const handlePromo = async () => {
+    setPremiumError(""); setPremiumSuccess("");
+    try {
+      const resp = await fetch(`/api/v1/premium/activate`, {
+        method: "POST", headers,
+        body: JSON.stringify({ promo_code: promo }),
+      });
+      if (resp.ok) {
+        setPremiumSuccess(isRu ? "Промокод активирован!" : "Promo code activated!");
+        setPromo("");
+        const ps = await fetch("/api/v1/premium/status", { headers }).then(r => r.json());
+        setPremiumStatus(ps);
+      } else { const d = await resp.json(); setPremiumError(d.detail || "Error"); }
+    } catch (err: any) { setPremiumError(err.message); }
+  };
 
   const createKey = async () => {
     const resp = await fetch("/api/v1/products/api-keys", {
@@ -75,6 +121,7 @@ export default function StorePage() {
   if (loading) return <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
 
   const TABS = [
+    { key: "premium", label: "Premium" },
     { key: "api", label: isRu ? "API доступ" : "API Access" },
     { key: "reports", label: isRu ? "Отчёты" : "Reports" },
     { key: "telegram", label: "Telegram VIP" },
@@ -95,6 +142,120 @@ export default function StorePage() {
           </button>
         ))}
       </div>
+
+      {/* ── PREMIUM (priority) ── */}
+      {activeTab === "premium" && (
+        <div className="space-y-6">
+          {/* Status banner */}
+          {premiumStatus && (
+            <div className={`rounded-xl border-2 p-6 ${premiumStatus.is_premium ? "border-brand-500 bg-brand-500/5" : "border-yellow-500 bg-yellow-500/5"}`}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-text-primary">
+                    {premiumStatus.is_premium
+                      ? (isRu ? "Premium активен" : "Premium Active")
+                      : (isRu ? "Разблокируйте полный доступ" : "Unlock Full Access")}
+                  </h2>
+                  <p className="mt-1 text-sm text-text-secondary">
+                    {premiumStatus.is_premium
+                      ? `${premiumStatus.days_left} ${isRu ? "дней осталось" : "days left"}`
+                      : (isRu ? "Все сигналы, бэктест без лимита, исполнение, копитрейдинг, аналитика L2" : "All signals, unlimited backtest, execution, copy trading, L2 analytics")}
+                  </p>
+                </div>
+                {premiumStatus.is_premium && (
+                  <span className="rounded-lg bg-brand-500/20 px-4 py-2 text-lg font-bold text-brand-500">PRO</span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {premiumError && <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{premiumError}</div>}
+          {premiumSuccess && <div className="rounded-lg bg-green-500/10 p-3 text-sm text-green-400">{premiumSuccess}</div>}
+
+          {/* Pricing cards */}
+          {!premiumStatus?.is_premium && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-border bg-surface-card p-6">
+                <h3 className="text-lg font-bold text-text-primary">Monthly</h3>
+                <p className="mt-1 text-4xl font-extrabold text-text-primary">$29<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
+                <p className="mt-1 text-xs text-text-muted">30 {isRu ? "дней" : "days"}</p>
+                <button onClick={() => handleBuyPremium("monthly")} disabled={!!buying}
+                  className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                  {buying === "monthly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
+                </button>
+              </div>
+              <div className="rounded-xl border-2 border-brand-500 bg-surface-card p-6 shadow-lg shadow-brand-500/10">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-bold text-text-primary">Yearly</h3>
+                  <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">{isRu ? "Экономия 30%" : "Save 30%"}</span>
+                </div>
+                <p className="mt-1 text-4xl font-extrabold text-brand-500">$249<span className="text-base font-normal text-text-muted">/{isRu ? "год" : "yr"}</span></p>
+                <p className="mt-1 text-xs text-text-muted">365 {isRu ? "дней" : "days"}</p>
+                <button onClick={() => handleBuyPremium("yearly")} disabled={!!buying}
+                  className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                  {buying === "yearly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* What's included */}
+          <div className="rounded-xl border border-border bg-surface-card p-6">
+            <h3 className="mb-4 font-bold text-text-primary">{isRu ? "Что входит в Premium" : "What's Included"}</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { f: isRu ? "Все сигналы без ограничений" : "All signals unlimited", free: "10", pro: isRu ? "Все" : "All" },
+                { f: isRu ? "Бэктестинг" : "Backtesting", free: "1/" + (isRu ? "день" : "day"), pro: isRu ? "Без лимита" : "Unlimited" },
+                { f: isRu ? "AI-аналитика L2" : "AI Analytics L2", free: "—", pro: "+" },
+                { f: isRu ? "Исполнение на биржах" : "Exchange Execution", free: "—", pro: "+" },
+                { f: isRu ? "Копитрейдинг" : "Copy Trading", free: "—", pro: "+" },
+                { f: isRu ? "Маркетплейс стратегий" : "Strategy Marketplace", free: "—", pro: "+" },
+                { f: isRu ? "PDF отчёты" : "PDF Reports", free: "—", pro: "+" },
+                { f: isRu ? "Telegram VIP канал" : "Telegram VIP Channel", free: "—", pro: "+" },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between rounded-lg bg-surface p-3">
+                  <span className="text-sm text-text-primary">{item.f}</span>
+                  <div className="flex gap-4 text-xs">
+                    <span className="w-16 text-center text-text-muted">{item.free}</span>
+                    <span className="w-16 text-center font-bold text-brand-500">{item.pro}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Promo code */}
+          <div className="rounded-xl border border-border bg-surface-card p-6">
+            <h3 className="mb-3 font-bold text-text-primary">{isRu ? "Промокод" : "Promo Code"}</h3>
+            <div className="flex gap-2">
+              <input type="text" value={promo} onChange={e => setPromo(e.target.value)}
+                placeholder={isRu ? "Введите код" : "Enter code"}
+                className="flex-1 rounded-lg border border-border bg-surface px-4 py-2.5 text-text-primary outline-none focus:border-brand-500" />
+              <button onClick={handlePromo} disabled={!promo}
+                className="rounded-lg bg-brand-600 px-6 py-2.5 font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                {isRu ? "Применить" : "Apply"}
+              </button>
+            </div>
+          </div>
+
+          {/* Payment history */}
+          {payments.length > 0 && (
+            <div className="rounded-xl border border-border bg-surface-card p-6">
+              <h3 className="mb-3 font-bold text-text-primary">{isRu ? "История платежей" : "Payment History"}</h3>
+              <div className="space-y-2">
+                {payments.map((p: any) => (
+                  <div key={p.id} className="flex items-center justify-between rounded-lg bg-surface p-3">
+                    <div className="flex items-center gap-3">
+                      <span className={`rounded px-2 py-0.5 text-xs font-bold ${p.status === "completed" ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}`}>{p.status}</span>
+                      <span className="text-sm text-text-primary">{p.plan} — ${p.amount}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── API Access ── */}
       {activeTab === "api" && (
