@@ -209,6 +209,16 @@ async def intelligence_dashboard(
     }
 
 
+@router.get("/readiness")
+async def architecture_readiness(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Check readiness for L3/L4 architecture transitions with detailed metrics."""
+    from app.services.quant.readiness import readiness_monitor
+    return await readiness_monitor.check_l3_readiness(db)
+
+
 @router.get("/evolution")
 async def evolution_state(user: User = Depends(get_current_user)):
     """Full evolutionary state of the architecture — branches, components, roadmap."""

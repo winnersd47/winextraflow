@@ -44,6 +44,7 @@ const REC_COLORS: Record<string, string> = {
 
 export default function IntelligencePage() {
   const [data, setData] = useState<any>(null);
+  const [readiness, setReadiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showGuide, setShowGuide] = useState(false);
   const { locale } = useI18n();
@@ -55,8 +56,12 @@ export default function IntelligencePage() {
     const load = async () => {
       try {
         const token = localStorage.getItem("token");
-        const resp = await fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } });
+        const [resp, rReady] = await Promise.all([
+          fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/v1/quant/readiness", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
         if (resp.ok) setData(await resp.json());
+        if (rReady.ok) setReadiness(await rReady.json());
       } catch {}
       finally { setLoading(false); }
     };
@@ -273,32 +278,92 @@ export default function IntelligencePage() {
         )}
       </div>
 
-      {/* ═══ ARCHITECTURE ROADMAP ═══ */}
-      <div className="mb-6 rounded-xl border border-border bg-surface-card p-6">
-        <h2 className="mb-2 text-sm font-bold text-text-muted">{isRu ? "АРХИТЕКТУРА СИСТЕМЫ" : "SYSTEM ARCHITECTURE"}</h2>
-        <p className="mb-4 text-xs text-text-secondary">
-          {isRu
-            ? "Система анализа непрерывно эволюционирует. Каждый новый сигнал и каждая обработанная статья усиливают алгоритмы."
-            : "The analysis system continuously evolves. Every new signal and processed article strengthens the algorithms."}
-        </p>
-        <div className="space-y-2">
-          {Object.entries(architecture_levels).map(([level, desc]: [string, any]) => {
-            const isCurrent = parseInt(level) === architecture_level;
-            const isPlanned = parseInt(level) > architecture_level;
-            return (
-              <div key={level} className={`flex items-center gap-3 rounded-lg p-3 ${isCurrent ? "border-2 border-brand-500 bg-brand-500/5" : "bg-surface"}`}>
-                <span className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${isCurrent ? "bg-brand-500 text-white" : isPlanned ? "bg-surface-hover text-text-muted" : "bg-green-500/20 text-green-400"}`}>
-                  L{level}
+      {/* ═══ ARCHITECTURE READINESS ═══ */}
+      {readiness && (
+        <div className="mb-6 space-y-4">
+          {/* Alerts */}
+          {readiness.alerts?.map((a: any, i: number) => (
+            <div key={i} className={`rounded-xl border-2 p-4 ${a.level === "success" ? "border-green-500 bg-green-500/5" : "border-blue-500 bg-blue-500/5"}`}>
+              <h3 className={`font-bold ${a.level === "success" ? "text-green-400" : "text-blue-400"}`}>
+                {isRu ? a.title_ru : a.title_en}
+              </h3>
+              <p className="mt-1 text-sm text-text-secondary">{isRu ? a.message_ru : a.message_en}</p>
+              <p className="mt-2 text-sm font-medium text-text-primary">{isRu ? a.action_ru : a.action_en}</p>
+            </div>
+          ))}
+
+          {/* L2 (Current) + L3 Readiness */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* L3 */}
+            <div className="rounded-xl border border-border bg-surface-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-500/20 text-sm font-bold text-yellow-400">L3</span>
+                  <span className="text-sm font-bold text-text-primary">Multi-Agent + RL</span>
+                </div>
+                <span className={`text-lg font-bold ${readiness.l3.ready ? "text-green-400" : "text-yellow-400"}`}>
+                  {readiness.l3.progress_pct}%
                 </span>
-                <span className={`text-sm ${isCurrent ? "font-bold text-brand-500" : isPlanned ? "text-text-muted" : "text-text-secondary"}`}>
-                  {desc}
-                </span>
-                {isCurrent && <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">{isRu ? "ТЕКУЩИЙ" : "CURRENT"}</span>}
               </div>
-            );
-          })}
+              <div className="mb-3 h-2 overflow-hidden rounded-full bg-surface">
+                <div className={`h-full rounded-full transition-all ${readiness.l3.ready ? "bg-green-500" : "bg-yellow-500"}`} style={{ width: `${readiness.l3.progress_pct}%` }} />
+              </div>
+              <div className="space-y-2">
+                {readiness.l3.metrics.map((m: any) => (
+                  <div key={m.key} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${m.met ? "bg-green-500" : "bg-gray-500"}`} />
+                      <span className={m.met ? "text-text-primary" : "text-text-muted"}>{isRu ? m.name_ru : m.name_en}</span>
+                    </div>
+                    <span className={`font-mono ${m.met ? "text-green-400" : "text-text-muted"}`}>
+                      {m.current.toLocaleString()}/{m.target.toLocaleString()} {m.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* L4 */}
+            <div className="rounded-xl border border-border bg-surface-card p-5">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-surface-hover text-sm font-bold text-text-muted">L4</span>
+                  <span className="text-sm font-bold text-text-primary">Evolutionary + Digital Twin</span>
+                </div>
+                <span className="text-lg font-bold text-text-muted">{readiness.l4.progress_pct}%</span>
+              </div>
+              <div className="mb-3 h-2 overflow-hidden rounded-full bg-surface">
+                <div className="h-full rounded-full bg-gray-600 transition-all" style={{ width: `${readiness.l4.progress_pct}%` }} />
+              </div>
+              <div className="space-y-2">
+                {readiness.l4.metrics.map((m: any) => (
+                  <div key={m.key} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${m.met ? "bg-green-500" : "bg-gray-600"}`} />
+                      <span className="text-text-muted">{isRu ? m.name_ru : m.name_en}</span>
+                    </div>
+                    <span className="font-mono text-text-muted">
+                      {typeof m.current === "number" ? m.current.toLocaleString() : m.current}/{typeof m.target === "number" ? m.target.toLocaleString() : m.target} {m.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Feedback Loop Stats */}
+          {readiness.feedback_stats && (
+            <div className="rounded-lg bg-surface px-4 py-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-text-muted">Feedback Loop: {readiness.feedback_stats.total_records} {isRu ? "записей" : "records"}</span>
+                <span className={`font-bold ${readiness.feedback_stats.accuracy_pct >= 60 ? "text-green-400" : readiness.feedback_stats.accuracy_pct > 0 ? "text-yellow-400" : "text-text-muted"}`}>
+                  {isRu ? "Точность" : "Accuracy"}: {readiness.feedback_stats.accuracy_pct}%
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Disclaimer */}
       <div className="rounded-lg border border-border bg-surface-card px-4 py-3 text-xs text-text-muted">

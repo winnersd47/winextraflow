@@ -177,6 +177,19 @@ async def close_signal(
     except ValueError as e:
         logger.warning(f"Signal close error: {e}")
         raise HTTPException(status_code=400, detail="Invalid close parameters")
+
+    # Feedback loop: record outcome for L3 readiness
+    try:
+        from app.services.quant.readiness import readiness_monitor
+        outcome = "tp_hit" if signal.status.value == "closed_tp" else "sl_hit" if signal.status.value == "closed_sl" else "expired"
+        readiness_monitor.record_feedback(
+            signal_id=str(signal.id),
+            predicted_quality=signal.ai_confidence or 0.5,
+            actual_outcome=outcome,
+        )
+    except Exception:
+        pass
+
     return signal
 
 
