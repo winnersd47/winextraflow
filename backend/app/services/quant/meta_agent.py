@@ -118,19 +118,19 @@ class MetaAgentDecision:
 
 
 RECOMMENDATIONS = {
-    "strong_buy": "Strong Buy",
-    "buy": "Buy",
+    "strong_buy": "Excellent",
+    "buy": "Good",
     "neutral": "Neutral",
-    "avoid": "Avoid",
-    "strong_avoid": "Strong Avoid",
+    "avoid": "Weak",
+    "strong_avoid": "Skip",
 }
 
 RECOMMENDATIONS_RU = {
-    "strong_buy": "Уверенная покупка",
-    "buy": "Покупка",
+    "strong_buy": "Отличный сигнал",
+    "buy": "Хороший сигнал",
     "neutral": "Нейтрально",
-    "avoid": "Избегать",
-    "strong_avoid": "Категорически избегать",
+    "avoid": "Слабый сигнал",
+    "strong_avoid": "Пропустить",
 }
 
 
