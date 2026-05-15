@@ -76,7 +76,7 @@ async def get_signal(
         await achievement_service.increment_progress(db, user.id, "first_signal")
         await achievement_service.increment_progress(db, user.id, "signal_hunter")
     except Exception:
-        pass
+        pass  # Non-critical hook
     return signal
 
 
@@ -188,7 +188,7 @@ async def close_signal(
             actual_outcome=outcome,
         )
     except Exception:
-        pass
+        pass  # Non-critical hook
 
     return signal
 

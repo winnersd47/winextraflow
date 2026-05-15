@@ -74,6 +74,6 @@ async def run_backtest(
         from app.services.achievements import achievement_service
         await achievement_service.increment_progress(db, user.id, "first_backtest")
     except Exception:
-        pass
+        pass  # Achievement tracking is non-critical
 
     return result

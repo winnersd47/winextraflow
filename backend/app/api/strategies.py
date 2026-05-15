@@ -163,7 +163,7 @@ async def publish_strategy(
         from app.services.achievements import achievement_service
         await achievement_service.increment_progress(db, user.id, "strategy_creator")
     except Exception:
-        pass
+        pass  # Achievement tracking is non-critical
     return _enrich_strategy(strategy, provider)
 
 
@@ -210,7 +210,7 @@ async def subscribe(
         from app.services.achievements import achievement_service
         await achievement_service.increment_progress(db, user.id, "first_subscription")
     except Exception:
-        pass
+        pass  # Achievement tracking is non-critical
     return sub
 
 

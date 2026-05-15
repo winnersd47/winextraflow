@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -73,13 +73,10 @@ async def mark_all_read(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(Notification).where(and_(
-            Notification.user_id == user.id,
-            Notification.is_read == False,
-        ))
+    await db.execute(
+        update(Notification)
+        .where(and_(Notification.user_id == user.id, Notification.is_read == False))
+        .values(is_read=True)
     )
-    for n in result.scalars().all():
-        n.is_read = True
     await db.commit()
     return {"status": "ok"}

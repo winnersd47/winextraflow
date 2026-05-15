@@ -50,7 +50,7 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
         username=data.username,
         hashed_password=hash_password(data.password),
         referral_code=secrets.token_urlsafe(8),
-        referred_by=referrer.id if referrer else None,
+        referred_by=referrer.id,
     )
     db.add(user)
     await db.flush()  # Get user.id
@@ -103,8 +103,8 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
             await achievement_service.increment_progress(db, referrer.id, "first_referral")
             await achievement_service.increment_progress(db, referrer.id, "referral_5")
             await achievement_service.increment_progress(db, referrer.id, "referral_25")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Achievement hook error: {e}")
 
     return user
 

@@ -22,17 +22,14 @@ DEDUP_WINDOW_MINUTES = 5
 class SignalAggregator:
     """Central service for signal normalization and deduplication."""
 
-    def __init__(self):
-        self._listeners: list = []  # Callbacks for new signal notifications
+    def __init__(self) -> None:
+        self._listeners: list[callable] = []
 
-    def on_new_signal(self, callback):
-        """Register a callback to be called when a new signal is created.
-
-        Used by WebSocket broadcaster to push real-time updates.
-        """
+    def on_new_signal(self, callback: callable) -> None:
+        """Register a callback to be called when a new signal is created."""
         self._listeners.append(callback)
 
-    def remove_listener(self, callback):
+    def remove_listener(self, callback: callable) -> None:
         """Remove a previously registered callback."""
         self._listeners = [cb for cb in self._listeners if cb != callback]
 

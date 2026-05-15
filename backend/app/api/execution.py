@@ -1,6 +1,9 @@
 """Execution API — manage exchange accounts and execute signals."""
 
+import logging
 import uuid
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
@@ -149,8 +152,8 @@ async def execute_signal(
         await achievement_service.increment_progress(db, user.id, "first_trade")
         await achievement_service.increment_progress(db, user.id, "trader_10")
         await achievement_service.increment_progress(db, user.id, "trader_100")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Achievement hook error: {e}")
     return order
 
 
