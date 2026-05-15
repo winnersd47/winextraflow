@@ -65,51 +65,88 @@ export default function CopyTradingPage() {
         {trades.length === 0 ? (
           <p className="py-8 text-center text-text-secondary">{t("copyTrading.noTrades")}</p>
         ) : (
-          <div className="space-y-2">
-            {trades.map((trade: any) => {
-              const statusRu: Record<string, string> = { executed: "Исполнено", failed: "Ошибка", skipped: "Пропущено", pending: "Ожидание" };
-              const statusEn: Record<string, string> = { executed: "Executed", failed: "Failed", skipped: "Skipped", pending: "Pending" };
-              const errorRu: Record<string, string> = { "Insufficient balance": "Недостаточно средств", "Exchange connection error": "Ошибка подключения к бирже", "Exchange order execution failed": "Ошибка исполнения ордера" };
-              const statusLabel = isRu ? (statusRu[trade.status] || trade.status) : (statusEn[trade.status] || trade.status);
-              const errorLabel = trade.error_message ? (isRu ? (errorRu[trade.error_message] || trade.error_message) : trade.error_message) : null;
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border text-xs text-text-muted">
+                <tr>
+                  <th className="pb-2 pr-3">{isRu ? "Статус" : "Status"}</th>
+                  <th className="pb-2 pr-3">{isRu ? "Тикер" : "Ticker"}</th>
+                  <th className="pb-2 pr-3">{isRu ? "Действие" : "Action"}</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Цена входа" : "Entry Price"}</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Прибыль" : "Profit"}</th>
+                  <th className="pb-2 pr-3">{isRu ? "Качество" : "Quality"}</th>
+                  <th className="pb-2 pr-3">{isRu ? "Стратегия" : "Strategy"}</th>
+                  <th className="pb-2 text-right">{isRu ? "Когда" : "Time"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {trades.map((trade: any) => {
+                  const statusRu: Record<string, string> = { executed: "Исполнено", failed: "Ошибка", skipped: "Пропущено", pending: "Ожидание" };
+                  const statusEn: Record<string, string> = { executed: "Executed", failed: "Failed", skipped: "Skipped", pending: "Pending" };
+                  const errorRu: Record<string, string> = { "Insufficient balance": "Недостаточно средств", "Exchange connection error": "Ошибка соединения", "Exchange order execution failed": "Ошибка ордера" };
+                  const statusLabel = isRu ? (statusRu[trade.status] || trade.status) : (statusEn[trade.status] || trade.status);
+                  const errorLabel = trade.error_message ? (isRu ? (errorRu[trade.error_message] || trade.error_message) : trade.error_message) : null;
+                  const profitPct = trade.profit_pct;
+                  const hasTicker = !!trade.ticker;
 
-              return (
-                <div key={trade.id} className="flex items-center justify-between rounded-lg bg-surface p-3">
-                  <div className="flex items-center gap-3">
-                    <span className={`rounded px-2 py-0.5 text-xs font-bold ${trade.status === "executed" ? "bg-green-500/20 text-green-400" : trade.status === "failed" ? "bg-red-500/20 text-red-400" : trade.status === "skipped" ? "bg-yellow-500/20 text-yellow-400" : "bg-surface-hover text-text-secondary"}`}>
-                      {statusLabel}
-                    </span>
-                    {trade.ticker ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-text-primary">{trade.ticker}</span>
-                        <span className={`text-xs font-bold uppercase ${trade.action === "buy" ? "text-green-400" : "text-red-400"}`}>
-                          {trade.action === "buy" ? (isRu ? "ПОКУПКА" : "BUY") : (isRu ? "ПРОДАЖА" : "SELL")}
+                  return (
+                    <tr key={trade.id}>
+                      {/* Статус */}
+                      <td className="py-2.5 pr-3">
+                        <span className={`rounded px-2 py-0.5 text-xs font-bold ${trade.status === "executed" ? "bg-green-500/20 text-green-400" : trade.status === "failed" ? "bg-red-500/20 text-red-400" : "bg-yellow-500/20 text-yellow-400"}`}>
+                          {statusLabel}
                         </span>
-                        {trade.entry_price && (
-                          <span className="text-xs text-text-muted">@ {trade.entry_price.toLocaleString()}</span>
+                        {errorLabel && <p className="mt-0.5 text-xs text-red-400">{errorLabel}</p>}
+                      </td>
+                      {/* Тикер */}
+                      <td className="py-2.5 pr-3 font-bold text-text-primary">
+                        {hasTicker ? trade.ticker : <span className="text-text-muted font-normal">{trade.signal_id.slice(0, 8)}...</span>}
+                      </td>
+                      {/* Действие */}
+                      <td className="py-2.5 pr-3">
+                        {hasTicker && (
+                          <span className={`text-xs font-bold uppercase ${trade.action === "buy" ? "text-green-400" : "text-red-400"}`}>
+                            {trade.action === "buy" ? (isRu ? "Покупка" : "Buy") : (isRu ? "Продажа" : "Sell")}
+                          </span>
                         )}
-                      </div>
-                    ) : (
-                      <span className="text-sm text-text-muted">ID: {trade.signal_id.slice(0, 8)}...</span>
-                    )}
-                    {trade.strategy_name && (
-                      <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">{trade.strategy_name}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {trade.ai_confidence != null && (
-                      <span className={`text-xs font-bold ${trade.ai_confidence >= 0.7 ? "text-green-400" : trade.ai_confidence >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
-                        {(trade.ai_confidence * 100).toFixed(0)}%
-                      </span>
-                    )}
-                    <div className="text-right">
-                      {errorLabel && <p className="text-xs text-red-400">{errorLabel}</p>}
-                      <p className="text-xs text-text-muted">{timeAgo(trade.created_at)}</p>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                      {/* Цена входа */}
+                      <td className="py-2.5 pr-3 text-right text-text-secondary">
+                        {trade.entry_price != null ? trade.entry_price.toLocaleString(isRu ? "ru-RU" : "en-US", { maximumFractionDigits: 6 }) : "—"}
+                      </td>
+                      {/* Прибыль */}
+                      <td className="py-2.5 pr-3 text-right">
+                        {profitPct != null ? (
+                          <span className={`font-bold ${profitPct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {profitPct >= 0 ? "+" : ""}{profitPct.toFixed(2)}%
+                          </span>
+                        ) : (
+                          <span className="text-text-muted">{trade.status === "executed" ? (isRu ? "Открыта" : "Open") : "—"}</span>
+                        )}
+                      </td>
+                      {/* Качество */}
+                      <td className="py-2.5 pr-3">
+                        {trade.ai_confidence != null ? (
+                          <span className={`text-xs font-bold ${trade.ai_confidence >= 0.7 ? "text-green-400" : trade.ai_confidence >= 0.4 ? "text-yellow-400" : "text-red-400"}`}>
+                            {(trade.ai_confidence * 100).toFixed(0)}%
+                          </span>
+                        ) : "—"}
+                      </td>
+                      {/* Стратегия */}
+                      <td className="py-2.5 pr-3">
+                        {trade.strategy_name ? (
+                          <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">{trade.strategy_name.replace("[TEST] ", "")}</span>
+                        ) : "—"}
+                      </td>
+                      {/* Когда */}
+                      <td className="py-2.5 text-right text-xs text-text-muted">
+                        {timeAgo(trade.created_at)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
