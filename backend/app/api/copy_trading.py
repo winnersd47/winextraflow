@@ -74,26 +74,52 @@ async def copy_trading_status(
     )
 
 
-@router.get("/history", response_model=CopyTradeList)
+@router.get("/history")
 async def copy_trade_history(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Get copy trade history for the current user."""
+    """Get enriched copy trade history with signal details."""
+    from app.models.signal import Signal
+    from app.models.strategy import Strategy
+
     total = (await db.execute(
         select(func.count()).select_from(CopyTrade).where(CopyTrade.subscriber_id == user.id)
     )).scalar() or 0
 
     result = await db.execute(
-        select(CopyTrade)
+        select(CopyTrade, Signal, Strategy)
+        .outerjoin(Signal, CopyTrade.signal_id == Signal.id)
+        .outerjoin(Strategy, CopyTrade.strategy_id == Strategy.id)
         .where(CopyTrade.subscriber_id == user.id)
         .order_by(CopyTrade.created_at.desc())
         .offset(skip)
         .limit(limit)
     )
-    return CopyTradeList(items=result.scalars().all(), total=total)
+    rows = result.all()
+
+    items = []
+    for ct, sig, strat in rows:
+        items.append({
+            "id": str(ct.id),
+            "signal_id": str(ct.signal_id),
+            "strategy_id": str(ct.strategy_id) if ct.strategy_id else None,
+            "status": ct.status.value,
+            "error_message": ct.error_message,
+            "created_at": ct.created_at.isoformat() if ct.created_at else None,
+            # Enriched signal data
+            "ticker": sig.ticker if sig else None,
+            "action": sig.action.value if sig else None,
+            "entry_price": sig.entry_price if sig else None,
+            "ai_confidence": sig.ai_confidence if sig else None,
+            "profit_pct": sig.profit_pct if sig else None,
+            # Strategy name
+            "strategy_name": strat.name if strat else None,
+        })
+
+    return {"items": items, "total": total}
 
 
 @router.patch("/subscriptions/{subscription_id}/auto-execute")
