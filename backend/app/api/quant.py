@@ -172,26 +172,21 @@ async def intelligence_dashboard(
 
     evaluations = [await _eval(sig) for sig in recent]
 
-    # Top 10 by quality — scan more signals to find the best
-    from app.models.signal import SignalStatus
+    # Top 10 by quality — independent ranking (may overlap with latest)
+    # Scan active + recent closed signals with highest AI confidence
     candidates = (await db.execute(
         select(Signal).where(Signal.ai_confidence.isnot(None))
         .order_by(Signal.ai_confidence.desc())
-        .limit(30)
+        .limit(50)
     )).scalars().all()
 
-    top_evals = []
-    seen_ids = {e["signal_id"] for e in evaluations}
+    top_evals_raw = []
     for sig in candidates:
-        if str(sig.id) in seen_ids:
-            continue
         ev = await _eval(sig)
-        top_evals.append(ev)
-        seen_ids.add(ev["signal_id"])
-        if len(top_evals) >= 10:
-            break
+        top_evals_raw.append(ev)
 
-    top_evals.sort(key=lambda x: x["meta_score"], reverse=True)
+    top_evals_raw.sort(key=lambda x: x["meta_score"], reverse=True)
+    top_evals = top_evals_raw[:10]
 
     return {
         "market": {
