@@ -124,7 +124,7 @@ export default function StorePage() {
     { key: "premium", label: "Premium" },
     { key: "api", label: isRu ? "API доступ" : "API Access" },
     { key: "reports", label: isRu ? "Отчёты" : "Reports" },
-    { key: "telegram", label: "Telegram VIP" },
+    { key: "telegram", label: isRu ? "Каналы" : "Channels" },
     { key: "education", label: isRu ? "Обучение" : "Education" },
   ];
 
@@ -420,11 +420,34 @@ export default function StorePage() {
             </a>
           </div>
 
+          {/* MAX Messenger */}
+          <div className="rounded-xl border border-border bg-surface-card p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <h3 className="text-lg font-bold text-text-primary">MAX</h3>
+              <span className="rounded bg-blue-500/20 px-2 py-0.5 text-xs font-bold text-blue-400">{isRu ? "Российский мессенджер" : "Russian messenger"}</span>
+            </div>
+            <p className="text-sm text-text-secondary">
+              {isRu
+                ? "Мессенджер MAX от VK — национальный мессенджер России. Те же сигналы, что и в Telegram, дублируются в MAX для пользователей, предпочитающих российскую платформу."
+                : "MAX messenger by VK — Russia's national messenger. Same signals as Telegram are mirrored to MAX for users who prefer the Russian platform."}
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-surface p-3 text-center">
+                <p className="text-xs text-text-muted">{isRu ? "Бесплатный канал" : "Free channel"}</p>
+                <p className="mt-1 text-sm font-medium text-text-primary">{tgInfo.max_free_channel_name || "WinExtraFlow Signals"}</p>
+              </div>
+              <div className="rounded-lg bg-surface p-3 text-center">
+                <p className="text-xs text-text-muted">VIP ({isRu ? "Premium" : "Premium"})</p>
+                <p className="mt-1 text-sm font-medium text-brand-500">{tgInfo.max_vip_channel_name || "WinExtraFlow VIP"}</p>
+              </div>
+            </div>
+          </div>
+
           {/* How it works */}
           <div className="rounded-lg bg-surface px-4 py-3 text-xs text-text-muted">
             {isRu
-              ? `Как это работает: при появлении нового сигнала на платформе → VIP-канал получает полные данные мгновенно → бесплатный канал получает только направление (BUY/SELL) через ${tgInfo.delay_minutes || 120} минут.`
-              : `How it works: when a new signal appears → VIP channel gets full details instantly → free channel gets direction only (BUY/SELL) after ${tgInfo.delay_minutes || 120} minutes.`}
+              ? `Как это работает: новый сигнал → VIP-каналы (Telegram + MAX) получают полные данные мгновенно → бесплатные каналы получают только направление через ${tgInfo.delay_minutes || 120} минут.`
+              : `How it works: new signal → VIP channels (Telegram + MAX) get full details instantly → free channels get direction only after ${tgInfo.delay_minutes || 120} minutes.`}
           </div>
         </div>
       )}

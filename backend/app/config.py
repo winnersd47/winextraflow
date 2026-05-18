@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     telegram_free_channel_id: str = ""      # Free channel chat_id (delayed signals)
     telegram_free_delay_minutes: int = 120  # Delay for free channel (2 hours)
 
+    # MAX Messenger Bot (Russian national messenger by VK)
+    max_bot_token: str = ""
+    max_vip_channel_id: str = ""            # MAX VIP channel (instant signals)
+    max_free_channel_id: str = ""           # MAX free channel (delayed signals)
+
     # TradingView
     tradingview_webhook_secret: str = ""
 

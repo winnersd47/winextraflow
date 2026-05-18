@@ -277,8 +277,12 @@ async def telegram_premium_info(user: User = Depends(get_current_user)):
         "price_usd": 9.99,
         "price_rub": 899,
         "delay_minutes": 120,
-        "access": "Premium subscription includes Telegram VIP channel access",
-        "access_ru": "Подписка Premium включает доступ к VIP-каналу Telegram",
+        "access": "Premium subscription includes VIP channel access in Telegram and MAX",
+        "access_ru": "Подписка Premium включает доступ к VIP-каналам в Telegram и MAX",
+        # MAX Messenger
+        "max_vip_channel_name": "WinExtraFlow VIP",
+        "max_free_channel_name": "WinExtraFlow Signals",
+        "max_enabled": bool(settings.max_bot_token) if hasattr(settings, "max_bot_token") else False,
     }
 
 

@@ -34,6 +34,7 @@ from app.config import settings
 from app.services.copy_trading import copy_trading_service
 from app.services.signal_aggregator import signal_aggregator
 from app.services.telegram_bot import telegram_bot
+from app.services.max_bot import max_bot
 from app.workers.signal_fetcher import telegram_worker
 
 logging.basicConfig(level=logging.INFO)
@@ -111,6 +112,16 @@ async def lifespan(app: FastAPI):
         signal_aggregator.on_new_signal(_bot_signal_hook)
         logger.info("Telegram bot signal broadcaster registered")
 
+    # Startup: register MAX bot signal broadcaster
+    if max_bot.enabled:
+        async def _max_signal_hook(signal):
+            await max_bot.broadcast_signal(
+                signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence,
+                tp=signal.take_profit, sl=signal.stop_loss,
+            )
+        signal_aggregator.on_new_signal(_max_signal_hook)
+        logger.info("MAX bot signal broadcaster registered")
+
     # Startup: launch Telegram channel worker if configured
     if settings.telegram_api_id and settings.telegram_api_hash:
         try:
@@ -125,11 +136,18 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(telegram_bot.start_polling())
         logger.info("Telegram bot polling started")
 
+    # Startup: launch MAX bot polling
+    if max_bot.enabled:
+        import asyncio
+        asyncio.create_task(max_bot.start_polling())
+        logger.info("MAX bot polling started")
+
     yield
 
     # Shutdown
     await telegram_worker.stop()
     await telegram_bot.stop_polling()
+    await max_bot.stop_polling()
 
 
 limiter = Limiter(

@@ -218,12 +218,24 @@ async def get_telegram_link(user: User = Depends(get_current_user)):
     from app.services.telegram_bot import telegram_bot
     if not telegram_bot.enabled:
         return {"enabled": False, "link": None, "linked": False}
-    # Use bot username, never expose token
     return {
         "enabled": True,
         "link": f"https://t.me/WinExtraFlowBot?start=link_{user.username}",
         "linked": user.telegram_chat_id is not None,
         "notifications": user.telegram_notifications,
+    }
+
+
+@router.get("/max-link")
+async def get_max_link(user: User = Depends(get_current_user)):
+    """Get MAX Messenger bot link for account linking."""
+    from app.services.max_bot import max_bot
+    if not max_bot.enabled:
+        return {"enabled": False, "link": None, "linked": False}
+    return {
+        "enabled": True,
+        "link": f"https://max.ru/WinExtraFlowBot?start=link_{user.username}",
+        "linked": user.max_chat_id is not None,
     }
 
 

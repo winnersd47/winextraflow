@@ -34,6 +34,9 @@ class User(Base):
     telegram_chat_id: Mapped[str | None] = mapped_column(String(50), unique=True)
     telegram_notifications: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # MAX Messenger Bot
+    max_chat_id: Mapped[str | None] = mapped_column(String(50), unique=True)
+
     # Referral
     referral_code: Mapped[str | None] = mapped_column(String(20), unique=True)
     referred_by: Mapped[uuid.UUID | None] = mapped_column()
