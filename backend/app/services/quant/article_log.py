@@ -467,6 +467,26 @@ class ArticleEvolutionLog:
                 evolution_summary="Event-driven object sync across H1→M30→M15→M5. Clone-and-propagate with unique IDs. Supports trendlines, Fibonacci, rectangles. Infrastructure component for multi-timeframe analysis.",
                 processed_at="2026-05-14T11:11:00Z",
             ),
+            # ─── Telegram channel: "Трейдинг: Индикаторы и Стратегии" (347 messages) ───
+            ProcessedArticle(
+                article_id=90001,
+                url="https://t.me/trading_strategy_and_indicators",
+                title="Telegram: Трейдинг: Индикаторы и Стратегии (347 сообщений)",
+                main_strategy_id=5,
+                secondary_ids=[1, 2, 3, 4, 6, 7],
+                components_extracted=[
+                    "rsi_oscillator", "macd_histogram", "bollinger_bands", "stochastic_oscillator",
+                    "moving_average_crossover", "support_resistance_levels", "divergence_detection",
+                    "candlestick_pattern_library", "trend_identification_rules", "risk_management_rules",
+                    "take_profit_logic", "volume_analysis_basics", "news_trading_filter",
+                    "zigzag_indicator", "adx_trend_strength", "fibonacci_retracement",
+                    "psychological_discipline", "position_sizing_rules", "multi_timeframe_analysis",
+                    "backtest_importance",
+                ],
+                branch_impact="ALL 7 branches enriched. Multi-Indicator(5) dominant with 313/347 messages. Educational foundation for all strategy types.",
+                evolution_summary="347-message educational corpus from Telegram channel. 20 unique components extracted covering: oscillators (RSI, Stochastic, MACD), trend tools (MA, ADX, trendlines), pattern recognition (candlestick, Fibonacci, ZigZag), risk management (stop-loss, position sizing, psychology), and market structure (S/R levels, volume, divergence). Strengthens educational foundation across all strategy branches.",
+                processed_at="2026-05-15T12:00:00Z",
+            ),
         ]
 
     def record(
