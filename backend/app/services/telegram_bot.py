@@ -94,10 +94,58 @@ class TelegramBot:
         text = f"💎 <b>Premium Activated!</b>\n\nYou received {days} days of Premium access."
         await self.send_message(user.telegram_chat_id, text)
 
-    # ─── Broadcast ────────────────────────────────────────────
+    # ─── Channel Broadcast (VIP + Free) ─────────────────────
 
-    async def broadcast_signal(self, ticker: str, action: str, price: float, confidence: float | None):
-        """Send signal notification to all users with Telegram linked and notifications ON."""
+    def _format_vip_signal(self, ticker: str, action: str, price: float, confidence: float | None,
+                           tp: float | None = None, sl: float | None = None) -> str:
+        """Full signal message for VIP channel."""
+        arrow = "🟢" if action == "buy" else "🔴"
+        conf_str = f"\nАI качество: {confidence:.0%}" if confidence else ""
+        tp_str = f"\nTP: {tp:,.2f}" if tp else ""
+        sl_str = f"\nSL: {sl:,.2f}" if sl else ""
+        return (
+            f"{arrow} <b>{action.upper()} {ticker}</b>\n"
+            f"Вход: {price:,.2f}{tp_str}{sl_str}{conf_str}\n"
+            f"\n<a href='{settings.frontend_url}/dashboard'>Открыть платформу</a>"
+        )
+
+    def _format_free_signal(self, ticker: str, action: str, confidence: float | None) -> str:
+        """Shortened signal for free channel (no price, no TP/SL)."""
+        arrow = "🟢" if action == "buy" else "🔴"
+        quality = ""
+        if confidence and confidence >= 0.7:
+            quality = " | Отличный"
+        elif confidence and confidence >= 0.5:
+            quality = " | Хороший"
+        return (
+            f"{arrow} <b>{action.upper()} {ticker}</b>{quality}\n"
+            f"\n💎 Цена входа, TP и SL — в VIP-канале"
+            f"\n📊 <a href='{settings.frontend_url}/dashboard/store'>Подключить Premium</a>"
+        )
+
+    async def broadcast_signal(self, ticker: str, action: str, price: float, confidence: float | None,
+                               tp: float | None = None, sl: float | None = None):
+        """Broadcast signal to VIP (instant) + Free (delayed) channels + personal notifications."""
+
+        # 1. VIP channel — instant, full details
+        if settings.telegram_vip_channel_id:
+            vip_text = self._format_vip_signal(ticker, action, price, confidence, tp, sl)
+            await self.send_message(settings.telegram_vip_channel_id, vip_text)
+            logger.info(f"VIP broadcast: {action} {ticker} → {settings.telegram_vip_channel_id}")
+
+        # 2. Free channel — delayed, no prices
+        if settings.telegram_free_channel_id:
+            delay = settings.telegram_free_delay_minutes * 60
+            free_text = self._format_free_signal(ticker, action, confidence)
+
+            async def _delayed_free():
+                await asyncio.sleep(delay)
+                await self.send_message(settings.telegram_free_channel_id, free_text)
+                logger.info(f"Free broadcast (delayed {settings.telegram_free_delay_minutes}m): {action} {ticker}")
+
+            asyncio.create_task(_delayed_free())
+
+        # 3. Personal notifications to linked users
         async with async_session() as db:
             result = await db.execute(
                 select(User).where(
@@ -109,8 +157,8 @@ class TelegramBot:
             users = result.scalars().all()
             for user in users:
                 await self.notify_signal(user, ticker, action, price, confidence)
-                await asyncio.sleep(0.05)  # Rate limit: 20 msg/sec
-            logger.info(f"Broadcast signal {action} {ticker} to {len(users)} users")
+                await asyncio.sleep(0.05)
+            logger.info(f"Personal broadcast: {action} {ticker} to {len(users)} users")
 
     # ─── Polling (updates processing) ─────────────────────────
 

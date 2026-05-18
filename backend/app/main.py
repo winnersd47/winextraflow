@@ -105,7 +105,8 @@ async def lifespan(app: FastAPI):
     if telegram_bot.enabled:
         async def _bot_signal_hook(signal):
             await telegram_bot.broadcast_signal(
-                signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence
+                signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence,
+                tp=signal.take_profit, sl=signal.stop_loss,
             )
         signal_aggregator.on_new_signal(_bot_signal_hook)
         logger.info("Telegram bot signal broadcaster registered")

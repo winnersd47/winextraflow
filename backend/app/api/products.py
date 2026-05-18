@@ -239,28 +239,44 @@ async def generate_provider_report(
 
 @router.get("/telegram-premium")
 async def telegram_premium_info(user: User = Depends(get_current_user)):
-    """Get info about Telegram Premium signal channel."""
+    """Get info about Telegram channels — free + VIP."""
     premium = is_premium(user)
     return {
         "available": True,
         "is_subscribed": premium,
-        "channel_name": "@WinExtraFlowVIP",
+        "vip_channel_name": "@WinExtraFlowVIP",
+        "vip_channel_link": "https://t.me/+xX-irBLmJddlYTg6",
+        "free_channel_name": "@WinExtraFlowSignals",
+        "free_channel_link": "https://t.me/WinExtraFlowSignals",
+        "community_name": "AI Growth Club",
+        "community_link": "https://t.me/+HEyibcuonz00NTI6",
         "features": [
-            "Real-time signal alerts (before free channel)",
-            "AI confidence scores",
-            "Entry/TP/SL levels",
-            "Provider analytics summaries",
-            "Priority support",
+            "Instant signal alerts (2 hours before free channel)",
+            "Full details: Entry price, Take Profit, Stop Loss",
+            "AI quality score for each signal",
+            "Weekly provider analytics PDF",
+            "Priority support from analysts",
         ],
         "features_ru": [
-            "Сигналы в реальном времени (раньше бесплатного канала)",
-            "AI оценки уверенности",
-            "Уровни входа/TP/SL",
-            "Аналитика по провайдерам",
-            "Приоритетная поддержка",
+            "Мгновенные сигналы (на 2 часа раньше бесплатного канала)",
+            "Полные данные: цена входа, Take Profit, Stop Loss",
+            "AI оценка качества каждого сигнала",
+            "Еженедельный PDF-отчёт по провайдерам",
+            "Приоритетная поддержка от аналитиков",
+        ],
+        "free_features": [
+            "Signal direction only (BUY/SELL + ticker)",
+            "2-hour delay from VIP",
+            "No entry price, TP, SL",
+        ],
+        "free_features_ru": [
+            "Только направление (BUY/SELL + тикер)",
+            "Задержка 2 часа от VIP",
+            "Без цены входа, TP, SL",
         ],
         "price_usd": 9.99,
         "price_rub": 899,
+        "delay_minutes": 120,
         "access": "Premium subscription includes Telegram VIP channel access",
         "access_ru": "Подписка Premium включает доступ к VIP-каналу Telegram",
     }

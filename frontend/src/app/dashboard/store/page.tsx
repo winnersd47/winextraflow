@@ -350,25 +350,71 @@ export default function StorePage() {
         </div>
       )}
 
-      {/* ── Telegram VIP ── */}
+      {/* ── Telegram Channels ── */}
       {activeTab === "telegram" && tgInfo && (
-        <div className="rounded-xl border border-border bg-surface-card p-8 text-center">
-          <h2 className="text-2xl font-bold text-text-primary">{tgInfo.channel_name}</h2>
-          <p className="mt-2 text-4xl font-bold text-brand-500">{isRu ? `${tgInfo.price_rub} ₽` : `$${tgInfo.price_usd}`}<span className="text-lg text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
-          {isRu && <p className="mt-1 text-sm text-text-muted">~${tgInfo.price_usd}</p>}
-          <ul className="mx-auto mt-6 max-w-md space-y-2 text-left text-sm text-text-secondary">
-            {(isRu ? tgInfo.features_ru : tgInfo.features)?.map((f: string, i: number) => (
-              <li key={i} className="flex items-center gap-2"><span className="text-green-400">+</span> {f}</li>
-            ))}
-          </ul>
-          <p className="mt-6 text-sm text-brand-400">{isRu ? tgInfo.access_ru : tgInfo.access}</p>
-          {tgInfo.is_subscribed ? (
-            <p className="mt-4 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-400">{isRu ? "Доступ активен (Premium)" : "Access active (Premium)"}</p>
-          ) : (
-            <button onClick={() => setActiveTab("premium")} className="mt-4 inline-block rounded-lg bg-brand-600 px-8 py-3 text-sm font-medium text-white hover:bg-brand-700">
-              {isRu ? "Подключить Premium" : "Get Premium"}
-            </button>
-          )}
+        <div className="space-y-6">
+          {/* Two columns: Free vs VIP */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Free channel */}
+            <div className="rounded-xl border border-border bg-surface-card p-6">
+              <h3 className="text-lg font-bold text-text-primary">{tgInfo.free_channel_name || "@WinExtraFlowSignals"}</h3>
+              <p className="mt-1 text-2xl font-bold text-green-400">{isRu ? "Бесплатно" : "Free"}</p>
+              <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+                {(isRu ? tgInfo.free_features_ru : tgInfo.free_features)?.map((f: string, i: number) => (
+                  <li key={i} className="flex items-center gap-2"><span className="text-text-muted">-</span> {f}</li>
+                ))}
+              </ul>
+              <a href={tgInfo.free_channel_link || "https://t.me/WinExtraFlowSignals"} target="_blank" rel="noopener"
+                className="mt-4 block w-full rounded-lg border border-border py-2.5 text-center text-sm font-medium text-text-primary hover:bg-surface-hover">
+                {isRu ? "Подписаться" : "Subscribe"}
+              </a>
+            </div>
+            {/* VIP channel */}
+            <div className="rounded-xl border-2 border-brand-500 bg-surface-card p-6 shadow-lg shadow-brand-500/10">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-text-primary">{tgInfo.vip_channel_name || "@WinExtraFlowVIP"}</h3>
+                <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">VIP</span>
+              </div>
+              <p className="mt-1 text-2xl font-bold text-brand-500">{isRu ? `${tgInfo.price_rub} ₽` : `$${tgInfo.price_usd}`}<span className="text-sm text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
+              <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+                {(isRu ? tgInfo.features_ru : tgInfo.features)?.map((f: string, i: number) => (
+                  <li key={i} className="flex items-center gap-2"><span className="text-green-400">+</span> {f}</li>
+                ))}
+              </ul>
+              {tgInfo.is_subscribed ? (
+                <a href={tgInfo.vip_channel_link || "#"} target="_blank" rel="noopener"
+                  className="mt-4 block w-full rounded-lg bg-brand-600 py-2.5 text-center text-sm font-medium text-white hover:bg-brand-700">
+                  {isRu ? "Войти в VIP-канал" : "Enter VIP Channel"}
+                </a>
+              ) : (
+                <button onClick={() => setActiveTab("premium")}
+                  className="mt-4 w-full rounded-lg bg-brand-600 py-2.5 text-sm font-medium text-white hover:bg-brand-700">
+                  {isRu ? "Подключить Premium" : "Get Premium"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Community */}
+          <div className="rounded-xl border border-border bg-surface-card p-6 text-center">
+            <h3 className="text-lg font-bold text-text-primary">AI Growth Club</h3>
+            <p className="mt-1 text-sm text-text-secondary">
+              {isRu
+                ? "Открытое сообщество: обсуждения рынка, AI-аналитика, обмен опытом"
+                : "Open community: market discussions, AI analytics, experience sharing"}
+            </p>
+            <a href={tgInfo.community_link || "https://t.me/+HEyibcuonz00NTI6"} target="_blank" rel="noopener"
+              className="mt-4 inline-block rounded-lg border border-border px-6 py-2.5 text-sm font-medium text-text-primary hover:bg-surface-hover">
+              {isRu ? "Присоединиться" : "Join Community"}
+            </a>
+          </div>
+
+          {/* How it works */}
+          <div className="rounded-lg bg-surface px-4 py-3 text-xs text-text-muted">
+            {isRu
+              ? `Как это работает: при появлении нового сигнала на платформе → VIP-канал получает полные данные мгновенно → бесплатный канал получает только направление (BUY/SELL) через ${tgInfo.delay_minutes || 120} минут.`
+              : `How it works: when a new signal appears → VIP channel gets full details instantly → free channel gets direction only (BUY/SELL) after ${tgInfo.delay_minutes || 120} minutes.`}
+          </div>
         </div>
       )}
 

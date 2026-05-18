@@ -37,6 +37,9 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     telegram_bot_token: str = ""
+    telegram_vip_channel_id: str = ""       # VIP channel chat_id (instant signals)
+    telegram_free_channel_id: str = ""      # Free channel chat_id (delayed signals)
+    telegram_free_delay_minutes: int = 120  # Delay for free channel (2 hours)
 
     # TradingView
     tradingview_webhook_secret: str = ""
