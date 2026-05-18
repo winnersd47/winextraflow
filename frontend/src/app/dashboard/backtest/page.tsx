@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -16,8 +16,21 @@ export default function BacktestPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const { t, locale } = useI18n();
   const isRu = locale === "ru";
+
+  const loadHistory = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const resp = await fetch("/api/v1/backtest/history?limit=10", { headers: { Authorization: `Bearer ${token}` } });
+      if (resp.ok) { const d = await resp.json(); setHistory(d.items); }
+    } catch {}
+    finally { setLoadingHistory(false); }
+  };
+
+  useEffect(() => { loadHistory(); }, []);
 
   const handleRun = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,6 +44,7 @@ export default function BacktestPage() {
     setResult(null);
     try {
       setResult(await api.runBacktest({ provider_id: providerId || undefined, ticker: ticker || undefined, initial_capital: cap }));
+      loadHistory();
     } catch (err: any) {
       setError(err.message || "Backtest failed");
     } finally {
@@ -159,6 +173,67 @@ export default function BacktestPage() {
           </div>
         </div>
       )}
+
+      {/* ═══ BACKTEST HISTORY ═══ */}
+      <div className="mt-8 rounded-xl border border-border bg-surface-card p-6">
+        <h2 className="mb-4 text-lg font-bold text-text-primary">
+          {isRu ? "История бэктестов" : "Backtest History"} ({history.length})
+        </h2>
+        {loadingHistory ? (
+          <div className="flex justify-center py-4"><div className="h-5 w-5 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+        ) : history.length === 0 ? (
+          <p className="py-4 text-center text-text-muted">{isRu ? "Запустите первый бэктест — результат сохранится здесь." : "Run your first backtest — result will be saved here."}</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-border text-xs text-text-muted">
+                <tr>
+                  <th className="pb-2 pr-3">{isRu ? "Отчёт" : "Report"}</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Доходность" : "Return"}</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Винрейт" : "Win Rate"}</th>
+                  <th className="pb-2 pr-3 text-right">Sharpe</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Просадка" : "Drawdown"}</th>
+                  <th className="pb-2 pr-3 text-right">{isRu ? "Сделок" : "Trades"}</th>
+                  <th className="pb-2 text-right">{isRu ? "Дата" : "Date"}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {history.map((r: any) => (
+                  <tr key={r.id} className="cursor-pointer hover:bg-surface-hover" onClick={() => {
+                    setResult({
+                      provider_id: r.provider_id, ticker: r.ticker, date_from: null, date_to: null,
+                      total_signals: r.total_signals, closed_signals: r.closed_signals,
+                      active_signals: 0, expired_signals: 0,
+                      total_return_pct: r.total_return_pct, win_rate: r.win_rate,
+                      avg_profit_pct: r.avg_profit_pct, avg_loss_pct: r.avg_loss_pct,
+                      best_trade_pct: r.best_trade_pct, worst_trade_pct: r.worst_trade_pct,
+                      sharpe_ratio: r.sharpe_ratio, profit_factor: r.profit_factor,
+                      max_drawdown_pct: r.max_drawdown_pct,
+                      max_consecutive_wins: 0, max_consecutive_losses: 0,
+                      trades: [], equity_curve: r.equity_curve || [],
+                    });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}>
+                    <td className="py-2.5 pr-3">
+                      <p className="font-medium text-text-primary text-xs">{r.title}</p>
+                    </td>
+                    <td className={`py-2.5 pr-3 text-right font-bold ${r.total_return_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {r.total_return_pct >= 0 ? "+" : ""}{r.total_return_pct.toFixed(1)}%
+                    </td>
+                    <td className={`py-2.5 pr-3 text-right font-bold ${r.win_rate >= 0.6 ? "text-green-400" : r.win_rate >= 0.5 ? "text-yellow-400" : "text-red-400"}`}>
+                      {(r.win_rate * 100).toFixed(0)}%
+                    </td>
+                    <td className="py-2.5 pr-3 text-right text-text-secondary">{r.sharpe_ratio?.toFixed(1) ?? "—"}</td>
+                    <td className="py-2.5 pr-3 text-right text-red-400">{r.max_drawdown_pct.toFixed(1)}%</td>
+                    <td className="py-2.5 pr-3 text-right text-text-secondary">{r.closed_signals}</td>
+                    <td className="py-2.5 text-right text-xs text-text-muted">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

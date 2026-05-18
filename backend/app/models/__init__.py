@@ -12,5 +12,6 @@ from app.models.notification import Notification
 from app.models.payment import Payment
 from app.models.kyc import KYCVerification
 from app.models.compliance import ComplianceDocument
+from app.models.backtest_report import BacktestReport
 
 __all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification", "ComplianceDocument"]
