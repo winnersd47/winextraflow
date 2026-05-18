@@ -236,6 +236,17 @@ export default function StorePage() {
                 {isRu ? "Применить" : "Apply"}
               </button>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["WELCOME7", "TRIAL3", "AIGROWTH14", "LAUNCH30", "VIP3"].map(code => (
+                <button key={code} onClick={() => setPromo(code)}
+                  className="rounded bg-surface-hover px-2 py-1 text-xs text-text-muted hover:text-text-primary transition">
+                  {code}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-text-muted">
+              {isRu ? "Нажмите на код, чтобы вставить его в поле" : "Click a code to paste it"}
+            </p>
           </div>
 
           {/* Payment history */}
