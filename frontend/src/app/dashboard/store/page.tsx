@@ -365,9 +365,9 @@ export default function StorePage() {
           {tgInfo.is_subscribed ? (
             <p className="mt-4 rounded-lg bg-green-500/10 px-4 py-2 text-sm text-green-400">{isRu ? "Доступ активен (Premium)" : "Access active (Premium)"}</p>
           ) : (
-            <a href="/dashboard/premium" className="mt-4 inline-block rounded-lg bg-brand-600 px-8 py-3 text-sm font-medium text-white hover:bg-brand-700">
+            <button onClick={() => setActiveTab("premium")} className="mt-4 inline-block rounded-lg bg-brand-600 px-8 py-3 text-sm font-medium text-white hover:bg-brand-700">
               {isRu ? "Подключить Premium" : "Get Premium"}
-            </a>
+            </button>
           )}
         </div>
       )}
