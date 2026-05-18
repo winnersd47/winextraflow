@@ -45,11 +45,11 @@ async def leaderboard(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Get top providers ranked by AI score. Only includes rated providers."""
+    """Get top providers ranked by win rate. Only includes rated providers."""
     result = await db.execute(
         select(Provider)
         .where(Provider.ai_score.isnot(None))
-        .order_by(Provider.ai_score.desc())
+        .order_by(Provider.win_rate.desc().nulls_last())
         .limit(limit)
     )
     providers = result.scalars().all()
