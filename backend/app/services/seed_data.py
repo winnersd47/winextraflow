@@ -87,6 +87,64 @@ TEST_PROVIDERS = [
         "description": "SP500, NASDAQ, DAX trend-following signals. 4h-1d.",
         "tradingview_webhook_id": "tv_indices",
     },
+    # ─── Additional providers (batch 2) ──────
+    {
+        "name": "[TEST] ETH Maximalist",
+        "source": ProviderSource.TELEGRAM,
+        "description": "Ethereum ecosystem: ETH, L2 tokens, DeFi blue chips. Swing trades 1-7 days.",
+        "telegram_channel_id": "-1001234567010",
+    },
+    {
+        "name": "[TEST] Scalp King",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "High-frequency scalping on BTC/ETH. 1m-5m timeframes. 50+ trades/day.",
+        "tradingview_webhook_id": "tv_scalp_king",
+    },
+    {
+        "name": "[TEST] Macro Trader",
+        "source": ProviderSource.MANUAL,
+        "description": "Global macro signals: indices, bonds, FX crosses. Based on economic data.",
+    },
+    {
+        "name": "[TEST] Asian Markets",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "JPY pairs, Nikkei, HSI signals. Asian session focus.",
+        "tradingview_webhook_id": "tv_asian",
+    },
+    {
+        "name": "[TEST] Swing Master",
+        "source": ProviderSource.TELEGRAM,
+        "description": "Multi-asset swing trades. 1D-1W timeframes. Patience-based strategy.",
+        "telegram_channel_id": "-1001234567011",
+    },
+    {
+        "name": "[TEST] Crypto Gems",
+        "source": ProviderSource.TELEGRAM,
+        "description": "Low-cap altcoins before pumps. High risk, high reward. DYOR.",
+        "telegram_channel_id": "-1001234567012",
+    },
+    {
+        "name": "[TEST] Oil & Energy",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "USOIL, Natural Gas, energy stocks. Fundamental + technical.",
+        "tradingview_webhook_id": "tv_oil_energy",
+    },
+    {
+        "name": "[TEST] Quant Algo V2",
+        "source": ProviderSource.MANUAL,
+        "description": "Algorithmic signals from quantitative models. Mean reversion + momentum.",
+    },
+    {
+        "name": "[TEST] EUR/USD Specialist",
+        "source": ProviderSource.TRADINGVIEW,
+        "description": "Dedicated EURUSD analysis. All timeframes. 5+ years track record.",
+        "tradingview_webhook_id": "tv_eurusd_spec",
+    },
+    {
+        "name": "[TEST] Precious Metals",
+        "source": ProviderSource.MANUAL,
+        "description": "Gold, Silver, Platinum signals. Safe-haven analysis. Weekly outlook.",
+    },
 ]
 
 # ─── Test Signal Templates ──────────────────────────────────
