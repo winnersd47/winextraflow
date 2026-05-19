@@ -225,7 +225,9 @@ export default function MarketplacePage() {
                         className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-medium text-white hover:bg-brand-700">
                         {isRu ? "Скачать" : "Download"}
                       </a>
-                      <span className="text-center text-xs text-green-400">{isRu ? "Бесплатно" : "Free"}</span>
+                      <span className={`text-center text-xs font-bold ${ea.price_usd ? "text-yellow-400" : "text-green-400"}`}>
+                        {ea.price_usd ? (isRu ? `${Math.round(ea.price_usd * 90).toLocaleString("ru-RU")} ₽` : `$${ea.price_usd}`) : (isRu ? "Бесплатно" : "Free")}
+                      </span>
                     </div>
                   </div>
                 </div>
