@@ -487,6 +487,23 @@ class ArticleEvolutionLog:
                 evolution_summary="347-message educational corpus from Telegram channel. 20 unique components extracted covering: oscillators (RSI, Stochastic, MACD), trend tools (MA, ADX, trendlines), pattern recognition (candlestick, Fibonacci, ZigZag), risk management (stop-loss, position sizing, psychology), and market structure (S/R levels, volume, divergence). Strengthens educational foundation across all strategy branches.",
                 processed_at="2026-05-15T12:00:00Z",
             ),
+            # ─── TradingView Community Strategies (16 strategies) ───
+            ProcessedArticle(
+                article_id=90002,
+                url="https://ru.tradingview.com/scripts/",
+                title="TradingView Community: 16 стратегий (Regime, ICT, Kalman, SMC, Grid...)",
+                main_strategy_id=5,
+                secondary_ids=[1, 2, 3, 4, 7],
+                components_extracted=[
+                    "regime_execution_logic", "ict_session_breakout", "kalman_filter_trading",
+                    "liquidity_zone_detection", "smc_order_blocks", "donchian_breakout_system",
+                    "opening_range_strategy", "multi_vote_entry", "htf_bias_filter",
+                    "grid_geometric_system", "marubozu_filter", "partial_take_profit",
+                ],
+                branch_impact="ALL branches enriched. Breakout(4) +4 strategies. ML/AI(7) +2 (Quant Synthesis, Gold AI). Trend(1) +3 (Kalman, Regime, SuperTrend).",
+                evolution_summary="16 TradingView community strategies catalogued with webhook templates. 12 new components: regime execution, ICT breakout, Kalman filters, liquidity zones, SMC order blocks, Donchian system, opening range, multi-vote entry, HTF bias, geometric grid, Marubozu filter, partial TP. 10 strategies MOEX-compatible.",
+                processed_at="2026-05-19T14:00:00Z",
+            ),
         ]
 
     def record(

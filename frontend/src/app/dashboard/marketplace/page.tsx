@@ -60,6 +60,8 @@ export default function MarketplacePage() {
   ];
 
   const [hasMt5Account, setHasMt5Account] = useState(false);
+  const [tvStrategies, setTvStrategies] = useState<any[]>([]);
+  const [tvLoading, setTvLoading] = useState(false);
 
   // Load advisors + check MT5 connection on tab switch
   useEffect(() => {
@@ -76,6 +78,17 @@ export default function MarketplacePage() {
         setHasMt5Account(mt5);
       }).catch(() => {})
         .finally(() => setAdvisorsLoading(false));
+    }
+  }, [tab]);
+
+  // Load TradingView strategies on tab switch
+  useEffect(() => {
+    if (tab === "tradingview" && tvStrategies.length === 0) {
+      setTvLoading(true);
+      const token = localStorage.getItem("token");
+      fetch("/api/v1/tv-strategies", { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json()).then(d => setTvStrategies(d.strategies || []))
+        .catch(() => {}).finally(() => setTvLoading(false));
     }
   }, [tab]);
 
@@ -125,6 +138,9 @@ export default function MarketplacePage() {
         </button>
         <button onClick={() => setTab("advisors")} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === "advisors" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
           {isRu ? "Советники MT5" : "MT5 Advisors"} ({advisors.length || "..."})
+        </button>
+        <button onClick={() => setTab("tradingview")} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === "tradingview" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          TradingView ({tvStrategies.length || "..."})
         </button>
       </div>
 
@@ -419,6 +435,64 @@ export default function MarketplacePage() {
                 : "Supported MOEX tickers: SBER, GAZP, LKOH, YNDX, GMKN, ROSN, VTBR, NVTK, PLZL, MAGN, MTSS, TATN, SNGS, ALRS, NLMK, MOEX, MGNT, PHOR, CHMF and more."}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* ═══ TAB: TradingView Strategies ═══ */}
+      {tab === "tradingview" && (
+        <div>
+          <p className="mb-4 text-sm text-text-secondary">
+            {isRu
+              ? "Стратегии из сообщества TradingView с готовыми webhook-шаблонами. Подключите к WinExtraFlow за 5 минут — сигналы появятся с AI-оценкой."
+              : "Community TradingView strategies with ready webhook templates. Connect to WinExtraFlow in 5 minutes — signals appear with AI rating."}
+          </p>
+          {tvLoading ? (
+            <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+          ) : (
+            <div className="space-y-3">
+              {tvStrategies.map((s: any) => (
+                <div key={s.id} className="rounded-xl border border-border bg-surface-card p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <h3 className="font-bold text-text-primary">{s.name}</h3>
+                        <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
+                          {isRu ? `Стратегия: ${s.strategy_name_ru}` : `Strategy: ${s.strategy_name_en}`}
+                        </span>
+                        <span className={`rounded px-2 py-0.5 text-xs ${RISK_COLORS[s.risk] || ""}`}>
+                          {isRu ? `Риск: ${s.risk_ru}` : `Risk: ${s.risk}`}
+                        </span>
+                        {s.moex_compatible && <span className="rounded bg-blue-500/10 px-2 py-0.5 text-xs text-blue-400">MOEX</span>}
+                        <span className="text-xs text-text-muted">{s.likes} likes</span>
+                      </div>
+                      <p className="text-sm text-text-secondary">{isRu ? s.description_ru : s.description_en}</p>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-text-muted">
+                        <span>{isRu ? "Автор" : "Author"}: {s.author}</span>
+                        <span>{isRu ? "Тикеры" : "Tickers"}: {s.tickers?.join(", ")}</span>
+                        <span>TF: {s.timeframe}</span>
+                      </div>
+                      {/* Webhook template */}
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs text-brand-500 hover:underline">
+                          {isRu ? "Показать webhook шаблон" : "Show webhook template"}
+                        </summary>
+                        <div className="mt-1 rounded bg-surface p-2 font-mono text-xs text-text-secondary break-all">
+                          {s.webhook_template}
+                        </div>
+                      </details>
+                    </div>
+                    <div className="flex flex-col gap-2 flex-shrink-0 ml-4">
+                      <a href={s.tv_url} target="_blank" rel="noopener"
+                        className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-medium text-white hover:bg-brand-700">
+                        {isRu ? "Открыть" : "Open"}
+                      </a>
+                      <span className="text-center text-xs font-bold text-green-400">{isRu ? "Бесплатно" : "Free"}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
