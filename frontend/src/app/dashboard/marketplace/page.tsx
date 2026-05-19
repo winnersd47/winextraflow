@@ -16,6 +16,9 @@ export default function MarketplacePage() {
   const [tagsFilter, setTagsFilter] = useState("");
   const [advisors, setAdvisors] = useState<any[]>([]);
   const [advisorsLoading, setAdvisorsLoading] = useState(false);
+  const [eaSearch, setEaSearch] = useState("");
+  const [eaFilter, setEaFilter] = useState("popular");
+  const [eaPage, setEaPage] = useState(0);
   // locale from t below
 
   // Publish form
@@ -69,6 +72,26 @@ export default function MarketplacePage() {
   }, [tab]);
 
   const RISK_COLORS: Record<string, string> = { low: "text-green-400 bg-green-500/10", medium: "text-yellow-400 bg-yellow-500/10", high: "text-red-400 bg-red-500/10" };
+
+  // Advisor filtering + pagination
+  const EA_PAGE_SIZE = 8;
+  const filteredAdvisors = advisors.filter(ea => {
+    // Search
+    if (eaSearch) {
+      const q = eaSearch.toLowerCase();
+      if (!ea.name.toLowerCase().includes(q) && !ea.author?.toLowerCase().includes(q) && !(ea.tickers || []).join(" ").toLowerCase().includes(q)) return false;
+    }
+    // Filter
+    if (eaFilter === "free" && ea.price_usd) return false;
+    if (eaFilter === "paid" && !ea.price_usd) return false;
+    return true;
+  }).sort((a: any, b: any) => {
+    if (eaFilter === "popular") return (b.reviews || 0) - (a.reviews || 0);
+    if (eaFilter === "new") return (b.rating || 0) - (a.rating || 0); // approximate "new" by rating
+    return (b.rating || 0) - (a.rating || 0);
+  });
+  const eaTotalPages = Math.ceil(filteredAdvisors.length / EA_PAGE_SIZE);
+  const filteredAdvisorsPage = filteredAdvisors.slice(eaPage * EA_PAGE_SIZE, (eaPage + 1) * EA_PAGE_SIZE);
 
   return (
     <div>
@@ -187,14 +210,37 @@ export default function MarketplacePage() {
         <div>
           <p className="mb-4 text-sm text-text-secondary">
             {isRu
-              ? "Бесплатные советники (Expert Advisors) из MQL5 Market. Скачайте, установите в MetaTrader 5 и подключите счёт к платформе для синхронизации сигналов."
-              : "Free Expert Advisors from MQL5 Market. Download, install in MetaTrader 5, and connect your account to sync signals."}
+              ? "Торговые советники (Expert Advisors) из MQL5 Market. Скачайте, установите в MetaTrader 5 и подключите счёт к платформе для синхронизации сигналов."
+              : "Expert Advisors from MQL5 Market. Download, install in MetaTrader 5, and connect your account to sync signals."}
           </p>
+
+          {/* Search */}
+          <div className="mb-4">
+            <input type="text" value={eaSearch} onChange={e => { setEaSearch(e.target.value); setEaPage(0); }}
+              placeholder={isRu ? "Поиск по маркету..." : "Search advisors..."}
+              className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500" />
+          </div>
+
+          {/* Filter tabs: Popular / New / Free / Paid */}
+          <div className="mb-4 flex gap-1">
+            {[
+              { key: "popular", label: isRu ? "Популярные" : "Popular" },
+              { key: "new", label: isRu ? "Новые" : "New" },
+              { key: "free", label: isRu ? "Бесплатные" : "Free" },
+              { key: "paid", label: isRu ? "Платные" : "Paid" },
+            ].map(f => (
+              <button key={f.key} onClick={() => { setEaFilter(f.key); setEaPage(0); }}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${eaFilter === f.key ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {advisorsLoading ? (
             <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
           ) : (
             <div className="space-y-3">
-              {advisors.map((ea: any) => (
+              {filteredAdvisorsPage.map((ea: any) => (
                 <div key={ea.id} className="rounded-xl border border-border bg-surface-card p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -232,6 +278,31 @@ export default function MarketplacePage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {eaTotalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <p className="text-xs text-text-muted">
+                {isRu
+                  ? `${eaPage * EA_PAGE_SIZE + 1}–${Math.min((eaPage + 1) * EA_PAGE_SIZE, filteredAdvisors.length)} из ${filteredAdvisors.length}`
+                  : `${eaPage * EA_PAGE_SIZE + 1}–${Math.min((eaPage + 1) * EA_PAGE_SIZE, filteredAdvisors.length)} of ${filteredAdvisors.length}`}
+              </p>
+              <div className="flex gap-1">
+                {Array.from({ length: Math.min(eaTotalPages, 8) }, (_, i) => {
+                  // Show first pages, ..., last page
+                  let pageNum = i;
+                  if (eaTotalPages > 8 && i >= 6) pageNum = i === 6 ? -1 : eaTotalPages - 1; // -1 = ellipsis
+                  if (pageNum === -1) return <span key="dots" className="px-2 py-1.5 text-xs text-text-muted">...</span>;
+                  return (
+                    <button key={pageNum} onClick={() => setEaPage(pageNum)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${pageNum === eaPage ? "bg-brand-500 text-white" : "bg-surface-hover text-text-secondary hover:text-text-primary"}`}>
+                      {pageNum + 1}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
