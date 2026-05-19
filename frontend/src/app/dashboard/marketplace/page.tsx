@@ -18,6 +18,7 @@ export default function MarketplacePage() {
   const [advisorsLoading, setAdvisorsLoading] = useState(false);
   const [eaSearch, setEaSearch] = useState("");
   const [eaFilter, setEaFilter] = useState("popular");
+  const [eaSort, setEaSort] = useState("reviews");
   const [eaPage, setEaPage] = useState(0);
   // locale from t below
 
@@ -86,9 +87,11 @@ export default function MarketplacePage() {
     if (eaFilter === "paid" && !ea.price_usd) return false;
     return true;
   }).sort((a: any, b: any) => {
-    if (eaFilter === "popular") return (b.reviews || 0) - (a.reviews || 0);
-    if (eaFilter === "new") return (b.rating || 0) - (a.rating || 0); // approximate "new" by rating
-    return (b.rating || 0) - (a.rating || 0);
+    if (eaSort === "rating") return (b.rating || 0) - (a.rating || 0);
+    if (eaSort === "reviews") return (b.reviews || 0) - (a.reviews || 0);
+    if (eaSort === "price_asc") return (a.price_usd || 0) - (b.price_usd || 0);
+    if (eaSort === "price_desc") return (b.price_usd || 0) - (a.price_usd || 0);
+    return (b.reviews || 0) - (a.reviews || 0);
   });
   const eaTotalPages = Math.ceil(filteredAdvisors.length / EA_PAGE_SIZE);
   const filteredAdvisorsPage = filteredAdvisors.slice(eaPage * EA_PAGE_SIZE, (eaPage + 1) * EA_PAGE_SIZE);
@@ -221,19 +224,28 @@ export default function MarketplacePage() {
               className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-brand-500" />
           </div>
 
-          {/* Filter tabs: Popular / New / Free / Paid */}
-          <div className="mb-4 flex gap-1">
-            {[
-              { key: "popular", label: isRu ? "Популярные" : "Popular" },
-              { key: "new", label: isRu ? "Новые" : "New" },
-              { key: "free", label: isRu ? "Бесплатные" : "Free" },
-              { key: "paid", label: isRu ? "Платные" : "Paid" },
-            ].map(f => (
-              <button key={f.key} onClick={() => { setEaFilter(f.key); setEaPage(0); }}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition ${eaFilter === f.key ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
-                {f.label}
-              </button>
-            ))}
+          {/* Filter tabs + sort */}
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="flex gap-1">
+              {[
+                { key: "popular", label: isRu ? "Популярные" : "Popular" },
+                { key: "new", label: isRu ? "Новые" : "New" },
+                { key: "free", label: isRu ? "Бесплатные" : "Free" },
+                { key: "paid", label: isRu ? "Платные" : "Paid" },
+              ].map(f => (
+                <button key={f.key} onClick={() => { setEaFilter(f.key); setEaPage(0); }}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition ${eaFilter === f.key ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            <select value={eaSort} onChange={e => { setEaSort(e.target.value); setEaPage(0); }}
+              className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary">
+              <option value="reviews">{isRu ? "По отзывам" : "By reviews"}</option>
+              <option value="rating">{isRu ? "По рейтингу" : "By rating"}</option>
+              <option value="price_asc">{isRu ? "Сначала дешёвые" : "Price: low first"}</option>
+              <option value="price_desc">{isRu ? "Сначала дорогие" : "Price: high first"}</option>
+            </select>
           </div>
 
           {advisorsLoading ? (
