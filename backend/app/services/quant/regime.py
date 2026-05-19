@@ -49,7 +49,7 @@ class MarketStateVector:
 class RegimeDetector:
     """Detects market regime from platform signal data (no external feeds needed)."""
 
-    def __init__(self, lookback_hours: int = 48):
+    def __init__(self, lookback_hours: int = 720):  # 30 days default
         self.lookback_hours = lookback_hours
 
     async def detect(self, db: AsyncSession, ticker: str | None = None) -> MarketStateVector:
