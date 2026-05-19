@@ -59,15 +59,22 @@ export default function MarketplacePage() {
     { value: "created_at", label: t("marketplace.sortNew") },
   ];
 
-  // Load advisors on tab switch
+  const [hasMt5Account, setHasMt5Account] = useState(false);
+
+  // Load advisors + check MT5 connection on tab switch
   useEffect(() => {
     if (tab === "advisors" && advisors.length === 0) {
       setAdvisorsLoading(true);
       const token = localStorage.getItem("token");
-      fetch("/api/v1/advisors", { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.json())
-        .then(d => setAdvisors(d.advisors || []))
-        .catch(() => {})
+      const h = { Authorization: `Bearer ${token}` };
+      Promise.all([
+        fetch("/api/v1/advisors", { headers: h }).then(r => r.json()),
+        fetch("/api/v1/execution/accounts", { headers: h }).then(r => r.ok ? r.json() : []).catch(() => []),
+      ]).then(([advData, accounts]) => {
+        setAdvisors(advData.advisors || []);
+        const mt5 = (accounts || []).some((a: any) => a.exchange === "metatrader5" && a.is_active);
+        setHasMt5Account(mt5);
+      }).catch(() => {})
         .finally(() => setAdvisorsLoading(false));
     }
   }, [tab]);
@@ -278,10 +285,21 @@ export default function MarketplacePage() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 flex-shrink-0 ml-4">
-                      <a href={ea.mql5_url} target="_blank" rel="noopener"
-                        className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-medium text-white hover:bg-brand-700">
-                        {isRu ? "Скачать" : "Download"}
-                      </a>
+                      {hasMt5Account ? (
+                        <>
+                          <span className="rounded-lg bg-green-500/20 px-4 py-2 text-center text-xs font-bold text-green-400">
+                            {isRu ? "Подключён" : "Connected"}
+                          </span>
+                          <a href={ea.mql5_url} target="_blank" rel="noopener" className="text-center text-xs text-brand-500 hover:underline">
+                            {isRu ? "Страница MQL5" : "MQL5 Page"}
+                          </a>
+                        </>
+                      ) : (
+                        <a href={ea.mql5_url} target="_blank" rel="noopener"
+                          className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-medium text-white hover:bg-brand-700">
+                          {isRu ? "Скачать" : "Download"}
+                        </a>
+                      )}
                       <span className={`text-center text-xs font-bold ${ea.price_usd ? "text-yellow-400" : "text-green-400"}`}>
                         {ea.price_usd ? (isRu ? `${Math.round(ea.price_usd * 90).toLocaleString("ru-RU")} ₽` : `$${ea.price_usd}`) : (isRu ? "Бесплатно" : "Free")}
                       </span>
