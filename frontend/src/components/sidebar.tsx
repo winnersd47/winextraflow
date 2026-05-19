@@ -20,7 +20,6 @@ const navItems = [
   { href: "/dashboard/marketplace", labelKey: "nav.marketplace", Icon: IconShip, adminOnly: false },
   { href: "/dashboard/telegram", labelKey: "nav.messengers", Icon: IconSail, adminOnly: false, analystOnly: false },
   { href: "/dashboard/intelligence", labelKey: "nav.intelligence", Icon: IconCompass, adminOnly: false },
-  { href: "/dashboard/moex", labelKey: "nav.moex", Icon: IconRadar, adminOnly: false },
   { href: "/dashboard/copy-trading", labelKey: "nav.copyTrading", Icon: IconHelm, adminOnly: false },
   { href: "/dashboard/execution", labelKey: "nav.execution", Icon: IconBolt, adminOnly: false },
   { href: "/dashboard/referrals", labelKey: "nav.referrals", Icon: IconNet, adminOnly: false },

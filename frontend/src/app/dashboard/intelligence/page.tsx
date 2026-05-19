@@ -50,6 +50,7 @@ export default function IntelligencePage() {
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const [showL3L4, setShowL3L4] = useState(false);
+  const [moex, setMoex] = useState<any>(null);
   const { locale } = useI18n();
   const { user } = useAuth();
   const isRu = locale === "ru";
@@ -59,12 +60,15 @@ export default function IntelligencePage() {
     if (showSpinner) setRefreshing(true);
     try {
       const token = localStorage.getItem("token");
-      const [resp, rReady] = await Promise.all([
-        fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("/api/v1/quant/readiness", { headers: { Authorization: `Bearer ${token}` } }),
+      const safe = (p: Promise<Response>) => p.then(r => r.ok ? r.json() : null).catch(() => null);
+      const [dashData, readyData, moexData] = await Promise.all([
+        safe(fetch("/api/v1/quant/dashboard", { headers: { Authorization: `Bearer ${token}` } })),
+        safe(fetch("/api/v1/quant/readiness", { headers: { Authorization: `Bearer ${token}` } })),
+        safe(fetch("/api/v1/moex/overview", { headers: { Authorization: `Bearer ${token}` } })),
       ]);
-      if (resp.ok) setData(await resp.json());
-      if (rReady.ok) setReadiness(await rReady.json());
+      if (dashData) setData(dashData);
+      if (readyData) setReadiness(readyData);
+      if (moexData) setMoex(moexData);
       setLastUpdate(new Date());
     } catch {}
     finally { setLoading(false); setRefreshing(false); }
@@ -304,6 +308,57 @@ export default function IntelligencePage() {
           </div>
         )}
       </div>
+
+      {/* ═══ MOEX LIVE DATA ═══ */}
+      {moex && (moex.indices?.length > 0 || moex.quotes?.length > 0) && (
+        <div className="mb-6">
+          <div className="mb-3 flex items-center gap-2">
+            <h2 className="text-sm font-bold text-text-muted">{isRu ? "МОСКОВСКАЯ БИРЖА" : "MOSCOW EXCHANGE"}</h2>
+            <span className="rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">LIVE</span>
+          </div>
+
+          {/* Indices */}
+          {moex.indices?.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-3">
+              {moex.indices.map((idx: any) => (
+                <div key={idx.ticker} className="rounded-lg border border-border bg-surface-card px-3 py-2">
+                  <span className="text-xs text-text-muted">{idx.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-text-primary">{idx.value?.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}</span>
+                    {idx.change_pct != null && (
+                      <span className={`text-xs font-bold ${idx.change_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Top quotes compact */}
+          {moex.quotes?.length > 0 && (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {moex.quotes.slice(0, 8).map((q: any) => (
+                <div key={q.ticker} className="flex items-center justify-between rounded-lg border border-border bg-surface-card px-3 py-2">
+                  <div>
+                    <span className="text-xs font-bold text-text-primary">{q.ticker}</span>
+                    <span className="ml-1 text-xs text-text-muted">{q.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs text-text-primary">{q.price?.toLocaleString("ru-RU")}</span>
+                    {q.change_pct != null && (
+                      <span className={`ml-1 text-xs font-bold ${q.change_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {q.change_pct >= 0 ? "+" : ""}{q.change_pct.toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ═══ ARCHITECTURE READINESS ═══ */}
       {readiness && (

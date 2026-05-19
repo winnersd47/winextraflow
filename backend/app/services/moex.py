@@ -68,6 +68,9 @@ class MoexService:
                 if not secid or d.get("LAST") is None:
                     continue
                 info = names.get(secid, {})
+                change_pct = d.get("CHANGEPRCNT")
+                if change_pct is None and info.get("prev_price") and info["prev_price"] > 0:
+                    change_pct = round(((d.get("LAST") or 0) - info["prev_price"]) / info["prev_price"] * 100, 2)
                 quotes.append({
                     "ticker": secid,
                     "name": info.get("name", secid),
@@ -77,7 +80,7 @@ class MoexService:
                     "low": d.get("LOW"),
                     "prev_price": info.get("prev_price"),
                     "change": d.get("CHANGE"),
-                    "change_pct": d.get("CHANGEPRCNT"),
+                    "change_pct": change_pct,
                     "volume": d.get("VOLTODAY"),
                     "update_time": d.get("UPDATETIME"),
                 })
