@@ -158,7 +158,61 @@ export default function DashboardPage() {
       )}
 
       <div className="mb-4 flex flex-wrap gap-3">
-        <input type="text" placeholder={t("signals.filterTicker")} value={tickerFilter} onChange={(e) => setTickerFilter(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500" />
+        <select value={tickerFilter} onChange={(e) => setTickerFilter(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary">
+          <option value="">{isRu ? "Все тикеры" : "All tickers"}</option>
+          <optgroup label={isRu ? "Крипто" : "Crypto"}>
+            <option value="BTCUSDT">BTCUSDT — Bitcoin</option>
+            <option value="ETHUSDT">ETHUSDT — Ethereum</option>
+            <option value="SOLUSDT">SOLUSDT — Solana</option>
+            <option value="BNBUSDT">BNBUSDT — BNB</option>
+            <option value="XRPUSDT">XRPUSDT — Ripple</option>
+            <option value="DOGEUSDT">DOGEUSDT — Dogecoin</option>
+            <option value="AVAXUSDT">AVAXUSDT — Avalanche</option>
+            <option value="ADAUSDT">ADAUSDT — Cardano</option>
+            <option value="DOTUSDT">DOTUSDT — Polkadot</option>
+            <option value="MATICUSDT">MATICUSDT — Polygon</option>
+            <option value="LINKUSDT">LINKUSDT — Chainlink</option>
+            <option value="NEARUSDT">NEARUSDT — NEAR</option>
+            <option value="AAVEUSDT">AAVEUSDT — Aave</option>
+            <option value="UNIUSDT">UNIUSDT — Uniswap</option>
+            <option value="ARBUSDT">ARBUSDT — Arbitrum</option>
+          </optgroup>
+          <optgroup label={isRu ? "Форекс" : "Forex"}>
+            <option value="EURUSD">EURUSD — {isRu ? "Евро/Доллар" : "Euro/Dollar"}</option>
+            <option value="GBPUSD">GBPUSD — {isRu ? "Фунт/Доллар" : "Pound/Dollar"}</option>
+            <option value="USDJPY">USDJPY — {isRu ? "Доллар/Иена" : "Dollar/Yen"}</option>
+            <option value="USDCHF">USDCHF — {isRu ? "Доллар/Франк" : "Dollar/Franc"}</option>
+            <option value="AUDUSD">AUDUSD — {isRu ? "Австрал./Доллар" : "AUD/Dollar"}</option>
+            <option value="USDCAD">USDCAD — {isRu ? "Доллар/Канад." : "Dollar/CAD"}</option>
+            <option value="EURGBP">EURGBP — {isRu ? "Евро/Фунт" : "Euro/Pound"}</option>
+            <option value="EURJPY">EURJPY — {isRu ? "Евро/Иена" : "Euro/Yen"}</option>
+            <option value="GBPJPY">GBPJPY — {isRu ? "Фунт/Иена" : "Pound/Yen"}</option>
+          </optgroup>
+          <optgroup label={isRu ? "Акции US" : "US Stocks"}>
+            <option value="AAPL">AAPL — Apple</option>
+            <option value="MSFT">MSFT — Microsoft</option>
+            <option value="NVDA">NVDA — Nvidia</option>
+            <option value="TSLA">TSLA — Tesla</option>
+            <option value="GOOGL">GOOGL — Google</option>
+            <option value="AMZN">AMZN — Amazon</option>
+            <option value="META">META — Meta</option>
+          </optgroup>
+          <optgroup label={isRu ? "Акции РФ (MOEX)" : "RU Stocks (MOEX)"}>
+            <option value="SBER">SBER — {isRu ? "Сбербанк" : "Sberbank"}</option>
+            <option value="GAZP">GAZP — {isRu ? "Газпром" : "Gazprom"}</option>
+            <option value="LKOH">LKOH — {isRu ? "Лукойл" : "Lukoil"}</option>
+            <option value="YNDX">YNDX — {isRu ? "Яндекс" : "Yandex"}</option>
+            <option value="GMKN">GMKN — {isRu ? "Норникель" : "Nornickel"}</option>
+          </optgroup>
+          <optgroup label={isRu ? "Сырьё и индексы" : "Commodities & Indices"}>
+            <option value="XAUUSD">XAUUSD — {isRu ? "Золото" : "Gold"}</option>
+            <option value="XAGUSD">XAGUSD — {isRu ? "Серебро" : "Silver"}</option>
+            <option value="USOIL">USOIL — {isRu ? "Нефть" : "Oil"}</option>
+            <option value="SPX500">SPX500 — S&P 500</option>
+            <option value="NAS100">NAS100 — Nasdaq 100</option>
+            <option value="DAX40">DAX40 — DAX</option>
+          </optgroup>
+        </select>
         <div className="flex gap-1">
           {STATUS_FILTERS.map((f) => (
             <button key={f.value} onClick={() => setStatusFilter(f.value)} className={`rounded-lg px-3 py-2 text-sm transition ${statusFilter === f.value ? "bg-brand-500/20 text-brand-500" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary"}`}>{f.label}</button>
