@@ -353,6 +353,72 @@ export default function MarketplacePage() {
               {isRu ? "Перейти в Исполнение" : "Go to Execution"}
             </a>
           </div>
+
+          {/* TradingView MOEX Guide */}
+          <div className="mt-6 rounded-xl border border-border bg-surface-card p-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="font-bold text-text-primary">{isRu ? "Стратегии TradingView для MOEX" : "TradingView Strategies for MOEX"}</h3>
+              <span className="rounded bg-green-500/20 px-2 py-0.5 text-xs font-bold text-green-400">{isRu ? "100 000+ стратегий" : "100,000+ strategies"}</span>
+            </div>
+            <p className="mb-4 text-sm text-text-secondary">
+              {isRu
+                ? "TradingView — крупнейший источник торговых стратегий для MOEX. Подключите любую стратегию к WinExtraFlow через webhook — сигналы будут автоматически появляться на платформе с AI-оценкой."
+                : "TradingView is the largest source of MOEX trading strategies. Connect any strategy to WinExtraFlow via webhook — signals will automatically appear on the platform with AI rating."}
+            </p>
+            <div className="mb-4 rounded-lg bg-surface p-4">
+              <p className="mb-2 text-xs font-bold text-text-primary">{isRu ? "Как подключить за 5 минут:" : "How to connect in 5 minutes:"}</p>
+              <ol className="space-y-2 text-sm text-text-secondary">
+                <li>
+                  <strong>1.</strong> {isRu ? "Откройте " : "Open "}
+                  <a href="https://ru.tradingview.com/scripts/moex/" target="_blank" rel="noopener" className="text-brand-500 hover:underline">
+                    {isRu ? "стратегии MOEX на TradingView" : "MOEX strategies on TradingView"}
+                  </a>
+                  {isRu ? " и выберите стратегию (SBER, GAZP, LKOH и др.)" : " and choose a strategy (SBER, GAZP, LKOH, etc.)"}
+                </li>
+                <li>
+                  <strong>2.</strong> {isRu
+                    ? "Добавьте стратегию на график → нажмите «Создать оповещение» (Create Alert)"
+                    : "Add strategy to chart → click 'Create Alert'"}
+                </li>
+                <li>
+                  <strong>3.</strong> {isRu ? "В настройках оповещения выберите:" : "In alert settings select:"}
+                  <div className="mt-1 rounded bg-surface-card p-2 font-mono text-xs text-brand-500">
+                    Webhook URL: {typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}/api/v1/signals/webhook/tradingview
+                  </div>
+                </li>
+                <li>
+                  <strong>4.</strong> {isRu ? "Формат сообщения (вставьте в поле Message):" : "Message format (paste in Message field):"}
+                  <div className="mt-1 rounded bg-surface-card p-2 font-mono text-xs text-text-secondary">
+                    {`{"ticker": "{{ticker}}", "action": "{{strategy.order.action}}", "price": {{close}}, "take_profit": null, "stop_loss": null}`}
+                  </div>
+                </li>
+                <li>
+                  <strong>5.</strong> {isRu
+                    ? "Готово! Сигналы автоматически появятся на платформе с AI-оценкой, режимом рынка и классификацией стратегии."
+                    : "Done! Signals will automatically appear on the platform with AI rating, market regime, and strategy classification."}
+                </li>
+              </ol>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <a href="https://ru.tradingview.com/scripts/moex/" target="_blank" rel="noopener"
+                className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+                {isRu ? "Стратегии MOEX" : "MOEX Strategies"}
+              </a>
+              <a href="https://ru.tradingview.com/ideas/moex/" target="_blank" rel="noopener"
+                className="rounded-lg border border-border px-4 py-2 text-sm text-text-primary hover:bg-surface-hover">
+                {isRu ? "Торговые идеи MOEX" : "MOEX Trading Ideas"}
+              </a>
+              <a href="https://ru.tradingview.com/scripts/" target="_blank" rel="noopener"
+                className="rounded-lg border border-border px-4 py-2 text-sm text-text-primary hover:bg-surface-hover">
+                {isRu ? "Все стратегии (100K+)" : "All Strategies (100K+)"}
+              </a>
+            </div>
+            <p className="mt-3 text-xs text-text-muted">
+              {isRu
+                ? "Поддерживаемые тикеры MOEX: SBER, GAZP, LKOH, YNDX, GMKN, ROSN, VTBR, NVTK, PLZL, MAGN, MTSS, TATN, SNGS, ALRS, NLMK, MOEX, MGNT, PHOR, CHMF и другие."
+                : "Supported MOEX tickers: SBER, GAZP, LKOH, YNDX, GMKN, ROSN, VTBR, NVTK, PLZL, MAGN, MTSS, TATN, SNGS, ALRS, NLMK, MOEX, MGNT, PHOR, CHMF and more."}
+            </p>
+          </div>
         </div>
       )}
     </div>
