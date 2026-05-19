@@ -7,12 +7,16 @@ import { StrategyCard } from "@/components/strategy-card";
 import type { Provider, StrategyResponse } from "@/types";
 
 export default function MarketplacePage() {
+  const [tab, setTab] = useState<"strategies" | "advisors">("strategies");
   const [strategies, setStrategies] = useState<StrategyResponse[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [priceFilter, setPriceFilter] = useState("");
   const [sortBy, setSortBy] = useState("ai_score");
   const [tagsFilter, setTagsFilter] = useState("");
+  const [advisors, setAdvisors] = useState<any[]>([]);
+  const [advisorsLoading, setAdvisorsLoading] = useState(false);
+  // locale from t below
 
   // Publish form
   const [showPublish, setShowPublish] = useState(false);
@@ -25,7 +29,8 @@ export default function MarketplacePage() {
   const [pubMonthly, setPubMonthly] = useState("0");
   const [publishing, setPublishing] = useState(false);
   const [pubError, setPubError] = useState("");
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isRu = locale === "ru";
 
   const load = useCallback(async () => {
     try {
@@ -50,12 +55,27 @@ export default function MarketplacePage() {
     { value: "created_at", label: t("marketplace.sortNew") },
   ];
 
+  // Load advisors on tab switch
+  useEffect(() => {
+    if (tab === "advisors" && advisors.length === 0) {
+      setAdvisorsLoading(true);
+      const token = localStorage.getItem("token");
+      fetch("/api/v1/advisors", { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => setAdvisors(d.advisors || []))
+        .catch(() => {})
+        .finally(() => setAdvisorsLoading(false));
+    }
+  }, [tab]);
+
+  const RISK_COLORS: Record<string, string> = { low: "text-green-400 bg-green-500/10", medium: "text-yellow-400 bg-yellow-500/10", high: "text-red-400 bg-red-500/10" };
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">{t("marketplace.title")}</h1>
-          <p className="text-sm text-text-secondary">{total} {t("marketplace.available")}</p>
+          <p className="text-sm text-text-secondary">{tab === "strategies" ? `${total} ${t("marketplace.available")}` : `${advisors.length} ${isRu ? "советников" : "advisors"}`}</p>
         </div>
         <button onClick={async () => {
           if (!showPublish) { try { setProviders((await api.getProviders()).items); } catch {} }
@@ -64,6 +84,19 @@ export default function MarketplacePage() {
           {showPublish ? t("telegram.cancel") : t("marketplace.publish")}
         </button>
       </div>
+
+      {/* Tabs: Strategies / Advisors */}
+      <div className="mb-6 flex gap-1 rounded-xl border border-border bg-surface-card p-1">
+        <button onClick={() => setTab("strategies")} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === "strategies" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Стратегии провайдеров" : "Provider Strategies"}
+        </button>
+        <button onClick={() => setTab("advisors")} className={`flex-1 rounded-lg px-4 py-2 text-sm font-medium transition ${tab === "advisors" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Советники MT5" : "MT5 Advisors"} ({advisors.length || "..."})
+        </button>
+      </div>
+
+      {/* ═══ TAB: Strategies ═══ */}
+      {tab === "strategies" && (<>
 
       {/* Publish Strategy Form */}
       {showPublish && (
@@ -146,6 +179,75 @@ export default function MarketplacePage() {
         </div>
       ) : (
         <div className="space-y-3">{strategies.map((s) => <StrategyCard key={s.id} strategy={s} />)}</div>
+      )}
+      </>)}
+
+      {/* ═══ TAB: MT5 Advisors ═══ */}
+      {tab === "advisors" && (
+        <div>
+          <p className="mb-4 text-sm text-text-secondary">
+            {isRu
+              ? "Бесплатные советники (Expert Advisors) из MQL5 Market. Скачайте, установите в MetaTrader 5 и подключите счёт к платформе для синхронизации сигналов."
+              : "Free Expert Advisors from MQL5 Market. Download, install in MetaTrader 5, and connect your account to sync signals."}
+          </p>
+          {advisorsLoading ? (
+            <div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>
+          ) : (
+            <div className="space-y-3">
+              {advisors.map((ea: any) => (
+                <div key={ea.id} className="rounded-xl border border-border bg-surface-card p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-bold text-text-primary">{ea.name}</h3>
+                        <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
+                          {isRu ? ea.strategy_name_ru : ea.strategy_name_en}
+                        </span>
+                        <span className={`rounded px-2 py-0.5 text-xs ${RISK_COLORS[ea.risk] || ""}`}>
+                          {isRu ? ea.risk_ru : ea.risk}
+                        </span>
+                        <span className="text-xs text-yellow-400">{"*".repeat(Math.round(ea.rating))} {ea.rating}</span>
+                        <span className="text-xs text-text-muted">({ea.reviews})</span>
+                      </div>
+                      <p className="text-sm text-text-secondary">{isRu ? ea.description_ru : ea.description_en}</p>
+                      <div className="mt-2 flex items-center gap-3 text-xs text-text-muted">
+                        <span>{isRu ? "Автор" : "Author"}: {ea.author}</span>
+                        <span>{isRu ? "Тикеры" : "Tickers"}: {ea.tickers?.join(", ")}</span>
+                        <span>TF: {ea.timeframe}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 flex-shrink-0 ml-4">
+                      <a href={ea.mql5_url} target="_blank" rel="noopener"
+                        className="rounded-lg bg-brand-600 px-4 py-2 text-center text-xs font-medium text-white hover:bg-brand-700">
+                        {isRu ? "Скачать" : "Download"}
+                      </a>
+                      <span className="text-center text-xs text-green-400">{isRu ? "Бесплатно" : "Free"}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Connect MT5 */}
+          <div className="mt-6 rounded-xl border border-brand-500/30 bg-brand-500/5 p-6">
+            <h3 className="mb-2 font-bold text-text-primary">{isRu ? "Подключить MT5 счёт" : "Connect MT5 Account"}</h3>
+            <p className="mb-4 text-sm text-text-secondary">
+              {isRu
+                ? "После установки советника подключите свой MT5 счёт через MetaApi для автоматической синхронизации сигналов и исполнения сделок на платформе."
+                : "After installing an advisor, connect your MT5 account via MetaApi for automatic signal sync and trade execution on the platform."}
+            </p>
+            <ol className="mb-4 space-y-1 text-sm text-text-secondary">
+              <li>1. {isRu ? "Скачайте советник из каталога выше" : "Download an advisor from the catalog above"}</li>
+              <li>2. {isRu ? "Установите его в MetaTrader 5 на вашем VPS или компьютере" : "Install it in MetaTrader 5 on your VPS or computer"}</li>
+              <li>3. {isRu ? "Зарегистрируйтесь на metaapi.cloud и получите токен" : "Register at metaapi.cloud and get a token"}</li>
+              <li>4. {isRu ? "Перейдите в Исполнение → Добавить аккаунт → MetaTrader 5" : "Go to Execution → Add Account → MetaTrader 5"}</li>
+            </ol>
+            <a href="/dashboard/execution" className="inline-block rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700">
+              {isRu ? "Перейти в Исполнение" : "Go to Execution"}
+            </a>
+          </div>
+        </div>
       )}
     </div>
   );
