@@ -20,6 +20,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!loading && !user) router.replace("/login");
   }, [user, loading, router]);
 
+  // Auto-evolve: fetch new MQL5 articles on each dashboard load (rate-limited 1/hour server-side)
+  useEffect(() => {
+    if (!user) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch("/api/v1/quant/auto-evolve", { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+  }, [user]);
+
   if (loading) return <div className="flex h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>;
   if (!user) return null;
 

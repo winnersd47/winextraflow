@@ -232,6 +232,13 @@ async def architecture_readiness(
     return await readiness_monitor.check_l3_readiness(db)
 
 
+@router.get("/auto-evolve")
+async def auto_evolve(user: User = Depends(get_current_user)):
+    """Check MQL5 for new articles and evolve architecture. Rate-limited: 1/hour."""
+    from app.services.quant.auto_evolution import check_and_evolve
+    return await check_and_evolve()
+
+
 @router.get("/evolution")
 async def evolution_state(user: User = Depends(get_current_user)):
     """Full evolutionary state of the architecture — branches, components, roadmap."""
