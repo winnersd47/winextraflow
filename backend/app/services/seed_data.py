@@ -330,7 +330,7 @@ async def seed_test_data(db: AsyncSession):
                 ai_reasoning=reasoning_parts[0],
                 raw_message=f"[TEST] Auto-generated signal #{total_signals}",
             )
-            # Manually set created_at via SQL later or accept default
+            signal.created_at = created
             db.add(signal)
             total_signals += 1
 
