@@ -31,26 +31,25 @@ export default function StorePage() {
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   useEffect(() => {
+    const safe = (p: Promise<Response>) => p.then(r => r.ok ? r.json() : null).catch(() => null);
     const load = async () => {
-      try {
-        const [plans, keys, rp, edu, tg, ps, ph] = await Promise.all([
-          fetch("/api/v1/products/api-keys/plans", { headers }).then(r => r.json()),
-          fetch("/api/v1/products/api-keys", { headers }).then(r => r.json()),
-          fetch("/api/v1/products/reports/providers", { headers }).then(r => r.json()),
-          fetch("/api/v1/products/education", { headers }).then(r => r.json()),
-          fetch("/api/v1/products/telegram-premium", { headers }).then(r => r.json()),
-          fetch("/api/v1/premium/status", { headers }).then(r => r.json()),
-          fetch("/api/v1/payments/history", { headers }).then(r => r.json()),
-        ]);
-        setApiPlans(plans.plans || []);
-        setApiKeys(keys.keys || []);
-        setReportProviders(rp.providers || []);
-        setCourses(edu.courses || []);
-        setTgInfo(tg);
-        setPremiumStatus(ps);
-        setPayments(ph?.items || []);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
+      const [plans, keys, rp, edu, tg, ps, ph] = await Promise.all([
+        safe(fetch("/api/v1/products/api-keys/plans", { headers })),
+        safe(fetch("/api/v1/products/api-keys", { headers })),
+        safe(fetch("/api/v1/products/reports/providers", { headers })),
+        safe(fetch("/api/v1/products/education", { headers })),
+        safe(fetch("/api/v1/products/telegram-premium", { headers })),
+        safe(fetch("/api/v1/premium/status", { headers })),
+        safe(fetch("/api/v1/payments/history", { headers })),
+      ]);
+      setApiPlans(plans?.plans || []);
+      setApiKeys(keys?.keys || []);
+      setReportProviders(rp?.providers || []);
+      setCourses(edu?.courses || []);
+      if (tg) setTgInfo(tg);
+      if (ps) setPremiumStatus(ps);
+      setPayments(ph?.items || []);
+      setLoading(false);
     };
     load();
   }, []);
