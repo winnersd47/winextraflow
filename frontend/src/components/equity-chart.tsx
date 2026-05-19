@@ -70,18 +70,31 @@ export function EquityChart({ data, initialCapital }: EquityChartProps) {
           width={55}
         />
         <Tooltip
-          contentStyle={{
-            backgroundColor: isDark ? "#1a1d27" : "#ffffff",
-            border: `1px solid ${isDark ? "#374151" : "#e5e7eb"}`,
-            borderRadius: "8px",
-            color: isDark ? "#f3f4f6" : "#111827",
-            fontSize: 13,
+          content={({ active, payload }) => {
+            if (!active || !payload?.length) return null;
+            const d = payload[0].payload;
+            const val = d.value as number;
+            const pct = ((val - initialCapital) / initialCapital * 100).toFixed(1);
+            // Calculate trading day from first date
+            const firstDate = chartData[0]?.date;
+            const uniqueDates: string[] = [];
+            for (const pt of chartData) {
+              if (pt.index <= d.index && !uniqueDates.includes(pt.date)) uniqueDates.push(pt.date);
+            }
+            const tradingDay = uniqueDates.length;
+            return (
+              <div style={{
+                backgroundColor: isDark ? "#1a1d27" : "#ffffff",
+                border: `1px solid ${isDark ? "#374151" : "#e5e7eb"}`,
+                borderRadius: 8, padding: "8px 12px", fontSize: 12,
+                color: isDark ? "#f3f4f6" : "#111827",
+              }}>
+                <p style={{ fontWeight: 700, marginBottom: 4 }}>{d.date}</p>
+                <p>Капитал: <span style={{ color: "#14b8a6", fontWeight: 700 }}>${val.toLocaleString("en-US", { maximumFractionDigits: 0 })}</span> ({Number(pct) >= 0 ? "+" : ""}{pct}%)</p>
+                <p style={{ opacity: 0.7 }}>Сделка #{d.trade} | День {tradingDay}</p>
+              </div>
+            );
           }}
-          formatter={(value: number) => {
-            const pct = ((value - initialCapital) / initialCapital * 100).toFixed(1);
-            return [`$${value.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${Number(pct) >= 0 ? "+" : ""}${pct}%)`, "Капитал"];
-          }}
-          labelFormatter={(date) => `${date}`}
         />
         <ReferenceLine
           y={initialCapital}
