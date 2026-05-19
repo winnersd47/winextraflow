@@ -17,7 +17,7 @@ export default function MarketplacePage() {
   const [advisors, setAdvisors] = useState<any[]>([]);
   const [advisorsLoading, setAdvisorsLoading] = useState(false);
   const [eaSearch, setEaSearch] = useState("");
-  const [eaFilter, setEaFilter] = useState("popular");
+  const [eaFilter, setEaFilter] = useState("all");
   const [eaSort, setEaSort] = useState("reviews");
   const [eaPage, setEaPage] = useState(0);
   // locale from t below
@@ -228,8 +228,7 @@ export default function MarketplacePage() {
           <div className="mb-4 flex flex-wrap items-center gap-3">
             <div className="flex gap-1">
               {[
-                { key: "popular", label: isRu ? "Популярные" : "Popular" },
-                { key: "new", label: isRu ? "Новые" : "New" },
+                { key: "all", label: isRu ? "Все" : "All" },
                 { key: "free", label: isRu ? "Бесплатные" : "Free" },
                 { key: "paid", label: isRu ? "Платные" : "Paid" },
               ].map(f => (
