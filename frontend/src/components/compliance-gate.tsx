@@ -34,6 +34,7 @@ const FEATURE_TIERS: Record<string, number> = {
   "/dashboard/kyc": 0,
   "/dashboard/telegram": 0,
   "/dashboard/intelligence": 0,
+  "/dashboard/moex": 0,
   "/dashboard/store": 30,
   "/dashboard/referrals": 30,
   "/dashboard/revenue": 0,

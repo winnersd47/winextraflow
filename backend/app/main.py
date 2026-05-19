@@ -28,6 +28,7 @@ from app.api.compliance import router as compliance_router
 from app.api.products import router as products_router
 from app.api.quant import router as quant_router
 from app.api.advisors import router as advisors_router
+from app.api.moex import router as moex_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -207,6 +208,7 @@ app.include_router(compliance_router, prefix="/api/v1/compliance", tags=["compli
 app.include_router(products_router, prefix="/api/v1/products", tags=["products"])
 app.include_router(quant_router, prefix="/api/v1/quant", tags=["quant-intelligence"])
 app.include_router(advisors_router, prefix="/api/v1/advisors", tags=["advisors"])
+app.include_router(moex_router, prefix="/api/v1/moex", tags=["moex"])
 
 
 @app.get("/health")
