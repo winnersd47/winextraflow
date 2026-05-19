@@ -18,7 +18,8 @@ import type { Signal, RatingDetail } from "@/types";
 export default function SignalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const isRu = locale === "ru";
   const [signal, setSignal] = useState<Signal | null>(null);
   const [rating, setRating] = useState<RatingDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,7 +51,16 @@ export default function SignalDetailPage() {
           <span className="ml-auto text-sm text-text-muted">{timeAgo(signal.created_at)}</span>
         </div>
 
-        {signal.ai_reasoning && <p className="mt-2 text-sm text-text-secondary">{signal.ai_reasoning}</p>}
+        {signal.ai_reasoning && <p className="mt-2 text-sm text-text-secondary">
+          {isRu ? signal.ai_reasoning
+            .replace("Strong:", "Сильные:")
+            .replace("Average quality across factors", "Среднее качество по всем факторам")
+            .replace("Weak:", "Слабые:")
+            .replace("good risk management", "хороший риск-менеджмент")
+            .replace("reliable provider", "надёжный провайдер")
+            .replace("missing TP/SL or low provider history", "отсутствует TP/SL или мало истории провайдера")
+            : signal.ai_reasoning}
+        </p>}
 
         {/* Execute button */}
         {signal.status === "active" && (
@@ -92,22 +102,78 @@ export default function SignalDetailPage() {
           <h2 className="mb-4 text-lg font-bold text-text-primary">{t("signals.aiRating")}</h2>
           <div className="mb-4 flex items-center gap-3">
             <span className="text-3xl font-bold text-text-primary">{formatConfidence(rating.final_confidence)}</span>
-            <span className={`text-sm ${confidenceColor(rating.final_confidence)}`}>confidence</span>
+            <span className={`text-sm ${confidenceColor(rating.final_confidence)}`}>{isRu ? "уверенность" : "confidence"}</span>
           </div>
-          <p className="mb-6 text-sm text-text-secondary">{rating.reasoning}</p>
+          <p className="mb-6 text-sm text-text-secondary">
+            {isRu ? (rating.reasoning || "")
+              .replace("Strong:", "Сильные:")
+              .replace("Average quality across factors", "Среднее качество по факторам")
+              .replace("Weak:", "Слабые:")
+              .replace("good risk management", "хороший риск-менеджмент")
+              .replace("reliable provider", "надёжный провайдер")
+              .replace("provider history", "история провайдера")
+              .replace("sharpe ratio", "коэффициент Шарпа")
+              .replace("profit factor", "профит-фактор")
+              .replace("signal frequency", "частота сигналов")
+              : rating.reasoning}
+          </p>
           <div className="space-y-3">
-            {Object.entries(rating.factors).map(([key, factor]) => (
+            {Object.entries(rating.factors).map(([key, factor]) => {
+              const factorNamesRu: Record<string, string> = {
+                risk_management: "Риск-менеджмент",
+                risk_reward: "Риск/Прибыль",
+                provider_history: "История провайдера",
+                sharpe_ratio: "Коэффициент Шарпа",
+                profit_factor: "Профит-фактор",
+                max_drawdown: "Макс. просадка",
+                signal_frequency: "Частота сигналов",
+                time_decay: "Свежесть данных",
+                completeness: "Полнота данных",
+              };
+              const factorName = isRu ? (factorNamesRu[key] || key.replace(/_/g, " ")) : key.replace(/_/g, " ");
+
+              // Translate factor reasons
+              const reasonRu = (reason: string) => reason
+                .replace("Both TP and SL defined", "TP и SL заданы")
+                .replace("Only TP defined", "Задан только TP")
+                .replace("Only SL defined", "Задан только SL")
+                .replace("No TP or SL", "TP и SL не заданы")
+                .replace("partial risk management", "частичный риск-менеджмент")
+                .replace("full risk management", "полный риск-менеджмент")
+                .replace("no risk management", "нет риск-менеджмента")
+                .replace("Cannot calculate R:R", "Невозможно рассчитать R:R")
+                .replace("missing TP or SL", "отсутствует TP или SL")
+                .replace("Excellent win rate:", "Отличный винрейт:")
+                .replace("Good win rate:", "Хороший винрейт:")
+                .replace("Average win rate:", "Средний винрейт:")
+                .replace("Low win rate:", "Низкий винрейт:")
+                .replace("No provider history", "Нет истории провайдера")
+                .replace("Excellent Sharpe ratio:", "Отличный Шарп:")
+                .replace("Good Sharpe ratio:", "Хороший Шарп:")
+                .replace("Low Sharpe ratio:", "Низкий Шарп:")
+                .replace("No Sharpe data", "Нет данных по Шарпу")
+                .replace("Excellent profit factor:", "Отличный профит-фактор:")
+                .replace("Good profit factor:", "Хороший профит-фактор:")
+                .replace("Low profit factor:", "Низкий профит-фактор:")
+                .replace("No profit factor data", "Нет данных")
+                .replace("Normal frequency", "Нормальная частота")
+                .replace("High frequency", "Высокая частота")
+                .replace("signals in last 24h", "сигналов за 24ч")
+                .replace("R:R ratio:", "Соотношение R:R:");
+
+              return (
               <div key={key} className="rounded-lg bg-surface p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium capitalize text-text-primary">{key.replace(/_/g, " ")}</span>
+                  <span className="text-sm font-medium text-text-primary">{factorName}</span>
                   <span className="text-sm text-text-secondary">{(factor.weight * 100).toFixed(0)}%</span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-hover">
                   <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${factor.score * 100}%` }} />
                 </div>
-                <p className="mt-1 text-xs text-text-muted">{factor.reason}</p>
+                <p className="mt-1 text-xs text-text-muted">{isRu ? reasonRu(factor.reason) : factor.reason}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
