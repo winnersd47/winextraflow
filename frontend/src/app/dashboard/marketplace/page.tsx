@@ -198,16 +198,20 @@ export default function MarketplacePage() {
                 <div key={ea.id} className="rounded-xl border border-border bg-surface-card p-4">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className="font-bold text-text-primary">{ea.name}</h3>
-                        <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">
-                          {isRu ? ea.strategy_name_ru : ea.strategy_name_en}
+                        <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400" title={isRu ? "Тип стратегии" : "Strategy type"}>
+                          {isRu ? `Стратегия: ${ea.strategy_name_ru}` : `Strategy: ${ea.strategy_name_en}`}
                         </span>
-                        <span className={`rounded px-2 py-0.5 text-xs ${RISK_COLORS[ea.risk] || ""}`}>
-                          {isRu ? ea.risk_ru : ea.risk}
+                        <span className={`rounded px-2 py-0.5 text-xs ${RISK_COLORS[ea.risk] || ""}`} title={isRu ? "Уровень риска" : "Risk level"}>
+                          {isRu ? `Риск: ${ea.risk_ru}` : `Risk: ${ea.risk}`}
                         </span>
-                        <span className="text-xs text-yellow-400">{"*".repeat(Math.round(ea.rating))} {ea.rating}</span>
-                        <span className="text-xs text-text-muted">({ea.reviews})</span>
+                        <span className="text-xs text-yellow-400" title={isRu ? "Рейтинг на MQL5 Market" : "MQL5 Market rating"}>
+                          {ea.rating}/5
+                        </span>
+                        <span className="text-xs text-text-muted" title={isRu ? "Количество отзывов" : "Number of reviews"}>
+                          {ea.reviews} {isRu ? "отзывов" : "reviews"}
+                        </span>
                       </div>
                       <p className="text-sm text-text-secondary">{isRu ? ea.description_ru : ea.description_en}</p>
                       <div className="mt-2 flex items-center gap-3 text-xs text-text-muted">
