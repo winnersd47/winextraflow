@@ -139,7 +139,7 @@ export interface BacktestResult {
   max_consecutive_wins: number;
   max_consecutive_losses: number;
   trades: TradeResult[];
-  equity_curve: number[];
+  equity_curve: Array<number | { value: number; date?: string; trade?: number }>;
 }
 
 // --- Referral ---

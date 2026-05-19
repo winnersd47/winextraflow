@@ -69,7 +69,7 @@ class BacktestResult:
     trades: list[TradeResult] = field(default_factory=list)
 
     # Equity curve (cumulative returns)
-    equity_curve: list[float] = field(default_factory=list)
+    equity_curve: list = field(default_factory=list)
 
 
 class BacktestingEngine:
@@ -185,16 +185,17 @@ class BacktestingEngine:
         elif total_profit > 0:
             result.profit_factor = 10.0
 
-        # ── Max Drawdown ──
+        # ── Max Drawdown + Equity Curve with dates ──
         cumulative = 0.0
         peak = 0.0
         max_dd = 0.0
-        equity = [initial_capital]
+        equity = [{"value": initial_capital, "date": closed_signals[0].created_at.strftime("%d.%m") if closed_signals[0].created_at else "0", "trade": 0}]
 
-        for p in profits:
+        for i, (sig, p) in enumerate(zip(closed_signals, profits)):
             cumulative += p
             capital = initial_capital * (1 + cumulative / 100)
-            equity.append(round(capital, 2))
+            date_str = sig.created_at.strftime("%d.%m") if sig.created_at else str(i + 1)
+            equity.append({"value": round(capital, 2), "date": date_str, "trade": i + 1})
             if cumulative > peak:
                 peak = cumulative
             dd = peak - cumulative

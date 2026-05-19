@@ -59,4 +59,4 @@ class BacktestResponse(BaseModel):
 
     # Detail
     trades: list[TradeResultSchema]
-    equity_curve: list[float]
+    equity_curve: list  # list[{value, date, trade}] or list[float]
