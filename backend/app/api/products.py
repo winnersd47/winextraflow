@@ -18,6 +18,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_premium
+from app.config import settings
 from app.database import get_db
 from app.models.user import User, UserRole
 from app.services.premium import is_premium
