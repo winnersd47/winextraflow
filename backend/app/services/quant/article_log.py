@@ -659,6 +659,25 @@ class ArticleEvolutionLog:
                 evolution_summary="Debugging, profiling, and EX5 binary protection in MetaEditor. IP protection for commercial EAs.",
                 processed_at="2026-05-20T14:12:00Z",
             ),
+            # ─── TradingView Ideas + Blog + Top Strategies 2026 ───
+            ProcessedArticle(
+                article_id=90005,
+                url="https://www.tradingview.com/ideas/",
+                title="TradingView: 15 Top Ideas + Wizards + Blog + Top Strategies 2026",
+                main_strategy_id=5,
+                secondary_ids=[1, 2, 4, 6, 7],
+                components_extracted=[
+                    "smc_order_blocks_2026", "fair_value_gap_detection", "vwap_institutional",
+                    "monday_range_weekly_bias", "liquidity_sweep_timing", "panic_selloff_detection",
+                    "descending_triangle_breakout", "symmetrical_triangle_compression",
+                    "institutional_accumulation_zones", "ai_chart_copilot",
+                    "paper_trading_to_portfolio", "analyst_consensus_tracking",
+                    "geopolitical_pressure_filter", "early_entry_advantage",
+                ],
+                branch_impact="ALL branches enriched. Key 2026 trends: SMC (ID4), VWAP institutional (ID5), AI Copilot (ID7). TradingView Wizards: Zeiierman (SMC education), Rodnee (backtesting). 15 live trading ideas analyzed. Blog: AI features, paper trading analytics.",
+                evolution_summary="TradingView ecosystem analysis: 15 top trading ideas (BTCUSDT, XAUUSD, EURUSD, USOIL), Wizards program (SMC, institutional concepts), Blog (AI Copilot, portfolio analytics). 14 new components: SMC order blocks 2026, FVG detection, VWAP institutional, Monday range bias, liquidity sweep timing, panic selloff detection, triangle patterns, institutional accumulation, AI chart copilot, paper-to-portfolio, analyst consensus, geopolitical filter, early entry advantage.",
+                processed_at="2026-05-20T15:00:00Z",
+            ),
         ]
 
     def record(
