@@ -12,6 +12,9 @@ export default function StorePage() {
   const [apiKeys, setApiKeys] = useState<any[]>([]);
   const [reportProviders, setReportProviders] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [myCourses, setMyCourses] = useState<any[]>([]);
+  const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [purchaseMsg, setPurchaseMsg] = useState("");
   const [tgInfo, setTgInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("premium");
@@ -46,6 +49,9 @@ export default function StorePage() {
       setApiKeys(keys?.keys || []);
       setReportProviders(rp?.providers || []);
       setCourses(edu?.courses || []);
+      // Load my courses
+      const mc = await safe(fetch("/api/v1/products/education/my-courses", { headers }));
+      setMyCourses(mc?.courses || []);
       if (tg) setTgInfo(tg);
       if (ps) setPremiumStatus(ps);
       setPayments(ph?.items || []);
@@ -466,12 +472,37 @@ export default function StorePage() {
                   <p className="mt-1 text-sm text-text-secondary">{isRu ? c.description_ru : c.description_en}</p>
                   <p className="mt-2 text-xs text-text-muted">{c.lessons} {isRu ? "уроков" : "lessons"} / {c.duration_min} {isRu ? "мин" : "min"}</p>
                 </div>
-                <div className="text-right">
+                <div className="flex flex-col items-end gap-2">
                   {c.is_free ? (
                     <span className="text-lg font-bold text-green-400">{isRu ? "Бесплатно" : "Free"}</span>
                   ) : (
                     <span className="text-lg font-bold text-brand-500">{isRu ? (c.price_usd > 0 ? `${(c.price_usd * 90).toLocaleString("ru-RU")} ₽` : "") : (c.price_usd > 0 ? `$${c.price_usd}` : "")}</span>
                   )}
+                  {(() => {
+                    const purchased = myCourses.some((mc: any) => mc.course_id === c.id);
+                    if (purchased) return (
+                      <span className="rounded bg-green-500/20 px-3 py-1 text-xs font-bold text-green-400">{isRu ? "Доступ открыт" : "Purchased"}</span>
+                    );
+                    return (
+                      <button onClick={async () => {
+                        setPurchasing(c.id); setPurchaseMsg("");
+                        try {
+                          const token = localStorage.getItem("token");
+                          const resp = await fetch(`/api/v1/products/education/${c.id}/purchase`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+                          const d = await resp.json();
+                          if (resp.ok) {
+                            setPurchaseMsg(isRu ? `Курс "${d.title}" получен!` : `Course "${d.title}" purchased!`);
+                            const mc = await fetch("/api/v1/products/education/my-courses", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json());
+                            setMyCourses(mc?.courses || []);
+                          } else { setPurchaseMsg(d.detail || "Error"); }
+                        } catch { setPurchaseMsg("Error"); }
+                        finally { setPurchasing(null); }
+                      }} disabled={purchasing === c.id}
+                        className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50">
+                        {purchasing === c.id ? "..." : (isRu ? "Заказать" : "Order")}
+                      </button>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="mt-4">
@@ -482,13 +513,41 @@ export default function StorePage() {
                   ))}
                 </div>
               </div>
-              {!c.is_accessible && (
+              {!c.is_accessible && !myCourses.some((mc: any) => mc.course_id === c.id) && (
                 <div className="mt-4 rounded-lg bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
                   {isRu ? "Требуется Premium подписка" : "Premium subscription required"}
                 </div>
               )}
             </div>
           ))}
+
+          {/* My Courses */}
+          {myCourses.length > 0 && (
+            <div className="mt-6 rounded-xl border border-brand-500/30 bg-brand-500/5 p-6">
+              <h3 className="mb-4 font-bold text-text-primary">{isRu ? "Мои курсы" : "My Courses"} ({myCourses.length})</h3>
+              <div className="space-y-3">
+                {myCourses.map((mc: any) => (
+                  <div key={mc.course_id} className="rounded-lg bg-surface p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div>
+                        <span className="font-medium text-text-primary">{isRu ? mc.title_ru : mc.title_en}</span>
+                        <span className="ml-2 rounded bg-surface-hover px-1.5 py-0.5 text-xs text-text-muted">{mc.level}</span>
+                      </div>
+                      <span className="text-sm font-bold text-brand-500">{mc.progress_pct}%</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-surface-card">
+                      <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${mc.progress_pct}%` }} />
+                    </div>
+                    <p className="mt-1 text-xs text-text-muted">{mc.lessons_completed}/{mc.total_lessons} {isRu ? "уроков" : "lessons"}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {purchaseMsg && (
+            <div className="mt-4 rounded-lg bg-green-500/10 p-3 text-sm text-green-400">{purchaseMsg}</div>
+          )}
         </div>
       )}
     </div>

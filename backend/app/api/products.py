@@ -606,6 +606,15 @@ async def list_courses(user: User = Depends(get_current_user)):
     }
 
 
+@router.get("/education/my-courses")
+async def my_courses_shortcut(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Redirect — must be before /{course_id}."""
+    return await _get_my_courses(db, user)
+
+
 @router.get("/education/{course_id}")
 async def get_course(
     course_id: str,
@@ -621,3 +630,103 @@ async def get_course(
         raise HTTPException(403, "Premium subscription required for this course")
 
     return {**course, "is_accessible": True}
+
+
+@router.post("/education/{course_id}/purchase")
+async def purchase_course(
+    course_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Purchase a course. Free courses auto-activate. Paid require Premium."""
+    from app.models.course_access import CourseAccess
+    from sqlalchemy import and_
+
+    course = next((c for c in COURSES if c["id"] == course_id), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+
+    # Check if already purchased
+    existing = (await db.execute(
+        select(CourseAccess).where(and_(CourseAccess.user_id == user.id, CourseAccess.course_id == course_id))
+    )).scalar_one_or_none()
+    if existing:
+        return {"status": "already_purchased", "course_id": course_id}
+
+    # Free courses — auto grant. Paid — require Premium.
+    if not course["is_free"] and not is_premium(user):
+        raise HTTPException(403, "Premium required for paid courses")
+
+    access = CourseAccess(user_id=user.id, course_id=course_id, lessons_completed=0, is_active=True)
+    db.add(access)
+    await db.commit()
+
+    return {"status": "purchased", "course_id": course_id, "title": course.get("title_ru", course.get("title_en"))}
+
+
+@router.get("/education/{course_id}/content")
+async def get_course_content(
+    course_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get course lesson content. Must be purchased (or free)."""
+    from app.models.course_access import CourseAccess
+    from sqlalchemy import and_
+
+    course = next((c for c in COURSES if c["id"] == course_id), None)
+    if not course:
+        raise HTTPException(404, "Course not found")
+
+    # Check access
+    if not course["is_free"]:
+        access = (await db.execute(
+            select(CourseAccess).where(and_(CourseAccess.user_id == user.id, CourseAccess.course_id == course_id))
+        )).scalar_one_or_none()
+        if not access:
+            raise HTTPException(403, "Course not purchased")
+
+    # Build lesson content from topics
+    topics_ru = course.get("topics_ru", [])
+    topics_en = course.get("topics_en", [])
+    lessons = []
+    for i, (ru, en) in enumerate(zip(topics_ru, topics_en)):
+        lessons.append({
+            "lesson_number": i + 1,
+            "title_ru": ru,
+            "title_en": en,
+            "content_ru": f"Урок {i+1}: {ru}\n\nСодержание этого урока будет доступно после полного запуска курса. Следите за обновлениями.",
+            "content_en": f"Lesson {i+1}: {en}\n\nThis lesson content will be available after full course launch. Stay tuned for updates.",
+            "duration_min": max(3, course.get("duration_min", 45) // len(topics_ru)),
+        })
+
+    return {
+        "course_id": course_id,
+        "title_ru": course.get("title_ru"),
+        "title_en": course.get("title_en"),
+        "total_lessons": len(lessons),
+        "lessons": lessons,
+    }
+
+
+async def _get_my_courses(db: AsyncSession, user) -> dict:
+    from app.models.course_access import CourseAccess
+    result = await db.execute(
+        select(CourseAccess).where(CourseAccess.user_id == user.id).order_by(CourseAccess.created_at.desc())
+    )
+    courses_data = []
+    for a in result.scalars().all():
+        course = next((c for c in COURSES if c["id"] == a.course_id), None)
+        if course:
+            total = len(course.get("topics_ru", []))
+            courses_data.append({
+                "course_id": a.course_id,
+                "title_ru": course.get("title_ru"),
+                "title_en": course.get("title_en"),
+                "level": course.get("level"),
+                "total_lessons": total,
+                "lessons_completed": a.lessons_completed,
+                "progress_pct": round(a.lessons_completed / total * 100) if total > 0 else 0,
+                "purchased_at": a.created_at.isoformat() if a.created_at else None,
+            })
+    return {"courses": courses_data, "total": len(courses_data)}

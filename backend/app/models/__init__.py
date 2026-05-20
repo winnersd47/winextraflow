@@ -13,5 +13,6 @@ from app.models.payment import Payment
 from app.models.kyc import KYCVerification
 from app.models.compliance import ComplianceDocument
 from app.models.backtest_report import BacktestReport
+from app.models.course_access import CourseAccess
 
 __all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification", "ComplianceDocument"]
