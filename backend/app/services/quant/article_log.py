@@ -524,6 +524,23 @@ class ArticleEvolutionLog:
                 evolution_summary="4903-message MOEX trading corpus from 'Душевный трейдинг'. 19 unique components covering futures basis, options, sector rotation, dividends, oil/gold correlation, bonds, stop-loss techniques, position management, morning analysis, intraday levels, swing trading, earnings, sentiment, risk-per-trade, breakeven/trailing, gap trading, volume confirmation, news reaction.",
                 processed_at="2026-05-20T10:00:00Z",
             ),
+            # ─── "Душевный трейдинг" update: +959 new messages ───
+            ProcessedArticle(
+                article_id=90004,
+                url="https://t.me/dushevniy_trading",
+                title="Душевный трейдинг: обновление +959 сообщений (AI, макро, ставки ЦБ)",
+                main_strategy_id=5,
+                secondary_ids=[1, 2, 3, 7],
+                components_extracted=[
+                    "ai_trading_integration", "central_bank_rate_analysis",
+                    "sanctions_geopolitical_filter", "ipo_trading_strategy",
+                    "portfolio_rebalancing", "long_short_bias_system",
+                    "macro_fundamental_overlay", "ruble_currency_impact",
+                ],
+                branch_impact="ML/AI(7) enriched: 552 AI mentions, ChatGPT integration. MultiInd(5) dominant: 362 msgs. New: macro overlay (ЦБ ставки, санкции, геополитика, IPO).",
+                evolution_summary="959 new messages. Key new themes: AI/ИИ in trading (552 mentions), central bank rates (150), portfolio management (159), sanctions/geopolitics (48), IPO strategies (17). 8 new components: AI trading integration, CB rate analysis, sanctions filter, IPO strategy, portfolio rebalancing, long/short bias, macro overlay, currency impact.",
+                processed_at="2026-05-20T12:30:00Z",
+            ),
         ]
 
     def record(

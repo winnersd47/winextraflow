@@ -219,6 +219,15 @@ class EvolutionaryRegistry:
             ("gap_trading_moex", "MOEX Gap Trading", "Торговля гэпами на открытии MOEX", [4], 0.4, "emerging"),
             ("volume_confirm_moex", "MOEX Volume Confirmation", "Подтверждение пробоя объёмом на MOEX", [4, 5], 0.5, "emerging"),
             ("news_reaction_engine", "News Reaction Trading", "Реакция рынка на новости и макроданные", [5, 4], 0.45, "emerging"),
+            # From update +959 msgs (AI, macro, rates)
+            ("ai_trading_integration", "AI Trading Integration", "ИИ/ChatGPT в торговых решениях (552 упоминания в канале)", [7, 5], 0.6, "emerging"),
+            ("cb_rate_analysis", "CB Rate Analysis", "Анализ ставки ЦБ и влияния на акции/облигации", [6, 5], 0.55, "emerging"),
+            ("sanctions_filter", "Sanctions/Geopolitical Filter", "Фильтр санкционных рисков для MOEX", [6, 5], 0.45, "emerging"),
+            ("ipo_strategy", "IPO Trading Strategy", "IPO: участие, аллокация, локап-период", [4, 5], 0.4, "emerging"),
+            ("portfolio_rebalancing", "Portfolio Rebalancing", "Ребалансировка портфеля: целевые доли, триггеры", [6, 5], 0.45, "emerging"),
+            ("long_short_bias", "Long/Short Bias Detection", "Long/short перекос рынка для направленных сделок", [1, 2], 0.5, "emerging"),
+            ("macro_overlay", "Macro Fundamental Overlay", "Макро: ВВП, инфляция, PMI как фильтр стратегий", [5, 6], 0.5, "emerging"),
+            ("currency_impact", "Currency Impact Model", "Влияние курса рубля на MOEX акции", [6, 1], 0.45, "emerging"),
             # Foundation layers (future → closer)
             ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.25, "planned"),
             ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.15, "planned"),
