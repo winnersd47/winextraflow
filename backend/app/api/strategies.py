@@ -105,6 +105,17 @@ async def my_subscriptions(
     return result.scalars().all()
 
 
+# ─── Unified Marketplace (MUST be before /{strategy_id}) ──
+
+@router.get("/unified-marketplace")
+async def unified_marketplace(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """All strategies from all sources in one unified list."""
+    return await _build_unified_marketplace(db)
+
+
 # ─── Strategy CRUD ─────────────────────────────────────────
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)
@@ -242,14 +253,9 @@ async def unsubscribe(
     return {"status": "unsubscribed"}
 
 
-# ─── Unified Marketplace ─────────────────────────
+# ─── Unified Marketplace (implementation) ────────
 
-@router.get("/unified-marketplace")
-async def unified_marketplace(
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    """All strategies from all sources in one unified list."""
+async def _build_unified_marketplace(db: AsyncSession) -> dict:
     from app.api.advisors import ADVISORS_CATALOG, STRATEGY_NAMES_RU, STRATEGY_NAMES_EN, RISK_RU
     from app.api.tv_strategies import TV_STRATEGIES
     from app.api.tv_strategies import STRATEGY_NAMES_RU as TV_NAMES_RU, STRATEGY_NAMES_EN as TV_NAMES_EN, RISK_RU as TV_RISK_RU
