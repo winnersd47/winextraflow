@@ -504,6 +504,26 @@ class ArticleEvolutionLog:
                 evolution_summary="16 TradingView community strategies catalogued with webhook templates. 12 new components: regime execution, ICT breakout, Kalman filters, liquidity zones, SMC order blocks, Donchian system, opening range, multi-vote entry, HTF bias, geometric grid, Marubozu filter, partial TP. 10 strategies MOEX-compatible.",
                 processed_at="2026-05-19T14:00:00Z",
             ),
+            # ─── Telegram: "Душевный трейдинг" (4903 messages) ───
+            ProcessedArticle(
+                article_id=90003,
+                url="https://t.me/dushevniy_trading",
+                title="Telegram: Душевный трейдинг (4903 сообщений) — MOEX сигналы, фьючерсы, акции",
+                main_strategy_id=6,
+                secondary_ids=[1, 2, 3, 4, 5, 7],
+                components_extracted=[
+                    "futures_basis_trading", "options_strategies", "moex_sector_rotation",
+                    "dividend_strategy", "oil_correlation", "gold_safe_haven",
+                    "bond_yield_analysis", "stop_loss_techniques", "position_management",
+                    "morning_analysis_routine", "intraday_levels", "swing_trading_moex",
+                    "earnings_trading", "market_sentiment_analysis", "risk_per_trade_calc",
+                    "breakeven_trailing_system", "gap_trading_strategy", "volume_confirmation_moex",
+                    "news_reaction_trading",
+                ],
+                branch_impact="ALL 7 branches enriched. Statistical(6) dominant (925 msgs). MOEX-focused: stocks, oil, gold, bonds. Largest single source: 4903 messages.",
+                evolution_summary="4903-message MOEX trading corpus from 'Душевный трейдинг'. 19 unique components covering futures basis, options, sector rotation, dividends, oil/gold correlation, bonds, stop-loss techniques, position management, morning analysis, intraday levels, swing trading, earnings, sentiment, risk-per-trade, breakeven/trailing, gap trading, volume confirmation, news reaction.",
+                processed_at="2026-05-20T10:00:00Z",
+            ),
         ]
 
     def record(
