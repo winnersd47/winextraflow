@@ -232,6 +232,22 @@ async def architecture_readiness(
     return await readiness_monitor.check_l3_readiness(db)
 
 
+@router.get("/recommend/{signal_id}")
+async def recommend_trade(
+    signal_id: uuid.UUID,
+    balance: float = 10000,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Get TP/SL/Volume recommendation for a signal based on evolutionary analysis."""
+    signal = (await db.execute(select(Signal).where(Signal.id == signal_id))).scalar_one_or_none()
+    if not signal:
+        raise HTTPException(404, "Signal not found")
+    provider = await db.get(Provider, signal.provider_id) if signal.provider_id else None
+    from app.services.quant.recommendations import recommendation_engine
+    return await recommendation_engine.recommend(db, signal, provider, balance)
+
+
 @router.get("/auto-evolve")
 async def auto_evolve(user: User = Depends(get_current_user)):
     """Check MQL5 for new articles and evolve architecture. Rate-limited: 1/hour."""

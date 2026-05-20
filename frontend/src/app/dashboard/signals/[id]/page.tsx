@@ -22,15 +22,21 @@ export default function SignalDetailPage() {
   const isRu = locale === "ru";
   const [signal, setSignal] = useState<Signal | null>(null);
   const [rating, setRating] = useState<RatingDetail | null>(null);
+  const [rec, setRec] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
+      const token = localStorage.getItem("token");
+      const safe = (p: Promise<Response>) => p.then(r => r.ok ? r.json() : null).catch(() => null);
       try {
         const [s, r] = await Promise.all([api.getSignal(id), api.getSignalRating(id)]);
         setSignal(s);
         setRating(r);
-      } catch (err) { console.error(err); }
+        // Load recommendation
+        const recData = await safe(fetch(`/api/v1/quant/recommend/${id}`, { headers: { Authorization: `Bearer ${token}` } }));
+        if (recData) setRec(recData);
+      } catch {}
       finally { setLoading(false); }
     }
     load();
@@ -175,6 +181,80 @@ export default function SignalDetailPage() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* ═══ TRADE RECOMMENDATION ═══ */}
+      {rec && !rec.error && (
+        <div className="mt-6 rounded-xl border border-brand-500/30 bg-brand-500/5 p-6">
+          <h2 className="mb-4 text-lg font-bold text-text-primary">{isRu ? "Рекомендация по сделке" : "Trade Recommendation"}</h2>
+
+          {/* Regime impact */}
+          <div className="mb-4 rounded-lg bg-surface p-3 text-sm text-text-secondary">
+            {isRu ? rec.regime_impact_ru : rec.regime_impact_en}
+          </div>
+
+          {/* TP / SL / Entry grid */}
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg bg-surface p-3">
+              <p className="text-xs text-text-muted">{isRu ? "Стоп-лосс" : "Stop Loss"}</p>
+              <p className="text-lg font-bold text-red-400">{formatPrice(rec.sl)}</p>
+              <p className="text-xs text-text-muted">-{rec.sl_pct}% ({isRu ? `буфер ${rec.sl_buffer_pct}%` : `buffer ${rec.sl_buffer_pct}%`})</p>
+            </div>
+            <div className="rounded-lg bg-surface p-3">
+              <p className="text-xs text-text-muted">TP1 (40%)</p>
+              <p className="text-lg font-bold text-green-400">{formatPrice(rec.tp1)}</p>
+              <p className="text-xs text-text-muted">+{rec.tp1_pct}%</p>
+            </div>
+            <div className="rounded-lg bg-surface p-3">
+              <p className="text-xs text-text-muted">TP2 (30%)</p>
+              <p className="text-lg font-bold text-green-400">{formatPrice(rec.tp2)}</p>
+              <p className="text-xs text-text-muted">+{rec.tp2_pct}%</p>
+            </div>
+            <div className="rounded-lg bg-surface p-3">
+              <p className="text-xs text-text-muted">TP3 (30%)</p>
+              <p className="text-lg font-bold text-green-400">{formatPrice(rec.tp3)}</p>
+              <p className="text-xs text-text-muted">+{rec.tp3_pct}%</p>
+            </div>
+          </div>
+
+          {/* Position sizing */}
+          <div className="mb-4 grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-surface p-3 text-center">
+              <p className="text-xs text-text-muted">R:R</p>
+              <p className={`text-xl font-bold ${rec.rr_ratio >= 1.5 ? "text-green-400" : rec.rr_ratio >= 1 ? "text-yellow-400" : "text-red-400"}`}>{rec.rr_ratio}</p>
+            </div>
+            <div className="rounded-lg bg-surface p-3 text-center">
+              <p className="text-xs text-text-muted">{isRu ? "Риск на сделку" : "Risk per trade"}</p>
+              <p className="text-xl font-bold text-text-primary">{rec.risk_pct}%</p>
+            </div>
+            <div className="rounded-lg bg-surface p-3 text-center">
+              <p className="text-xs text-text-muted">{isRu ? "Размер позиции" : "Position size"}</p>
+              <p className="text-xl font-bold text-brand-500">{rec.position_pct}%</p>
+            </div>
+          </div>
+
+          {/* Breakeven */}
+          <div className="mb-4 flex gap-4 text-xs text-text-muted">
+            <span>{isRu ? "Безубыток при" : "Breakeven at"}: {formatPrice(rec.breakeven_trigger)}</span>
+            <span>{isRu ? "Трейлинг от" : "Trailing from"}: {formatPrice(rec.trailing_start)}</span>
+          </div>
+
+          {/* Reasoning */}
+          <details>
+            <summary className="cursor-pointer text-xs text-brand-500 hover:underline">{isRu ? "Обоснование" : "Reasoning"}</summary>
+            <ul className="mt-2 space-y-1 text-xs text-text-muted">
+              {(isRu ? rec.reasoning_ru : rec.reasoning_en)?.map((r: string, i: number) => (
+                <li key={i}>{r}</li>
+              ))}
+            </ul>
+          </details>
+
+          <p className="mt-3 text-xs text-text-muted">
+            {isRu
+              ? "Рекомендации рассчитаны на основе 110 эволюционных компонентов из 43 источников. НЕ является инвестиционной рекомендацией."
+              : "Recommendations based on 110 evolutionary components from 43 sources. NOT investment advice."}
+          </p>
         </div>
       )}
     </div>
