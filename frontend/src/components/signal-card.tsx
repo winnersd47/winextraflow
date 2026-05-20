@@ -35,6 +35,7 @@ function estimatedProfit(signal: Signal): { pct: number | null; label: string; c
 export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Signal; strategyLabel?: string; regimeLabel?: string }) {
   const isActive = signal.status === "active";
   const isProfitable = signal.profit_pct !== null && signal.profit_pct > 0;
+  const isSimulation = signal.ai_reasoning?.includes("[SIMULATION]") || (signal as any).raw_message?.includes("[SIMULATION]");
   const { t } = useI18n();
   const profit = estimatedProfit(signal);
 
@@ -50,6 +51,7 @@ export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Sig
             {signal.action}
           </span>
           <RatingBadge confidence={signal.ai_confidence} />
+          {isSimulation && <span className="rounded bg-orange-500/20 px-2 py-0.5 text-xs font-bold text-orange-400">симуляция</span>}
           {strategyLabel && (
             <span className="rounded bg-purple-500/10 px-2 py-0.5 text-xs text-purple-400">{strategyLabel}</span>
           )}

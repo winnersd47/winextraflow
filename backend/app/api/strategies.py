@@ -240,3 +240,219 @@ async def unsubscribe(
 
     await db.commit()
     return {"status": "unsubscribed"}
+
+
+# ─── Unified Marketplace ─────────────────────────
+
+@router.get("/unified-marketplace")
+async def unified_marketplace(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """All strategies from all sources in one unified list."""
+    from app.api.advisors import ADVISORS_CATALOG, STRATEGY_NAMES_RU, STRATEGY_NAMES_EN, RISK_RU
+    from app.api.tv_strategies import TV_STRATEGIES
+    from app.api.tv_strategies import STRATEGY_NAMES_RU as TV_NAMES_RU, STRATEGY_NAMES_EN as TV_NAMES_EN, RISK_RU as TV_RISK_RU
+
+    items = []
+
+    # 1. Provider strategies from DB
+    result = await db.execute(
+        select(Strategy, Provider).join(Provider, Strategy.provider_id == Provider.id)
+        .where(Strategy.is_published == True).order_by(Provider.ai_score.desc().nulls_last())
+    )
+    for s, p in result.all():
+        data = {c.name: getattr(s, c.name) for c in s.__table__.columns}
+        name = data["name"].replace("[TEST] ", "")
+        items.append({
+            "id": str(data["id"]),
+            "source": "provider",
+            "name": name,
+            "description": data.get("description") or "",
+            "strategy_type_ru": _classify_tags_ru(data.get("tags")),
+            "strategy_type_en": _classify_tags_en(data.get("tags")),
+            "risk": _calc_risk(p.win_rate, p.sharpe_ratio),
+            "risk_ru": RISK_RU.get(_calc_risk(p.win_rate, p.sharpe_ratio), "Средний"),
+            "rating": round((p.ai_score or 0) * 5, 1),
+            "reviews": p.total_signals or 0,
+            "price_usd": data.get("price_monthly") or 0,
+            "price_type": data.get("price_type", "free"),
+            "tickers": (data.get("tags") or "").split(",")[:3],
+            "subscriber_count": data.get("subscriber_count", 0),
+            "win_rate": p.win_rate,
+            "sharpe_ratio": p.sharpe_ratio,
+            "ai_score": p.ai_score,
+            "avg_profit": p.avg_profit,
+            "url": None,
+            "can_simulate": True,
+            "provider_id": str(p.id),
+        })
+
+    # 2. MT5 Advisors
+    for ea in ADVISORS_CATALOG:
+        items.append({
+            "id": ea["id"],
+            "source": "mt5",
+            "name": ea["name"],
+            "description": ea.get("description_ru", ""),
+            "strategy_type_ru": STRATEGY_NAMES_RU.get(ea["strategy_id"], "?"),
+            "strategy_type_en": STRATEGY_NAMES_EN.get(ea["strategy_id"], "?"),
+            "risk": ea.get("risk", "medium"),
+            "risk_ru": RISK_RU.get(ea.get("risk", "medium"), "Средний"),
+            "rating": ea.get("rating", 0),
+            "reviews": ea.get("reviews", 0),
+            "price_usd": ea.get("price_usd", 0),
+            "price_type": "paid" if ea.get("price_usd") else "free",
+            "tickers": ea.get("tickers", []),
+            "subscriber_count": 0,
+            "win_rate": None,
+            "sharpe_ratio": None,
+            "ai_score": None,
+            "avg_profit": None,
+            "url": ea.get("mql5_url"),
+            "can_simulate": False,
+            "provider_id": None,
+        })
+
+    # 3. TradingView
+    for tv in TV_STRATEGIES:
+        items.append({
+            "id": tv["id"],
+            "source": "tradingview",
+            "name": tv["name"],
+            "description": tv.get("description_ru", ""),
+            "strategy_type_ru": TV_NAMES_RU.get(tv["strategy_id"], "?"),
+            "strategy_type_en": TV_NAMES_EN.get(tv["strategy_id"], "?"),
+            "risk": tv.get("risk", "medium"),
+            "risk_ru": TV_RISK_RU.get(tv.get("risk", "medium"), "Средний"),
+            "rating": min(5.0, (tv.get("likes", 0) / 5) + 3),  # Convert likes to pseudo-rating
+            "reviews": tv.get("likes", 0),
+            "price_usd": 0,
+            "price_type": "free",
+            "tickers": tv.get("tickers", []),
+            "subscriber_count": 0,
+            "win_rate": None,
+            "sharpe_ratio": None,
+            "ai_score": None,
+            "avg_profit": None,
+            "url": tv.get("tv_url"),
+            "can_simulate": False,
+            "provider_id": None,
+            "webhook_template": tv.get("webhook_template"),
+            "moex_compatible": tv.get("moex_compatible", False),
+        })
+
+    return {"items": items, "total": len(items)}
+
+
+def _classify_tags_ru(tags: str | None) -> str:
+    t = (tags or "").lower()
+    if "scalp" in t: return "Скальпинг"
+    if "breakout" in t: return "Пробой"
+    if "trend" in t or "momentum" in t: return "Тренд"
+    if "defi" in t or "research" in t: return "Аналитика"
+    if "value" in t: return "Стоимостная"
+    if "ai" in t: return "ML/AI"
+    if "crypto" in t or "altcoin" in t: return "Крипто"
+    if "forex" in t: return "Форекс"
+    if "indices" in t: return "Индексы"
+    return "Мульти"
+
+def _classify_tags_en(tags: str | None) -> str:
+    t = (tags or "").lower()
+    if "scalp" in t: return "Scalping"
+    if "breakout" in t: return "Breakout"
+    if "trend" in t or "momentum" in t: return "Trend"
+    if "defi" in t or "research" in t: return "Analytics"
+    if "value" in t: return "Value"
+    if "ai" in t: return "ML/AI"
+    if "crypto" in t or "altcoin" in t: return "Crypto"
+    if "forex" in t: return "Forex"
+    if "indices" in t: return "Indices"
+    return "Multi"
+
+def _calc_risk(wr: float | None, sharpe: float | None) -> str:
+    score = 0
+    if wr and wr >= 0.7: score += 2
+    elif wr and wr >= 0.55: score += 1
+    if sharpe and sharpe >= 8: score += 2
+    elif sharpe and sharpe >= 4: score += 1
+    if score >= 3: return "low"
+    if score >= 1: return "medium"
+    return "high"
+
+
+# ─── Simulation ──────────────────────────────────
+
+@router.post("/{strategy_id}/simulate")
+async def simulate_strategy(
+    strategy_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate simulated signals for a strategy (admin only)."""
+    from app.models.user import UserRole
+    if user.role != UserRole.ADMIN:
+        raise HTTPException(403, "Admin only")
+
+    strategy = (await db.execute(
+        select(Strategy).where(Strategy.id == strategy_id)
+    )).scalar_one_or_none()
+    if not strategy:
+        raise HTTPException(404, "Strategy not found")
+
+    provider = (await db.execute(
+        select(Provider).where(Provider.id == strategy.provider_id)
+    )).scalar_one_or_none()
+
+    import random
+    from app.models.signal import Signal, SignalAction
+    from app.services.ai_rating import ai_rating_service
+    from app.services.signal_aggregator import signal_aggregator
+    from app.config import settings
+
+    tickers = ["BTCUSDT", "ETHUSDT", "SBER", "GAZP", "EURUSD", "XAUUSD", "SOLUSDT", "AAPL"]
+    actions = [SignalAction.BUY, SignalAction.SELL]
+    prices = {"BTCUSDT": 67000, "ETHUSDT": 3500, "SBER": 325, "GAZP": 122, "EURUSD": 1.085, "XAUUSD": 2350, "SOLUSDT": 145, "AAPL": 192}
+
+    signals_created = []
+    for i in range(5):
+        ticker = random.choice(tickers)
+        action = random.choice(actions)
+        price = prices.get(ticker, 100) * random.uniform(0.98, 1.02)
+        tp_dist = price * random.uniform(0.02, 0.05)
+        sl_dist = price * random.uniform(0.01, 0.03)
+        tp = price + tp_dist if action == SignalAction.BUY else price - tp_dist
+        sl = price - sl_dist if action == SignalAction.BUY else price + sl_dist
+
+        signal = Signal(
+            provider_id=strategy.provider_id,
+            ticker=ticker,
+            action=action,
+            entry_price=round(price, 6),
+            take_profit=round(tp, 6),
+            stop_loss=round(sl, 6),
+            timeframe="1h",
+            raw_message=f"[SIMULATION] {strategy.name} — simulated signal #{i+1}",
+        )
+        db.add(signal)
+        await db.flush()
+
+        if settings.ai_rating_enabled:
+            await ai_rating_service.rate_and_update_signal(db, signal)
+
+        signals_created.append({"id": str(signal.id), "ticker": ticker, "action": action.value, "price": round(price, 2)})
+
+    await db.commit()
+
+    # Notify WebSocket
+    for sig_data in signals_created:
+        try:
+            from app.models.signal import Signal as SigModel
+            sig = await db.get(SigModel, sig_data["id"])
+            if sig:
+                await signal_aggregator._notify_listeners(sig)
+        except Exception:
+            pass
+
+    return {"status": "simulated", "signals": signals_created, "strategy": strategy.name}
