@@ -11,6 +11,8 @@ export default function RegisterPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [referral, setReferral] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
+  const [agreeData, setAgreeData] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -61,9 +63,24 @@ export default function RegisterPage() {
             <label className="mb-1 block text-sm text-gray-400">{t("auth.referralCodeRequired")}</label>
             <input type="text" value={referral} onChange={(e) => setReferral(e.target.value)} required className="w-full rounded-lg border border-gray-700 bg-surface px-4 py-2.5 text-white outline-none focus:border-brand-500" placeholder={t("auth.referralPlaceholder")} />
           </div>
-          <label className="flex items-start gap-2 text-sm text-gray-400">
-            <input type="checkbox" required className="mt-1 rounded" />
-            <span>{t("auth.agreeTerms")} <a href="/terms" target="_blank" className="text-brand-500 hover:underline">{t("auth.termsLink")}</a></span>
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input type="checkbox" checked={agreeTerms} onChange={e => setAgreeTerms(e.target.checked)} required className="mt-1 rounded" />
+            <span>
+              {locale === "ru" ? "Я принимаю " : "I accept the "}
+              <a href="/terms" target="_blank" className="text-brand-500 hover:underline">{locale === "ru" ? "Условия использования" : "Terms of Service"}</a>
+              {locale === "ru" ? " и " : " and "}
+              <a href="/refund" target="_blank" className="text-brand-500 hover:underline">{locale === "ru" ? "Политику возврата" : "Refund Policy"}</a>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-text-secondary">
+            <input type="checkbox" checked={agreeData} onChange={e => setAgreeData(e.target.checked)} required className="mt-1 rounded" />
+            <span>
+              {locale === "ru"
+                ? "Я даю согласие на обработку персональных данных (email, имя пользователя, реферальный код, данные мессенджеров при подключении) в соответствии с "
+                : "I consent to the processing of personal data (email, username, referral code, messenger data when linked) in accordance with the "}
+              <a href="/privacy" target="_blank" className="text-brand-500 hover:underline">{locale === "ru" ? "Политикой конфиденциальности" : "Privacy Policy"}</a>
+              {locale === "ru" ? " (ФЗ-152)" : " (FZ-152)"}
+            </span>
           </label>
           <button type="submit" disabled={loading} className="w-full rounded-lg bg-brand-600 py-2.5 font-medium text-white transition hover:bg-brand-700 disabled:opacity-50">
             {loading ? t("auth.registering") : t("auth.register")}

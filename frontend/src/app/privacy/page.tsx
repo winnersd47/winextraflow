@@ -39,7 +39,8 @@ function PrivacyRU() {
       <p className="text-text-secondary">1.2. Контактный адрес для вопросов по обработке данных: <a href="mailto:privacy@winextraflow.com" className="text-brand-500">privacy@winextraflow.com</a></p>
 
       <h2 className="text-xl font-bold text-text-primary mt-8">2. Какие данные мы собираем</h2>
-      <p className="text-text-secondary">2.1. <strong>Регистрационные данные:</strong> адрес электронной почты, имя пользователя (логин).</p>
+      <p className="text-text-secondary">2.1. <strong>Регистрационные данные:</strong> адрес электронной почты, имя пользователя (логин), реферальный код (уникальный идентификатор).</p>
+      <p className="text-text-secondary">2.1.1. <strong>Данные мессенджеров (при подключении):</strong> идентификатор чата Telegram (telegram_chat_id), идентификатор чата MAX (max_chat_id). Собираются только при добровольном подключении мессенджера пользователем.</p>
       <p className="text-text-secondary">2.2. <strong>Данные KYC-верификации:</strong> фотография документа, удостоверяющего личность (паспорт), фамилия и имя.</p>
       <p className="text-text-secondary">2.3. <strong>Технические данные:</strong> IP-адрес, тип и версия браузера, данные cookies и localStorage.</p>
       <p className="text-text-secondary">2.4. <strong>Данные об использовании:</strong> торговая активность, настройки стратегий, история бэктестов.</p>
@@ -63,8 +64,9 @@ function PrivacyRU() {
 
       <h2 className="text-xl font-bold text-text-primary mt-8">6. Хранение данных</h2>
       <p className="text-text-secondary">6.1. Персональные данные хранятся на серверах, расположенных на территории Российской Федерации и Европейского Союза.</p>
-      <p className="text-text-secondary">6.2. Срок хранения данных -- в течение всего периода действия аккаунта пользователя и 5 лет после его удаления, если иное не предусмотрено законодательством.</p>
-      <p className="text-text-secondary">6.3. По истечении срока хранения данные уничтожаются в установленном порядке.</p>
+      <p className="text-text-secondary">6.2. Срок хранения данных -- в течение всего периода действия аккаунта пользователя. При удалении аккаунта все персональные данные удаляются немедленно и безвозвратно: ордера, подписки, уведомления, KYC-фотографии, данные мессенджеров.</p>
+      <p className="text-text-secondary">6.3. Анонимизированная запись пользователя сохраняется для обеспечения целостности реферальной системы, но не содержит персональных данных.</p>
+      <p className="text-text-secondary">6.4. <strong>Журналирование:</strong> системные журналы содержат только анонимные идентификаторы (UUID) и не включают имена пользователей, email или другие персональные данные. Журналы хранятся 30 дней.</p>
 
       <h2 className="text-xl font-bold text-text-primary mt-8">7. Права пользователя</h2>
       <p className="text-text-secondary">В соответствии с 152-ФЗ вы имеете право:</p>
@@ -108,7 +110,8 @@ function PrivacyEN() {
       <p className="text-text-secondary">1.2. Contact for data processing inquiries: <a href="mailto:privacy@winextraflow.com" className="text-brand-500">privacy@winextraflow.com</a></p>
 
       <h2 className="text-xl font-bold text-text-primary mt-8">2. Data We Collect</h2>
-      <p className="text-text-secondary">2.1. <strong>Registration data:</strong> email address, username.</p>
+      <p className="text-text-secondary">2.1. <strong>Registration data:</strong> email address, username, referral code (unique identifier).</p>
+      <p className="text-text-secondary">2.1.1. <strong>Messenger data (when linked):</strong> Telegram chat ID (telegram_chat_id), MAX Messenger chat ID (max_chat_id). Collected only when user voluntarily links their messenger.</p>
       <p className="text-text-secondary">2.2. <strong>KYC verification data:</strong> photograph of an identity document (passport), full name.</p>
       <p className="text-text-secondary">2.3. <strong>Technical data:</strong> IP address, browser type and version, cookies and localStorage data.</p>
       <p className="text-text-secondary">2.4. <strong>Usage data:</strong> trading activity, strategy settings, backtest history.</p>
@@ -132,8 +135,9 @@ function PrivacyEN() {
 
       <h2 className="text-xl font-bold text-text-primary mt-8">6. Data Storage</h2>
       <p className="text-text-secondary">6.1. Personal data is stored on servers located in the Russian Federation and the European Union.</p>
-      <p className="text-text-secondary">6.2. Data is retained for the duration of the active account and 5 years after deletion, unless otherwise required by law.</p>
-      <p className="text-text-secondary">6.3. Upon expiration of the retention period, data is destroyed in accordance with established procedures.</p>
+      <p className="text-text-secondary">6.2. Data is retained for the duration of the active account. Upon account deletion, all personal data is immediately and permanently deleted: orders, subscriptions, notifications, KYC photos, messenger data.</p>
+      <p className="text-text-secondary">6.3. An anonymized user record is kept for referral system integrity but contains no personal data.</p>
+      <p className="text-text-secondary">6.4. <strong>Logging:</strong> system logs contain only anonymous identifiers (UUID) and do not include usernames, emails, or other personal data. Logs are retained for 30 days.</p>
 
       <h2 className="text-xl font-bold text-text-primary mt-8">7. User Rights</h2>
       <p className="text-text-secondary">Under applicable data protection law, you have the right to:</p>
