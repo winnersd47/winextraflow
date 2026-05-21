@@ -66,7 +66,7 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
             reward_type=settings.referral_reward_type,
             reward_amount=settings.referral_level1_reward,
         ))
-        logger.info(f"Referral L1: {referrer.username} -> {user.username}")
+        logger.info(f"Referral L1: {referrer.id} -> {user.id}")
 
         # Grant premium days to referrer
         await grant_premium_days(db, referrer, settings.referral_level1_reward)
@@ -84,7 +84,7 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
                 reward_type=settings.referral_reward_type,
                 reward_amount=settings.referral_level2_reward,
             ))
-            logger.info(f"Referral L2: {referrer.referred_by} -> {user.username}")
+            logger.info(f"Referral L2: {referrer.referred_by} -> {user.id}")
 
     await db.commit()
     await db.refresh(user)
@@ -204,12 +204,56 @@ async def delete_account(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Delete user account and all associated data."""
+    """Delete user account and all associated data per privacy policy."""
+    from sqlalchemy import delete as sql_delete
+    from app.models.notification import Notification
+    from app.models.order import Order
+    from app.models.copy_trade import CopyTrade
+    from app.models.subscription import Subscription
+    from app.models.referral import Referral
+    from app.models.achievement import UserAchievement
+    from app.models.kyc import KYCVerification
+    from app.models.backtest_report import BacktestReport
+    from app.models.course_access import CourseAccess
+    import os
+
+    uid = user.id
+
+    # Delete KYC photos from disk
+    kyc_records = (await db.execute(select(KYCVerification).where(KYCVerification.user_id == uid))).scalars().all()
+    for kyc in kyc_records:
+        if kyc.photo_path and os.path.exists(kyc.photo_path):
+            try:
+                os.remove(kyc.photo_path)
+            except OSError:
+                pass
+
+    # Delete all associated records
+    await db.execute(sql_delete(Notification).where(Notification.user_id == uid))
+    await db.execute(sql_delete(Order).where(Order.user_id == uid))
+    await db.execute(sql_delete(CopyTrade).where(CopyTrade.subscriber_id == uid))
+    await db.execute(sql_delete(Subscription).where(Subscription.user_id == uid))
+    await db.execute(sql_delete(Referral).where(Referral.referrer_id == uid))
+    await db.execute(sql_delete(Referral).where(Referral.referred_id == uid))
+    await db.execute(sql_delete(UserAchievement).where(UserAchievement.user_id == uid))
+    await db.execute(sql_delete(KYCVerification).where(KYCVerification.user_id == uid))
+    await db.execute(sql_delete(BacktestReport).where(BacktestReport.user_id == uid))
+    await db.execute(sql_delete(CourseAccess).where(CourseAccess.user_id == uid))
+
+    # Anonymize user record (keep for referral integrity, anonymized)
     user.is_active = False
-    user.email = f"deleted_{user.id}@deleted"
-    user.username = f"deleted_{user.id}"
+    user.email = f"deleted_{uid}@deleted"
+    user.username = f"deleted_{uid}"
+    user.hashed_password = "DELETED"
+    user.telegram_chat_id = None
+    user.max_chat_id = None
+    user.referral_code = None
+    user.kyc_verified = False
+    user.premium_expires_at = None
+
     await db.commit()
-    return {"message": "Account deactivated. Data will be removed within 30 days."}
+    logger.info(f"Account deleted: {uid} — all PII and associated data removed")
+    return {"message": "Account and all personal data have been permanently deleted."}
 
 
 @router.get("/telegram-link")

@@ -129,8 +129,6 @@ async def list_pending_kyc(
                 "kyc_id": str(kyc.id),
                 "user_id": str(user.id),
                 "username": user.username,
-                "email": user.email,
-                "photo_path": kyc.photo_path,
                 "submitted_at": kyc.created_at.isoformat() if kyc.created_at else None,
             }
             for kyc, user in rows
