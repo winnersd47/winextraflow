@@ -309,56 +309,110 @@ export default function IntelligencePage() {
         )}
       </div>
 
-      {/* ═══ MOEX LIVE DATA ═══ */}
-      {moex && (moex.indices?.length > 0 || moex.quotes?.length > 0) && (
+      {/* ═══ MOEX ANALYTICS ═══ */}
+      {moex && (moex.indices?.length > 0 || moex.quotes?.length > 0) && (() => {
+        const quotes = moex.quotes || [];
+        const withPct = quotes.filter((q: any) => q.change_pct != null);
+        const gainers = [...withPct].sort((a: any, b: any) => (b.change_pct || 0) - (a.change_pct || 0)).slice(0, 5);
+        const losers = [...withPct].sort((a: any, b: any) => (a.change_pct || 0) - (b.change_pct || 0)).slice(0, 5);
+        const byVolume = [...quotes].sort((a: any, b: any) => (b.volume || 0) - (a.volume || 0)).slice(0, 5);
+        const risingCount = withPct.filter((q: any) => (q.change_pct || 0) > 0).length;
+        const fallingCount = withPct.filter((q: any) => (q.change_pct || 0) < 0).length;
+        const sentimentPct = withPct.length > 0 ? Math.round(risingCount / withPct.length * 100) : 50;
+
+        return (
         <div className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <h2 className="text-sm font-bold text-text-muted">{isRu ? "МОСКОВСКАЯ БИРЖА" : "MOSCOW EXCHANGE"}</h2>
             <span className="rounded bg-green-500/20 px-2 py-0.5 text-xs text-green-400">LIVE</span>
+            <span className="text-xs text-text-muted">{quotes.length} {isRu ? "акций" : "stocks"}</span>
           </div>
 
-          {/* Indices */}
-          {moex.indices?.length > 0 && (
-            <div className="mb-3 flex flex-wrap gap-3">
-              {moex.indices.map((idx: any) => (
-                <div key={idx.ticker} className="rounded-lg border border-border bg-surface-card px-3 py-2">
-                  <span className="text-xs text-text-muted">{idx.name}</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-bold text-text-primary">{idx.value?.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}</span>
-                    {idx.change_pct != null && (
-                      <span className={`text-xs font-bold ${idx.change_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
-                      </span>
-                    )}
-                  </div>
+          {/* Row 1: Indices + Market Sentiment */}
+          <div className="mb-3 flex flex-wrap items-stretch gap-3">
+            {moex.indices?.slice(0, 4).map((idx: any) => (
+              <div key={idx.ticker} className="flex-1 min-w-[140px] rounded-lg border border-border bg-surface-card px-3 py-2">
+                <span className="text-xs text-text-muted">{idx.name}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-text-primary">{idx.value?.toLocaleString("ru-RU", { maximumFractionDigits: 0 })}</span>
+                  {idx.change_pct != null && (
+                    <span className={`text-xs font-bold ${idx.change_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {idx.change_pct >= 0 ? "+" : ""}{idx.change_pct.toFixed(2)}%
+                    </span>
+                  )}
                 </div>
-              ))}
+              </div>
+            ))}
+            {/* Sentiment meter */}
+            <div className="flex-1 min-w-[140px] rounded-lg border border-border bg-surface-card px-3 py-2">
+              <span className="text-xs text-text-muted">{isRu ? "Настроение рынка" : "Market Sentiment"}</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-bold ${sentimentPct >= 60 ? "text-green-400" : sentimentPct <= 40 ? "text-red-400" : "text-yellow-400"}`}>
+                  {sentimentPct >= 60 ? (isRu ? "Оптимизм" : "Bullish") : sentimentPct <= 40 ? (isRu ? "Пессимизм" : "Bearish") : (isRu ? "Нейтрально" : "Neutral")}
+                </span>
+                <span className="text-xs text-text-muted">{risingCount}/{fallingCount}</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-red-500/30">
+                <div className="h-full rounded-full bg-green-500" style={{ width: `${sentimentPct}%` }} />
+              </div>
             </div>
-          )}
+          </div>
 
-          {/* Top quotes compact */}
-          {moex.quotes?.length > 0 && (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {moex.quotes.slice(0, 8).map((q: any) => (
-                <div key={q.ticker} className="flex items-center justify-between rounded-lg border border-border bg-surface-card px-3 py-2">
+          {/* Row 2: Gainers / Losers / Volume Leaders */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            {/* Gainers */}
+            <div className="rounded-lg border border-border bg-surface-card p-3">
+              <p className="mb-2 text-xs font-bold text-green-400">{isRu ? "Лидеры роста" : "Top Gainers"}</p>
+              {gainers.map((q: any) => (
+                <div key={q.ticker} className="flex items-center justify-between py-1 text-xs">
+                  <span className="font-bold text-text-primary">{q.ticker}</span>
                   <div>
-                    <span className="text-xs font-bold text-text-primary">{q.ticker}</span>
-                    <span className="ml-1 text-xs text-text-muted">{q.name}</span>
+                    <span className="text-text-secondary">{q.price?.toLocaleString("ru-RU")}</span>
+                    <span className="ml-1 font-bold text-green-400">+{q.change_pct?.toFixed(1)}%</span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs text-text-primary">{q.price?.toLocaleString("ru-RU")}</span>
-                    {q.change_pct != null && (
-                      <span className={`ml-1 text-xs font-bold ${q.change_pct >= 0 ? "text-green-400" : "text-red-400"}`}>
-                        {q.change_pct >= 0 ? "+" : ""}{q.change_pct.toFixed(1)}%
-                      </span>
-                    )}
+                </div>
+              ))}
+              {gainers.length === 0 && <p className="text-xs text-text-muted">{isRu ? "Нет данных" : "No data"}</p>}
+            </div>
+
+            {/* Losers */}
+            <div className="rounded-lg border border-border bg-surface-card p-3">
+              <p className="mb-2 text-xs font-bold text-red-400">{isRu ? "Лидеры падения" : "Top Losers"}</p>
+              {losers.map((q: any) => (
+                <div key={q.ticker} className="flex items-center justify-between py-1 text-xs">
+                  <span className="font-bold text-text-primary">{q.ticker}</span>
+                  <div>
+                    <span className="text-text-secondary">{q.price?.toLocaleString("ru-RU")}</span>
+                    <span className="ml-1 font-bold text-red-400">{q.change_pct?.toFixed(1)}%</span>
+                  </div>
+                </div>
+              ))}
+              {losers.length === 0 && <p className="text-xs text-text-muted">{isRu ? "Нет данных" : "No data"}</p>}
+            </div>
+
+            {/* Volume Leaders */}
+            <div className="rounded-lg border border-border bg-surface-card p-3">
+              <p className="mb-2 text-xs font-bold text-brand-500">{isRu ? "Макс. объём" : "Top Volume"}</p>
+              {byVolume.map((q: any) => (
+                <div key={q.ticker} className="flex items-center justify-between py-1 text-xs">
+                  <span className="font-bold text-text-primary">{q.ticker}</span>
+                  <div>
+                    <span className="text-text-secondary">{q.volume ? (q.volume >= 1000000 ? `${(q.volume/1000000).toFixed(1)}M` : `${(q.volume/1000).toFixed(0)}K`) : "—"}</span>
+                    <span className={`ml-1 font-bold ${(q.change_pct || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                      {(q.change_pct || 0) >= 0 ? "+" : ""}{q.change_pct?.toFixed(1) || "0"}%
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-          )}
+          </div>
+
+          <p className="mt-2 text-xs text-text-muted">
+            {isRu ? "Данные MOEX ISS API. Обновляются вместе с аналитикой." : "MOEX ISS API data. Updates with analytics."}
+          </p>
         </div>
-      )}
+        );
+      })()}
 
       {/* ═══ ARCHITECTURE READINESS ═══ */}
       {readiness && (
