@@ -678,6 +678,23 @@ class ArticleEvolutionLog:
                 evolution_summary="TradingView ecosystem analysis: 15 top trading ideas (BTCUSDT, XAUUSD, EURUSD, USOIL), Wizards program (SMC, institutional concepts), Blog (AI Copilot, portfolio analytics). 14 new components: SMC order blocks 2026, FVG detection, VWAP institutional, Monday range bias, liquidity sweep timing, panic selloff detection, triangle patterns, institutional accumulation, AI chart copilot, paper-to-portfolio, analyst consensus, geopolitical filter, early entry advantage.",
                 processed_at="2026-05-20T15:00:00Z",
             ),
+            # ─── Telegram: "BestStocks | Инвест-идеи США" (3835 messages) ───
+            ProcessedArticle(
+                article_id=90006,
+                url="https://t.me/beststocks_usa",
+                title="Telegram: BestStocks | Инвест-идеи США (3835 сообщений) — US stocks прогнозы",
+                main_strategy_id=1,
+                secondary_ids=[2, 3, 5, 7],
+                components_extracted=[
+                    "us_stock_screening", "price_target_forecasting", "buy_hold_sell_scoring",
+                    "sector_rotation_us", "dividend_stock_selection", "ai_stock_analysis",
+                    "portfolio_construction_us", "analyst_recommendation_tracking",
+                    "earnings_forecast_model", "market_cap_classification",
+                ],
+                branch_impact="Trend(1) dominant: 434 messages. ML/AI(7): 282 (AI stock analysis). 3148 BUY + 399 HOLD + 142 SELL recommendations. US market focused: Finance(515), Tech(452), Energy(156), Health(114), REIT(15).",
+                evolution_summary="3835-message US stock investment corpus from 'BestStocks'. 10 new components: stock screening, price target forecasting, BUY/HOLD/SELL scoring, US sector rotation, dividend selection, AI stock analysis, portfolio construction, analyst tracking, earnings forecast, market cap classification. 3689 concrete trading recommendations analyzed.",
+                processed_at="2026-05-22T10:00:00Z",
+            ),
         ]
 
     def record(
