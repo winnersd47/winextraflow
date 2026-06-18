@@ -1,15 +1,22 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.user import User
+from app.models.signal import Signal
 from app.models.backtest_report import BacktestReport
 from app.schemas.backtesting import BacktestRequest, BacktestResponse
 from app.services.backtesting import backtesting_engine
+from app.services.backtesting_real import (
+    run_real_backtest, detect_source, fetch_candles,
+    compute_monthly_breakdown, compute_buy_and_hold, run_monte_carlo,
+    apply_commission, apply_position_sizing, SimTrade,
+)
 from app.services.premium import is_premium
 
 router = APIRouter()
@@ -152,4 +159,160 @@ async def backtest_history(
             }
             for r in reports
         ],
+    }
+
+
+# ═══ REAL BACKTEST — on actual candles ═══
+
+class RealBacktestRequest(BaseModel):
+    ticker: str
+    days: int = 180  # lookback period
+    max_bars_per_trade: int = 30
+    min_wef_score: float = 0.0  # filter: only signals with WEF >= this
+    commission_pct: float = 0.1  # exchange commission per trade (%)
+    position_size_pct: float = 10.0  # % of capital per trade
+
+
+@router.post("/real")
+async def real_backtest(
+    data: RealBacktestRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Run backtest on REAL candles from MOEX ISS or Binance API.
+
+    Fetches actual OHLCV data and simulates each signal bar-by-bar:
+    - Checks if price hit TP or SL
+    - Calculates real P&L
+    - Returns equity curve, Sharpe, drawdown, profit factor
+    """
+    ticker = data.ticker.upper()
+    source = detect_source(ticker)
+
+    # source "stocks" is fallback to Yahoo Finance — always works
+    _ = source  # just for logging
+
+    date_from = (datetime.now(timezone.utc) - timedelta(days=data.days)).strftime("%Y-%m-%d")
+    date_to = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # Get signals for this ticker (with optional WEF Score filter)
+    stmt = (
+        select(Signal)
+        .where(
+            Signal.ticker == ticker,
+            Signal.entry_price > 0,
+            Signal.take_profit.isnot(None),
+        )
+        .order_by(Signal.created_at)
+    )
+    if data.min_wef_score > 0:
+        stmt = stmt.where(Signal.ai_confidence >= data.min_wef_score)
+
+    signals_db = (await db.execute(stmt)).scalars().all()
+
+    if not signals_db:
+        raise HTTPException(404, f"No signals found for {ticker}" + (f" with WEF >= {data.min_wef_score}" if data.min_wef_score > 0 else ""))
+
+    # Convert to dicts
+    signals = [
+        {
+            "id": str(s.id),
+            "action": s.action.value if hasattr(s.action, "value") else str(s.action),
+            "entry_price": s.entry_price,
+            "take_profit": s.take_profit,
+            "stop_loss": s.stop_loss,
+            "created_at": s.created_at.isoformat() if s.created_at else "",
+            "wef_score": s.ai_confidence,
+        }
+        for s in signals_db
+    ]
+
+    result = await run_real_backtest(
+        ticker=ticker,
+        signals=signals,
+        date_from=date_from,
+        date_to=date_to,
+        max_bars_per_trade=data.max_bars_per_trade,
+    )
+
+    # ── Extended analytics ──
+    raw_profits = [t["profit_pct"] for t in result.trades]
+
+    # Apply commission
+    adjusted_profits = apply_commission(raw_profits, data.commission_pct)
+
+    # Apply position sizing
+    sized_profits = apply_position_sizing(adjusted_profits, data.position_size_pct)
+
+    # Monthly breakdown
+    sim_trades = [
+        SimTrade(
+            ticker=t["ticker"], action=t["action"],
+            entry_price=t["entry"], exit_price=t["exit"],
+            take_profit=t["tp"], stop_loss=t["sl"],
+            profit_pct=t["profit_pct"], bars_held=t["bars_held"],
+            entry_date=t["entry_date"], exit_date=t["exit_date"],
+            exit_reason=t["exit_reason"],
+        )
+        for t in result.trades
+    ]
+    monthly = compute_monthly_breakdown(sim_trades)
+
+    # Buy & Hold benchmark
+    candles = await fetch_candles(ticker, date_from, date_to)
+    buy_hold = compute_buy_and_hold(candles)
+
+    # Monte Carlo (1000 simulations)
+    monte_carlo = run_monte_carlo(adjusted_profits) if len(adjusted_profits) >= 3 else None
+
+    # Adjusted metrics (after commission + position sizing)
+    adj_return = round(sum(sized_profits), 2)
+    adj_win_rate = round(sum(1 for p in adjusted_profits if p >= 0) / len(adjusted_profits), 3) if adjusted_profits else 0
+
+    return {
+        "ticker": result.ticker,
+        "source": result.source,
+        "date_from": result.date_from,
+        "date_to": result.date_to,
+        "candles_loaded": result.candles_loaded,
+        "total_signals": result.total_signals,
+        "filtered_by_wef": data.min_wef_score > 0,
+        "min_wef_score": data.min_wef_score,
+        "simulated_trades": result.simulated_trades,
+        # Raw performance
+        "raw": {
+            "total_return_pct": result.total_return_pct,
+            "win_rate": result.win_rate,
+            "avg_profit_pct": result.avg_profit_pct,
+            "avg_loss_pct": result.avg_loss_pct,
+            "best_trade_pct": result.best_trade_pct,
+            "worst_trade_pct": result.worst_trade_pct,
+            "sharpe_ratio": result.sharpe_ratio,
+            "profit_factor": result.profit_factor,
+            "max_drawdown_pct": result.max_drawdown_pct,
+        },
+        # After commission + position sizing
+        "adjusted": {
+            "commission_pct": data.commission_pct,
+            "position_size_pct": data.position_size_pct,
+            "total_return_pct": adj_return,
+            "win_rate": adj_win_rate,
+        },
+        # Exit breakdown
+        "exits": {
+            "tp_hits": result.tp_hits,
+            "sl_hits": result.sl_hits,
+            "expired": result.expired,
+        },
+        "avg_bars_held": result.avg_bars_held,
+        # Buy & Hold comparison
+        "buy_and_hold": buy_hold,
+        "strategy_vs_hold": round(result.total_return_pct - buy_hold.get("return_pct", 0), 2),
+        # Monthly P&L
+        "monthly": monthly,
+        # Monte Carlo (1000 simulations)
+        "monte_carlo": monte_carlo,
+        # Trades & equity
+        "trades": result.trades,
+        "equity_curve": result.equity_curve,
     }

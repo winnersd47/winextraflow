@@ -1,6 +1,6 @@
 """Seed realistic test data — providers, signals, strategies, users.
 
-All test data is marked with [TEST] prefix for easy identification.
+All test data is marked with prefix for easy identification.
 Call seed_test_data(db) on startup when APP_ENV=development.
 """
 
@@ -26,122 +26,122 @@ logger = logging.getLogger(__name__)
 TEST_PROVIDERS = [
     # Crypto
     {
-        "name": "[TEST] CryptoWhale Signals",
+        "name": "CryptoWhale Signals",
         "source": ProviderSource.TELEGRAM,
         "description": "Top crypto signals from whale tracker. 70%+ win rate.",
         "telegram_channel_id": "-1001234567001",
     },
     {
-        "name": "[TEST] BTC Scalper Pro",
+        "name": "BTC Scalper Pro",
         "source": ProviderSource.TRADINGVIEW,
         "description": "Bitcoin scalping alerts. 15m-1h timeframes.",
         "tradingview_webhook_id": "tv_btc_scalper",
     },
     {
-        "name": "[TEST] Altcoin Hunter",
+        "name": "Altcoin Hunter",
         "source": ProviderSource.TELEGRAM,
         "description": "Early altcoin entries before pumps. Mid-term holds.",
         "telegram_channel_id": "-1001234567002",
     },
     # Forex
     {
-        "name": "[TEST] Forex Flow",
+        "name": "Forex Flow",
         "source": ProviderSource.TRADINGVIEW,
         "description": "Major forex pairs. Technical analysis based.",
         "tradingview_webhook_id": "tv_forex_flow",
     },
     {
-        "name": "[TEST] Forex Breakout Lab",
+        "name": "Forex Breakout Lab",
         "source": ProviderSource.TRADINGVIEW,
         "description": "Breakout strategies on EUR/GBP/JPY pairs. Session-based entries.",
         "tradingview_webhook_id": "tv_forex_breakout",
     },
     # DeFi / On-chain
     {
-        "name": "[TEST] DeFi Alpha",
+        "name": "DeFi Alpha",
         "source": ProviderSource.MANUAL,
         "description": "DeFi token signals. On-chain analytics based.",
     },
     # Stocks / Indices
     {
-        "name": "[TEST] US Tech Momentum",
+        "name": "US Tech Momentum",
         "source": ProviderSource.TRADINGVIEW,
         "description": "AAPL, MSFT, NVDA, TSLA momentum signals. Daily timeframe.",
         "tradingview_webhook_id": "tv_us_tech",
     },
     {
-        "name": "[TEST] RU Market Navigator",
+        "name": "RU Market Navigator",
         "source": ProviderSource.TELEGRAM,
         "description": "SBER, GAZP, LKOH, YNDX signals for MOEX. Mid-term holds.",
         "telegram_channel_id": "-1001234567003",
     },
     # Multi-asset / Commodities
     {
-        "name": "[TEST] Commodities AI",
+        "name": "Commodities AI",
         "source": ProviderSource.MANUAL,
         "description": "Gold, Silver, Oil signals powered by AI analysis.",
     },
     {
-        "name": "[TEST] Index Trend Surfer",
+        "name": "Index Trend Surfer",
         "source": ProviderSource.TRADINGVIEW,
         "description": "SP500, NASDAQ, DAX trend-following signals. 4h-1d.",
         "tradingview_webhook_id": "tv_indices",
     },
     # ─── Additional providers (batch 2) ──────
     {
-        "name": "[TEST] ETH Maximalist",
+        "name": "ETH Maximalist",
         "source": ProviderSource.TELEGRAM,
         "description": "Ethereum ecosystem: ETH, L2 tokens, DeFi blue chips. Swing trades 1-7 days.",
         "telegram_channel_id": "-1001234567010",
     },
     {
-        "name": "[TEST] Scalp King",
+        "name": "Scalp King",
         "source": ProviderSource.TRADINGVIEW,
         "description": "High-frequency scalping on BTC/ETH. 1m-5m timeframes. 50+ trades/day.",
         "tradingview_webhook_id": "tv_scalp_king",
     },
     {
-        "name": "[TEST] Macro Trader",
+        "name": "Macro Trader",
         "source": ProviderSource.MANUAL,
         "description": "Global macro signals: indices, bonds, FX crosses. Based on economic data.",
     },
     {
-        "name": "[TEST] Asian Markets",
+        "name": "Asian Markets",
         "source": ProviderSource.TRADINGVIEW,
         "description": "JPY pairs, Nikkei, HSI signals. Asian session focus.",
         "tradingview_webhook_id": "tv_asian",
     },
     {
-        "name": "[TEST] Swing Master",
+        "name": "Swing Master",
         "source": ProviderSource.TELEGRAM,
         "description": "Multi-asset swing trades. 1D-1W timeframes. Patience-based strategy.",
         "telegram_channel_id": "-1001234567011",
     },
     {
-        "name": "[TEST] Crypto Gems",
+        "name": "Crypto Gems",
         "source": ProviderSource.TELEGRAM,
         "description": "Low-cap altcoins before pumps. High risk, high reward. DYOR.",
         "telegram_channel_id": "-1001234567012",
     },
     {
-        "name": "[TEST] Oil & Energy",
+        "name": "Oil & Energy",
         "source": ProviderSource.TRADINGVIEW,
         "description": "USOIL, Natural Gas, energy stocks. Fundamental + technical.",
         "tradingview_webhook_id": "tv_oil_energy",
     },
     {
-        "name": "[TEST] Quant Algo V2",
+        "name": "Quant Algo V2",
         "source": ProviderSource.MANUAL,
         "description": "Algorithmic signals from quantitative models. Mean reversion + momentum.",
     },
     {
-        "name": "[TEST] EUR/USD Specialist",
+        "name": "EUR/USD Specialist",
         "source": ProviderSource.TRADINGVIEW,
         "description": "Dedicated EURUSD analysis. All timeframes. 5+ years track record.",
         "tradingview_webhook_id": "tv_eurusd_spec",
     },
     {
-        "name": "[TEST] Precious Metals",
+        "name": "Precious Metals",
         "source": ProviderSource.MANUAL,
         "description": "Gold, Silver, Platinum signals. Safe-haven analysis. Weekly outlook.",
     },
@@ -222,14 +222,14 @@ async def seed_test_data(db: AsyncSession):
     # ─── Create test users ────────────────────────────────
     test_users = []
     for i, (username, email) in enumerate([
-        ("[TEST] trader_mike", "test_mike@winextraflow.com"),
-        ("[TEST] crypto_anna", "test_anna@winextraflow.com"),
-        ("[TEST] signal_master", "test_master@winextraflow.com"),
-        ("[TEST] forex_pro", "test_forex@winextraflow.com"),
-        ("[TEST] stock_guru", "test_stocks@winextraflow.com"),
-        ("[TEST] algo_bot", "test_algo@winextraflow.com"),
-        ("[TEST] whale_watcher", "test_whale@winextraflow.com"),
-        ("[TEST] moex_trader", "test_moex@winextraflow.com"),
+        ("trader_mike", "test_mike@winextraflow.com"),
+        ("crypto_anna", "test_anna@winextraflow.com"),
+        ("signal_master", "test_master@winextraflow.com"),
+        ("forex_pro", "test_forex@winextraflow.com"),
+        ("stock_guru", "test_stocks@winextraflow.com"),
+        ("algo_bot", "test_algo@winextraflow.com"),
+        ("whale_watcher", "test_whale@winextraflow.com"),
+        ("moex_trader", "test_moex@winextraflow.com"),
     ]):
         user = User(
             email=email,
@@ -328,7 +328,7 @@ async def seed_test_data(db: AsyncSession):
                 profit_pct=round(profit_pct, 2) if profit_pct else None,
                 ai_confidence=round(confidence, 3),
                 ai_reasoning=reasoning_parts[0],
-                raw_message=f"[TEST] Auto-generated signal #{total_signals}",
+                raw_message=f"Auto-generated signal #{total_signals}",
             )
             signal.created_at = created
             db.add(signal)
@@ -344,29 +344,29 @@ async def seed_test_data(db: AsyncSession):
     # ─── Create strategies ────────────────────────────────
     strategy_configs = [
         # Crypto
-        {"provider_idx": 0, "name": "[TEST] Whale Watch Alpha", "desc": "Follow the whales. BTC/ETH focus. 70%+ win rate historical.",
+        {"provider_idx": 0, "name": "Whale Watch Alpha", "desc": "Follow the whales. BTC/ETH focus. 70%+ win rate historical.",
          "tags": "crypto,btc,eth,whales", "price_type": PriceType.FREE},
-        {"provider_idx": 1, "name": "[TEST] BTC Scalp Machine", "desc": "High-frequency BTC scalping. 15m-1h entries with tight stops.",
+        {"provider_idx": 1, "name": "BTC Scalp Machine", "desc": "High-frequency BTC scalping. 15m-1h entries with tight stops.",
          "tags": "crypto,btc,scalping,short-term", "price_type": PriceType.PREMIUM},
-        {"provider_idx": 2, "name": "[TEST] Altseason Picks", "desc": "Altcoin gems before they pump. Mid-term 1-4 week holds.",
+        {"provider_idx": 2, "name": "Altseason Picks", "desc": "Altcoin gems before they pump. Mid-term 1-4 week holds.",
          "tags": "crypto,altcoins,mid-term", "price_type": PriceType.PAID, "monthly": 19.99},
         # Forex
-        {"provider_idx": 3, "name": "[TEST] Forex Momentum", "desc": "Major pairs momentum trades. 4h-1d timeframes.",
+        {"provider_idx": 3, "name": "Forex Momentum", "desc": "Major pairs momentum trades. 4h-1d timeframes.",
          "tags": "forex,eur,gbp,jpy", "price_type": PriceType.FREE},
-        {"provider_idx": 4, "name": "[TEST] Forex Breakout Master", "desc": "Session-based breakout entries on EUR/GBP/JPY. High R:R.",
+        {"provider_idx": 4, "name": "Forex Breakout Master", "desc": "Session-based breakout entries on EUR/GBP/JPY. High R:R.",
          "tags": "forex,breakout,session", "price_type": PriceType.PAID, "monthly": 14.99},
         # DeFi
-        {"provider_idx": 5, "name": "[TEST] DeFi Deep Dive", "desc": "On-chain alpha for DeFi tokens. Research-backed signals.",
+        {"provider_idx": 5, "name": "DeFi Deep Dive", "desc": "On-chain alpha for DeFi tokens. Research-backed signals.",
          "tags": "crypto,defi,research", "price_type": PriceType.PAID, "monthly": 29.99},
         # Stocks
-        {"provider_idx": 6, "name": "[TEST] US Tech Rocket", "desc": "AAPL, NVDA, TSLA momentum signals. Daily timeframe, trend-following.",
+        {"provider_idx": 6, "name": "US Tech Rocket", "desc": "AAPL, NVDA, TSLA momentum signals. Daily timeframe, trend-following.",
          "tags": "stocks,us,tech,momentum", "price_type": PriceType.PAID, "monthly": 24.99},
-        {"provider_idx": 7, "name": "[TEST] MOEX Value Picks", "desc": "SBER, GAZP, LKOH value + momentum. Mid-term 1-3 months.",
+        {"provider_idx": 7, "name": "MOEX Value Picks", "desc": "SBER, GAZP, LKOH value + momentum. Mid-term 1-3 months.",
          "tags": "stocks,ru,moex,value", "price_type": PriceType.FREE},
         # Commodities / Indices
-        {"provider_idx": 8, "name": "[TEST] Gold & Silver AI", "desc": "XAUUSD, XAGUSD signals powered by AI analysis. All timeframes.",
+        {"provider_idx": 8, "name": "Gold & Silver AI", "desc": "XAUUSD, XAGUSD signals powered by AI analysis. All timeframes.",
          "tags": "commodities,gold,silver,ai", "price_type": PriceType.PREMIUM},
-        {"provider_idx": 9, "name": "[TEST] Index Trend Surfer", "desc": "SP500, NASDAQ, DAX trend-following. 4h-1d confirmed breakouts.",
+        {"provider_idx": 9, "name": "Index Trend Surfer", "desc": "SP500, NASDAQ, DAX trend-following. 4h-1d confirmed breakouts.",
          "tags": "indices,sp500,nasdaq,dax,trend", "price_type": PriceType.PAID, "monthly": 19.99},
     ]
 
@@ -403,7 +403,7 @@ async def seed_test_data(db: AsyncSession):
         demo_account = ExchangeAccount(
             user_id=admin.id,
             exchange=ExchangeName.DEMO,
-            label="[TEST] Demo Trading Account",
+            label="Demo Trading Account",
             api_key_encrypted=encrypt_value("demo"),
             api_secret_encrypted=encrypt_value("demo"),
             is_active=True,

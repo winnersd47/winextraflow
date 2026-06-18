@@ -1,15 +1,42 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
+
+const LeaderboardPage = dynamic(() => import("@/app/dashboard/leaderboard/page"), { ssr: false });
 
 const PAGE_SIZE = 10;
 const RISK_COLORS: Record<string, string> = { low: "text-green-400 bg-green-500/10", medium: "text-yellow-400 bg-yellow-500/10", high: "text-red-400 bg-red-500/10" };
 const SOURCE_COLORS: Record<string, string> = { provider: "bg-brand-500/20 text-brand-500", mt5: "bg-blue-500/20 text-blue-400", tradingview: "bg-purple-500/20 text-purple-400" };
 const SOURCE_LABELS_RU: Record<string, string> = { provider: "Провайдер", mt5: "MT5", tradingview: "TradingView" };
 
+type MktTab = "strategies" | "leaderboard";
+
 export default function MarketplacePage() {
+  const [mktTab, setMktTab] = useState<MktTab>("strategies");
+  const { locale } = useI18n();
+  const isRu = locale === "ru";
+
+  return (
+    <div>
+      <div className="mb-4 flex gap-2">
+        <button onClick={() => setMktTab("strategies")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${mktTab === "strategies" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Стратегии" : "Strategies"}
+        </button>
+        <button onClick={() => setMktTab("leaderboard")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${mktTab === "leaderboard" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Лидерборд" : "Leaderboard"}
+        </button>
+      </div>
+      {mktTab === "strategies" ? <StrategiesContent /> : <LeaderboardPage />}
+    </div>
+  );
+}
+
+function StrategiesContent() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

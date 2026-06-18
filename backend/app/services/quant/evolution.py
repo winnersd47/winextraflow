@@ -228,6 +228,133 @@ class EvolutionaryRegistry:
             ("long_short_bias", "Long/Short Bias Detection", "Long/short перекос рынка для направленных сделок", [1, 2], 0.5, "emerging"),
             ("macro_overlay", "Macro Fundamental Overlay", "Макро: ВВП, инфляция, PMI как фильтр стратегий", [5, 6], 0.5, "emerging"),
             ("currency_impact", "Currency Impact Model", "Влияние курса рубля на MOEX акции", [6, 1], 0.45, "emerging"),
+            # From "РБК Крипто" channel (5000 messages, Feb 2018 — Jul 2020)
+            # S1: Trend Following
+            ("btc_dominance_regime", "BTC Dominance Regime Indicator", "BTC dominance >70% = risk-off, <55% = altseason / Доминация BTC как индикатор режима", [1, 6], 0.55, "emerging"),
+            ("post_halving_cycle", "Post-Halving Cycle Pattern", "Исторический цикл роста после халвинга BTC (2012: +6000%, 2016: +2000%)", [1], 0.5, "emerging"),
+            ("rising_wedge_detector", "Rising Wedge Pattern Detector", "Восходящий клин + падающий объём = медвежий сигнал", [1, 4], 0.45, "emerging"),
+            ("golden_cross_signal", "Golden Cross MA Signal", "50-day MA пересекает 200-day MA вверх — предшествовало +170% росту", [1], 0.5, "emerging"),
+            ("google_trends_exhaustion", "Google Trends Trend Exhaustion", "Падение поисковых запросов -75% = подтверждение медвежьего рынка", [1, 5], 0.4, "emerging"),
+            ("trade_war_btc_hedge", "Trade War BTC Hedge Signal", "Обратная корреляция BTC с торговыми войнами US-China", [1, 5], 0.45, "emerging"),
+            # S2: Mean Reversion
+            ("fib_ema_support_zone", "Fibonacci + EMA Support Zone", "200 EMA/SMA + Fib 0.5 как зона поддержки для входа", [2, 3], 0.5, "emerging"),
+            ("altcoin_lag_reversion", "Altcoin Lag Reversion", "Альты отстают от BTC → взрывной рост с лагом (mean reversion)", [2, 6], 0.45, "emerging"),
+            ("mining_difficulty_reversal", "Mining Difficulty Reversal Signal", "Падение сложности -25% = капитуляция майнеров → предвестник разворота", [2, 4], 0.5, "emerging"),
+            ("ico_selling_pressure", "ICO/Token Unlock Selling Pressure", "Измеримый навес предложения от ICO-проектов (2.9M ETH)", [2, 6], 0.45, "emerging"),
+            # S3: Breakout / Momentum
+            ("exchange_listing_pump", "Exchange Listing Momentum", "Листинг на Binance → +80-202% за 1-4 часа → sell the spike", [3, 4], 0.5, "emerging"),
+            ("ieo_launch_momentum", "IEO Launch Momentum", "IEO на Launchpad: +300-3950% post-listing (Binance 2019)", [3, 4], 0.45, "emerging"),
+            ("psychological_level_break", "Psychological Level Breakout", "Пробой $10K/$5K с подтверждением объёмом = ускорение", [3], 0.5, "emerging"),
+            ("new_pair_first_trade", "New Pair First Trade Scalp", "Первые сделки новых пар на бирже +30-110% выше рынка", [3, 7], 0.4, "emerging"),
+            ("partnership_news_fade", "Partnership News Fade", "Buy the rumor, sell the news на партнёрствах (Ripple pattern)", [3, 5], 0.4, "emerging"),
+            # S4: Statistical Arbitrage
+            ("fake_volume_filter", "Fake Volume Detection Filter", "95% объёмов на нерег. биржах фейковые (Bitwise) — фильтр", [4, 7], 0.55, "emerging"),
+            ("tether_depeg_risk", "Tether/Stablecoin Depeg Risk", "Отслеживание депега стейблкоинов как risk signal", [4, 6], 0.5, "emerging"),
+            ("ponzi_liquidation_tracker", "Ponzi Liquidation Flow Tracker", "Отслеживание Whale Alert при ликвидации Ponzi-схем (PlusToken)", [4, 5], 0.45, "emerging"),
+            ("options_expiry_vol", "Options Expiry Volatility", "Экспирация опционов ($1B+ BTC) → всплеск волатильности", [4, 6], 0.45, "emerging"),
+            # S5: Sentiment / News
+            ("regulatory_price_impact", "Regulatory News Price Impact", "Матрица чувствительности: Китай = макс, Катар = 0 импакт", [5], 0.55, "emerging"),
+            ("death_count_contrarian", "Bitcoin Death Count Contrarian", "300+ «смертей» BTC = контрарный индикатор покупки", [5, 2], 0.45, "emerging"),
+            ("vix_btc_lag_correlation", "VIX-BTC 30-Day Lag Correlation", "VIX коррелирует с BTC с 30-дневным лагом", [5, 6], 0.5, "emerging"),
+            ("btc_gold_crisis_divergence", "BTC vs Gold Crisis Divergence", "BTC = risk-asset краткосрочно, но +145% в recovery vs gold", [5, 6], 0.5, "emerging"),
+            ("sp500_btc_correlation", "S&P 500-BTC Correlation Regime", "Растущая корреляция S&P500/BTC = BTC как risk asset", [5, 1], 0.5, "emerging"),
+            ("whale_wallet_tracker", "Whale Wallet Movement Tracker", "94K BTC в одной транзакции — CryptoQuant алерт → дамп", [5, 7], 0.55, "emerging"),
+            ("local_premium_detector", "Local FX Crisis Premium Detector", "Премия BTC на локальных биржах при обвале валюты (Аргентина)", [5, 4], 0.35, "emerging"),
+            # S6: Portfolio / Risk Management
+            ("ema200_stop_loss", "200 EMA Stop-Loss Level", "Стоп-лосс на уровне 200 EMA ($8,350 Bitfinex, март 2018)", [6, 1], 0.5, "emerging"),
+            ("btc_denominated_pnl", "BTC-Denominated P&L Framework", "Считать прибыль в BTC, не в fiat — фиксация от $15K+", [6], 0.4, "emerging"),
+            ("institutional_futures_demand", "Institutional Futures Demand Signal", "Bakkt deliverable futures = реальный спрос на спот BTC", [6, 5], 0.45, "emerging"),
+            ("mining_cost_floor", "Mining Cost Price Floor Model", "Стоимость майнинга ($1,800) = динамический пол цены BTC", [6], 0.5, "emerging"),
+            ("hashrate_price_predictor", "Hashrate-Based Price Predictor", "Модель Capriole: hashrate + эффективность → $100K к 2025", [6, 1], 0.45, "emerging"),
+            ("altcoin_rotation_signal", "Altcoin Rotation Signal", "BNB +145%, LTC +96%, BTC +12% → ротация из BTC в alts", [6, 3], 0.45, "emerging"),
+            ("exchange_hack_risk", "Exchange Hack Systemic Risk", "Биржевые взломы как системный риск (Binance, Coinbene, Cashaa)", [6], 0.5, "emerging"),
+            # S7: Market Making / Execution
+            ("wash_trading_filter", "Wash Trading Detection", "Фильтр wash-trading: только CME/Coinbase/Kraken/Bitstamp надёжны", [7, 4], 0.5, "emerging"),
+            ("flash_loan_attack_shield", "Flash Loan Attack Shield", "Защита от манипуляции оракулов через flash loans (bZx)", [7, 6], 0.45, "emerging"),
+            # Macro factors
+            ("covid_impact_chain", "COVID Impact Chain Model", "Цепочка: локдаун → майнинг стоп → sell-off → recovery +145%", [5, 6], 0.45, "emerging"),
+            ("fed_dollar_weakness", "Fed/Dollar Weakness → BTC", "Печатание денег ФРС = фундаментальный драйвер BTC спроса", [5, 1], 0.5, "emerging"),
+            ("stablecoin_ecosystem", "Stablecoin Ecosystem Signal", "Запуск новых стейблкоинов → рост ликвидности рынка", [3, 6], 0.4, "emerging"),
+            # ═══ Batch 4: 50 new sources (MQL5 2025-2026 + research papers + trading communities) ═══
+
+            # From #20935: Spatially-Controlled Aggregation
+            ("spatial_event_aggregation", "Spatial Event Aggregation", "Пространственно-управляемая агрегация рыночных событий в multi-scale окне", [7, 5], 0.5, "emerging"),
+            # From #20960: Perturbed State Space Models
+            ("perturbed_ssm", "Perturbed State Space Model", "Модель пространства состояний с возмущениями: глобальная динамика + локальные микроизменения", [7, 1], 0.55, "emerging"),
+            # From #22782: Uncertainty Assessment (UncAD)
+            ("uncertainty_quantification", "Uncertainty Quantification Engine", "Энкодер неопределённости + распределение рыночных состояний для принятия решений", [7, 6], 0.55, "emerging"),
+            # From #21792: Stacked Target-to-History Cross Attention
+            ("stca_long_sequence", "STCA Long Sequence Analyzer", "Stacked Target-to-History Cross Attention для длинных рыночных последовательностей", [7, 1], 0.5, "emerging"),
+            # From #21681: Unified Feature-Context Architecture
+            ("unified_feature_context", "Unified Feature-Context Architecture", "Единая архитектура взаимодействия признаков и торгового контекста", [7, 5], 0.5, "emerging"),
+            # From #22344: Robust Pattern Discovery
+            ("robust_pattern_discovery", "Robust Pattern Discovery", "Поиск устойчивых закономерностей в разнородных рыночных данных ($100→$210)", [7, 4], 0.55, "emerging"),
+            # From #21509: Scalable Structural Decomposition
+            ("structural_decomposition", "Structural Feature Decomposition", "Масштабируемые трансформеры со структурной декомпозицией признаков", [7, 1], 0.5, "emerging"),
+            # From #22711: UncAD Trading Decisions
+            ("uncad_decision_engine", "UncAD Decision Engine", "Принятие торговых решений с адаптивным порогом неопределённости", [7, 6], 0.55, "emerging"),
+            # From #21840: Adaptive Representation Scaling
+            ("adaptive_repr_scaling", "Adaptive Representation Scaling", "ADS: адаптивное масштабирование представлений под волатильность рынка", [7, 1, 2], 0.5, "emerging"),
+            # From #20799: Market Microstructure Diff-Modeling
+            ("diff_microstructure", "Differential Microstructure Model", "Разностное моделирование рыночной микроструктуры: тик → ордер-флоу", [5, 7], 0.5, "emerging"),
+
+            # From #22677: RSI Divergence Grid + Risk Manager
+            ("rsi_grid_risk_manager", "RSI Grid + Risk Manager", "Сеточная стратегия с фильтром дивергенции RSI + лимит уровней + независимый риск-менеджер", [2, 6], 0.55, "emerging"),
+            # From #22548: Hurst Exponent R/S Analysis
+            ("hurst_exponent_indicator", "Hurst Exponent R/S Indicator", "Показатель Хёрста через R/S-анализ: персистентный vs антиперсистентный режим → выбор стратегии", [1, 2, 7], 0.6, "emerging"),
+            # From #22745: Categorical Hidden Markov Model
+            ("categorical_hmm", "Categorical Hidden Markov Model", "Категориальная скрытая марковская модель для прогноза дискретных рыночных состояний", [7, 1], 0.5, "emerging"),
+            # From #22606: GDformer Global Dictionary
+            ("gdformer_global_dict", "GDformer Global Dictionary", "Глобальный словарь паттернов + многоголовое кросс-внимание для финансовых рядов (OpenCL)", [7, 4], 0.55, "emerging"),
+            # From #22502: Risk Assessment by Inconsistency
+            ("inconsistency_risk", "Representation Inconsistency Risk", "Оценка риска по несогласованности представлений: 3 параллельных выхода модели", [7, 6], 0.5, "emerging"),
+            # From #22395: MetaTrader 5 Debug + EX5 Protection
+            ("mt5_debug_protection", "MT5 Debug & Protection Pipeline", "Пошаговая отладка → тестирование → защита EX5 в одной среде", [7], 0.35, "emerging"),
+            # From #22391: Custom Symbols (Renko/Range/Volume)
+            ("custom_symbol_engine", "Custom Symbol Engine", "Renko/Range/Volume бары + синтетические символы + стресс-тесты на пользовательских символах", [3, 4, 7], 0.45, "emerging"),
+            # From #22211: Cellular Automaton Grid EA
+            ("cellular_grid_ea", "Cellular Automaton Grid EA", "Сеточный советник на клеточном автомате с онлайн-обучением", [7, 2], 0.5, "emerging"),
+
+            # From #19704: Options Without Options (Complex Strategies)
+            ("synthetic_options", "Synthetic Options Engine", "Эмуляция опционных стратегий через базовые активы: straddle, strangle, butterfly", [6, 4], 0.5, "emerging"),
+            # From #22674: 29-Pair Portfolio + L1 + VaR
+            ("l1_var_portfolio", "L1-Filter + VaR Portfolio", "29-парный портфель с L1 фильтром тренда и VaR-распределением лотов", [6, 7], 0.6, "emerging"),
+            # From #16960: Volatility Forecast via Python
+            ("volatility_forecast_py", "Python Volatility Forecaster", "Прогноз волатильности через GARCH/EGARCH в Python → сигнал в MQL5", [6, 7], 0.5, "emerging"),
+            # From #18681: 3D Bar Custom Symbol
+            ("3d_bar_analysis", "3D Bar Analysis", "3D-бары: цена × время × объём × волатильность в одном символе", [3, 5], 0.4, "emerging"),
+            # From #16719: 3D Trend Strength Indicator
+            ("3d_trend_strength", "3D Trend Strength Indicator", "Индикатор силы и направления тренда на основе 3D-баров", [1, 3], 0.4, "emerging"),
+
+            # From research: Transformer-based trading
+            ("temporal_fusion_transformer", "Temporal Fusion Transformer", "TFT: multi-horizon прогноз с attention + variable selection для трейдинга", [7, 1], 0.5, "emerging"),
+            ("patch_tst", "PatchTST Time Series", "Patch Time Series Transformer: сегментация ряда в патчи → channel-independent attention", [7, 1], 0.45, "emerging"),
+            ("informer_sparse_attention", "Informer Sparse Attention", "ProbSparse attention для O(L log L) прогноза длинных последовательностей", [7], 0.45, "emerging"),
+            ("autoformer_decomp", "Autoformer Decomposition", "Авто-корреляция + сезонно-трендовая декомпозиция внутри transformer", [7, 1], 0.45, "emerging"),
+            ("fedformer_freq", "FEDformer Frequency", "Frequency Enhanced Decomposed Transformer: Fourier/Wavelet mixing в attention", [7, 1], 0.45, "emerging"),
+
+            # From trading communities: practical strategies
+            ("ichimoku_cloud", "Ichimoku Cloud Strategy", "Облако Ишимоку: Tenkan/Kijun cross + Chikou + Kumo twist для трендов", [1, 5], 0.5, "emerging"),
+            ("harmonic_patterns", "Harmonic Pattern Detector", "Гармонические паттерны: Gartley, Butterfly, Bat, Crab, Shark с автодетекцией", [4, 2], 0.5, "emerging"),
+            ("order_block_detector", "Order Block Detector", "Smart Money Concepts: Order Blocks + Fair Value Gaps + Liquidity Sweeps", [4, 3], 0.5, "emerging"),
+            ("wyckoff_phases", "Wyckoff Phase Analyzer", "Анализ фаз Вайкоффа: Accumulation → Markup → Distribution → Markdown", [1, 2, 3], 0.5, "emerging"),
+            ("elliot_wave_counter", "Elliott Wave Counter", "Подсчёт волн Эллиотта: импульс (1-5) + коррекция (A-B-C) автоматически", [1, 4], 0.45, "emerging"),
+            ("supply_demand_zones", "Supply/Demand Zone Detector", "Автоопределение зон спроса/предложения по кластерам объёма", [2, 3, 6], 0.55, "emerging"),
+            ("session_filter", "Trading Session Filter", "Фильтр по торговым сессиям: Asia, London, NY, overlap zones", [5, 7], 0.45, "emerging"),
+            ("correlation_matrix", "Dynamic Correlation Matrix", "Динамическая матрица корреляций между тикерами: rolling window + heatmap", [6, 4], 0.5, "emerging"),
+            ("mean_reversion_bands", "Mean Reversion Bands", "Keltner + Bollinger + Donchian каналы: тройное подтверждение для mean reversion", [2, 3], 0.5, "emerging"),
+            ("momentum_divergence", "Multi-TF Momentum Divergence", "Дивергенция моментума на 3 таймфреймах: RSI + MACD + Stochastic совпадение", [2, 4, 5], 0.55, "emerging"),
+
+            # From quantitative finance research
+            ("garch_regime_switch", "GARCH Regime Switching", "Переключение между GARCH моделями волатильности по скрытым состояниям", [6, 7], 0.5, "emerging"),
+            ("kalman_filter_price", "Kalman Filter Price Tracker", "Фильтр Кальмана для динамического отслеживания справедливой цены", [2, 7], 0.5, "emerging"),
+            ("hawkes_process", "Hawkes Process Event Clustering", "Самовозбуждающийся процесс Хоукса для кластеризации рыночных событий", [5, 7], 0.45, "emerging"),
+            ("pca_factor_model", "PCA Factor Model", "Факторная модель через PCA: выделение 3-5 главных драйверов рынка", [6, 7], 0.5, "emerging"),
+            ("var_cvar_risk", "VaR/CVaR Risk Engine", "Value at Risk + Conditional VaR для оценки хвостовых рисков портфеля", [6], 0.55, "emerging"),
+            ("sharpe_sortino_calmar", "Risk-Adjusted Return Suite", "Комплекс метрик: Sharpe + Sortino + Calmar + Omega ratio для сравнения стратегий", [6, 7], 0.55, "emerging"),
+            ("walk_forward_optimizer", "Walk-Forward Optimizer", "Walk-Forward оптимизация: train/test окна → параметры обновляются периодически", [7], 0.5, "emerging"),
+            ("regime_aware_sizing", "Regime-Aware Position Sizing", "Размер позиции зависит от текущего режима рынка: тренд=больше, боковик=меньше", [6, 1, 2], 0.55, "emerging"),
+
             # Foundation layers (future → closer)
             ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.25, "planned"),
             ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.15, "planned"),

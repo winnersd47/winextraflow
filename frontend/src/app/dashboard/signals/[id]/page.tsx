@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -14,6 +14,8 @@ import {
   timeAgo,
 } from "@/lib/utils";
 import type { Signal, RatingDetail } from "@/types";
+import dynamic from "next/dynamic";
+const CandlestickChart = dynamic(() => import("@/components/candlestick-chart"), { ssr: false });
 
 export default function SignalDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -23,6 +25,7 @@ export default function SignalDetailPage() {
   const [signal, setSignal] = useState<Signal | null>(null);
   const [rating, setRating] = useState<RatingDetail | null>(null);
   const [rec, setRec] = useState<any>(null);
+  const [candles, setCandles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -36,6 +39,16 @@ export default function SignalDetailPage() {
         // Load recommendation
         const recData = await safe(fetch(`/api/v1/quant/recommend/${id}`, { headers: { Authorization: `Bearer ${token}` } }));
         if (recData) setRec(recData);
+        // Load candles for MOEX tickers
+        if (s?.ticker) {
+          const candleData = await safe(fetch(`/api/v1/moex/candles/${s.ticker}?interval=24`, { headers: { Authorization: `Bearer ${token}` } }));
+          if (candleData?.candles) {
+            setCandles(candleData.candles.map((c: any) => ({
+              time: c.date?.split("T")[0] || c.date,
+              open: c.open, high: c.high, low: c.low, close: c.close, volume: c.volume,
+            })));
+          }
+        }
       } catch {}
       finally { setLoading(false); }
     }
@@ -184,6 +197,20 @@ export default function SignalDetailPage() {
         </div>
       )}
 
+      {/* ═══ CANDLESTICK CHART ═══ */}
+      {candles.length > 0 && (
+        <div className="mt-6">
+          <CandlestickChart
+            data={candles}
+            ticker={signal.ticker}
+            entryPrice={signal.entry_price}
+            takeProfit={signal.take_profit || undefined}
+            stopLoss={signal.stop_loss || undefined}
+            height={350}
+          />
+        </div>
+      )}
+
       {/* ═══ TRADE RECOMMENDATION ═══ */}
       {rec && !rec.error && (
         <div className="mt-6 rounded-xl border border-brand-500/30 bg-brand-500/5 p-6">
@@ -257,6 +284,89 @@ export default function SignalDetailPage() {
           </p>
         </div>
       )}
+      {/* ═══ COMMENTS ═══ */}
+      <CommentsSection signalId={id} isRu={isRu} />
+    </div>
+  );
+}
+
+function CommentsSection({ signalId, isRu }: { signalId: string; isRu: boolean }) {
+  const [comments, setComments] = useState<any[]>([]);
+  const [text, setText] = useState("");
+  const [posting, setPosting] = useState(false);
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const load = async () => {
+    try {
+      const resp = await fetch(`/api/v1/social/signals/${signalId}/comments`, { headers });
+      if (resp.ok) { const d = await resp.json(); setComments(d.items || []); }
+    } catch {}
+  };
+
+  useEffect(() => { load(); }, [signalId]);
+
+  const handlePost = async () => {
+    if (!text.trim() || posting) return;
+    setPosting(true);
+    try {
+      await fetch(`/api/v1/social/signals/${signalId}/comments`, {
+        method: "POST", headers, body: JSON.stringify({ text: text.trim() }),
+      });
+      setText("");
+      load();
+    } catch {}
+    finally { setPosting(false); }
+  };
+
+  const handleDelete = async (commentId: string) => {
+    await fetch(`/api/v1/social/comments/${commentId}`, { method: "DELETE", headers });
+    load();
+  };
+
+  return (
+    <div className="mt-6 rounded-xl border border-border bg-surface-card p-4">
+      <h2 className="mb-3 text-lg font-bold text-text-primary">
+        {isRu ? "Обсуждение" : "Discussion"} ({comments.length})
+      </h2>
+
+      {/* Comment list */}
+      {comments.length > 0 && (
+        <div className="mb-4 space-y-3 max-h-80 overflow-y-auto">
+          {comments.map(c => (
+            <div key={c.id} className="rounded-lg bg-surface p-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-medium text-brand-500">{c.username}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-muted">
+                    {c.created_at ? new Date(c.created_at).toLocaleString() : ""}
+                  </span>
+                  {c.is_mine && (
+                    <button onClick={() => handleDelete(c.id)} className="text-xs text-text-muted hover:text-red-400">✕</button>
+                  )}
+                </div>
+              </div>
+              <p className="text-sm text-text-secondary">{c.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Post comment */}
+      <div className="flex gap-2">
+        <input
+          value={text} onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && handlePost()}
+          placeholder={isRu ? "Написать комментарий..." : "Write a comment..."}
+          className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-500"
+          maxLength={500}
+        />
+        <button onClick={handlePost} disabled={posting || !text.trim()}
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700 disabled:opacity-50">
+          {isRu ? "Отправить" : "Send"}
+        </button>
+      </div>
     </div>
   );
 }

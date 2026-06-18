@@ -16,7 +16,7 @@ export function RatingBadge({
         size === "sm" ? "px-2 py-0.5 text-xs" : "px-3 py-1 text-sm"
       )}
     >
-      AI {formatConfidence(confidence)}
+      WEF {formatConfidence(confidence)}
     </span>
   );
 }

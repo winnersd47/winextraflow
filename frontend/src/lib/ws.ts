@@ -14,6 +14,55 @@ function getWsUrl(): string {
 }
 const WS_URL = getWsUrl();
 
+// ─── Sound + Badge notifications ───
+let _unreadCount = 0;
+const _originalTitle = typeof document !== "undefined" ? document.title : "WinExtraFlow";
+
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = "sine";
+    gain.gain.value = 0.15;
+    osc.start();
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    osc.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+
+function updateTabBadge(count: number) {
+  if (typeof document === "undefined") return;
+  _unreadCount = count;
+  document.title = count > 0 ? `(${count}) ${_originalTitle}` : _originalTitle;
+}
+
+function showBrowserNotification(ticker: string, action: string, confidence: number) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    new Notification(`WEF Signal: ${action.toUpperCase()} ${ticker}`, {
+      body: `WEF Score: ${(confidence * 100).toFixed(0)}%`,
+      icon: "/icon-192.png",
+      tag: `signal-${ticker}`,
+    });
+  }
+}
+
+// Request notification permission on first interaction
+export function requestNotificationPermission() {
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+    Notification.requestPermission();
+  }
+}
+
+// Reset badge when user views signals
+export function resetBadge() {
+  updateTabBadge(0);
+}
+
 export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
@@ -34,8 +83,17 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
     ws.onmessage = (event) => {
       try {
         const data: WSMessage = JSON.parse(event.data);
-        if (data.type === "new_signal" && onSignalRef.current) {
-          onSignalRef.current(data as WSNewSignal);
+        if (data.type === "new_signal") {
+          // Sound + badge + browser notification
+          playNotificationSound();
+          updateTabBadge(_unreadCount + 1);
+          const sig = (data as WSNewSignal).signal;
+          if (sig) {
+            showBrowserNotification(sig.ticker || "New", sig.action || "signal", sig.ai_confidence || 0);
+          }
+          if (onSignalRef.current) {
+            onSignalRef.current(data as WSNewSignal);
+          }
         }
       } catch {
       }

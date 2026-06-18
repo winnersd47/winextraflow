@@ -30,6 +30,16 @@ from app.api.quant import router as quant_router
 from app.api.advisors import router as advisors_router
 from app.api.moex import router as moex_router
 from app.api.tv_strategies import router as tv_strategies_router
+from app.api.public import router as public_router
+from app.api.ai_chat import router as ai_chat_router
+from app.api.screener import router as screener_router
+from app.api.journal import router as journal_router
+from app.api.portfolio import router as portfolio_router
+from app.api.alerts import router as alerts_router
+from app.api.social import router as social_router
+from app.api.digest import router as digest_router
+from app.api.feedback import router as feedback_router
+from app.api.content import router as content_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -211,6 +221,16 @@ app.include_router(quant_router, prefix="/api/v1/quant", tags=["quant-intelligen
 app.include_router(advisors_router, prefix="/api/v1/advisors", tags=["advisors"])
 app.include_router(moex_router, prefix="/api/v1/moex", tags=["moex"])
 app.include_router(tv_strategies_router, prefix="/api/v1/tv-strategies", tags=["tradingview"])
+app.include_router(public_router, prefix="/api/v1/public", tags=["public"])
+app.include_router(ai_chat_router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
+app.include_router(screener_router, prefix="/api/v1/screener", tags=["screener"])
+app.include_router(journal_router, prefix="/api/v1/journal", tags=["journal"])
+app.include_router(portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"])
+app.include_router(alerts_router, prefix="/api/v1/alerts", tags=["alerts"])
+app.include_router(social_router, prefix="/api/v1/social", tags=["social"])
+app.include_router(digest_router, prefix="/api/v1/digest", tags=["digest"])
+app.include_router(feedback_router, prefix="/api/v1/feedback", tags=["feedback"])
+app.include_router(content_router, prefix="/api/v1/content", tags=["content"])
 
 
 @app.get("/health")

@@ -25,22 +25,27 @@ const CACHE_TTL = 120_000; // 2 min
  */
 const FEATURE_TIERS: Record<string, number> = {
   "/dashboard": 0,
-  "/dashboard/leaderboard": 0,
   "/dashboard/backtest": 0,
   "/dashboard/profile": 0,
   "/dashboard/compliance": 0,
   "/dashboard/capacity": 0,
   "/dashboard/create-signal": 0,
-  "/dashboard/kyc": 0,
   "/dashboard/telegram": 0,
   "/dashboard/intelligence": 0,
-  "/dashboard/moex": 0,
+  "/dashboard/alerts": 0,
+  "/dashboard/feedback": 0,
   "/dashboard/store": 30,
   "/dashboard/referrals": 30,
-  "/dashboard/revenue": 0,
-  "/dashboard/execution": 60,
-  "/dashboard/copy-trading": 60,
+  "/dashboard/portfolio": 60,
   "/dashboard/marketplace": 60,
+  // Subroutes (loaded as tabs inside parent pages)
+  "/dashboard/leaderboard": 0,
+  "/dashboard/kyc": 0,
+  "/dashboard/ai-chat": 0,
+  "/dashboard/screener": 0,
+  "/dashboard/journal": 0,
+  "/dashboard/copy-trading": 60,
+  "/dashboard/revenue": 0,
 };
 
 function getRequiredPct(path: string): number {

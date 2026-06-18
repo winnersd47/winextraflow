@@ -1,4 +1,11 @@
-"""Payments API — Stripe checkout, webhook, history."""
+"""Payments API — YooKassa checkout, webhook, history.
+
+Supports:
+- Bank cards (Visa, MasterCard, МИР)
+- СБП (0.7% commission)
+- ЮMoney, SberPay
+- Demo mode (no real payments) when YOOKASSA_SHOP_ID not set
+"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -9,33 +16,24 @@ from app.api.deps import get_current_user
 from app.database import get_db
 from app.models.payment import Payment, PaymentPlan
 from app.models.user import User
-from app.services.stripe_service import stripe_service
+from app.services.yookassa_service import yookassa_service, PLAN_CONFIG
+from app.services.cryptocloud_service import cryptocloud_service
+from app.services.prodamus_service import prodamus_service
 
 router = APIRouter()
 
 
 class CheckoutRequest(BaseModel):
     plan: PaymentPlan
-    success_url: str = "http://localhost:3000/dashboard/premium/success"
-    cancel_url: str = "http://localhost:3000/dashboard/premium"
+    return_url: str = "http://localhost:3000/dashboard/store"
 
 
 class CheckoutResponse(BaseModel):
-    checkout_url: str
-    session_id: str
+    payment_url: str
+    payment_id: str
     demo: bool
-
-
-class PaymentResponse(BaseModel):
-    id: str
-    plan: str
     amount: float
     currency: str
-    status: str
-    stripe_session_id: str | None
-    created_at: str
-
-    model_config = {"from_attributes": True}
 
 
 @router.post("/checkout", response_model=CheckoutResponse)
@@ -44,24 +42,26 @@ async def create_checkout(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Create a Stripe Checkout session for Premium subscription."""
-    result = await stripe_service.create_checkout_session(
-        db, user, data.plan, data.success_url, data.cancel_url
+    """Create a YooKassa payment for Premium subscription."""
+    result = await yookassa_service.create_payment(
+        db, user, data.plan, data.return_url,
     )
     return result
 
 
 @router.post("/webhook")
-async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
-    """Stripe webhook handler — processes payment events."""
-    from app.config import settings as cfg
-    if not cfg.stripe_webhook_secret:
-        raise HTTPException(503, "Webhook not configured")
-    payload = await request.body()
-    signature = request.headers.get("stripe-signature", "")
-    if not signature:
-        raise HTTPException(400, "Missing stripe-signature header")
-    result = await stripe_service.handle_webhook(db, payload, signature)
+async def yookassa_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """YooKassa webhook handler — processes payment notifications.
+
+    YooKassa sends POST with JSON body containing event type and payment object.
+    Docs: https://yookassa.ru/developers/using-api/webhooks
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    result = await yookassa_service.handle_webhook(db, body)
     if "error" in result:
         raise HTTPException(400, result["error"])
     return result
@@ -69,15 +69,110 @@ async def stripe_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.post("/complete-demo")
 async def complete_demo(
-    session_id: str,
+    payment_id: str,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Complete a demo payment (for testing without real Stripe)."""
-    payment = await stripe_service.complete_demo_payment(db, session_id)
+    """Complete a demo payment (for testing without real YooKassa)."""
+    payment = await yookassa_service.complete_demo_payment(db, payment_id)
     if not payment:
         raise HTTPException(404, "Payment not found or already completed")
-    return {"status": "completed", "plan": payment.plan.value, "days": 30 if payment.plan == PaymentPlan.MONTHLY else 365}
+    config = PLAN_CONFIG[payment.plan]
+    return {
+        "status": "completed",
+        "plan": payment.plan.value,
+        "days": config["days"],
+        "amount": payment.amount,
+        "currency": "RUB",
+    }
+
+
+@router.post("/checkout/crypto")
+async def create_crypto_checkout(
+    data: CheckoutRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Create a CryptoCloud payment (USDT/BTC/ETH) for international clients."""
+    result = await cryptocloud_service.create_payment(db, user, data.plan, data.return_url)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+class ProdamusCheckoutRequest(BaseModel):
+    plan: PaymentPlan
+    currency: str = "usd"  # usd or eur
+    return_url: str = "http://localhost:3000/dashboard/store"
+
+
+@router.post("/checkout/international")
+async def create_international_checkout(
+    data: ProdamusCheckoutRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Create a Prodamus payment (Visa/MC in USD/EUR) for international clients."""
+    result = await prodamus_service.create_payment(db, user, data.plan, data.currency, data.return_url)
+    return result
+
+
+@router.post("/webhook/crypto")
+async def cryptocloud_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """CryptoCloud webhook handler."""
+    body = await request.json()
+    result = await cryptocloud_service.handle_webhook(db, body)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@router.post("/webhook/prodamus")
+async def prodamus_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """Prodamus webhook handler."""
+    body = await request.json()
+    result = await prodamus_service.handle_webhook(db, body)
+    if "error" in result:
+        raise HTTPException(400, result["error"])
+    return result
+
+
+@router.get("/plans")
+async def get_plans(user: User = Depends(get_current_user)):
+    """Available subscription plans with prices in all currencies."""
+    from app.services.cryptocloud_service import PLAN_CONFIG as CRYPTO_PLANS
+    from app.services.prodamus_service import PLAN_CONFIG as INTL_PLANS
+
+    return {
+        "plans": {
+            "rub": [
+                {
+                    "plan": plan.value,
+                    "amount": config["amount"],
+                    "currency": "RUB",
+                    "days": config["days"],
+                    "name_ru": config["name_ru"],
+                    "name_en": config["name_en"],
+                }
+                for plan, config in PLAN_CONFIG.items()
+            ],
+            "usd": [
+                {
+                    "plan": plan.value,
+                    "amount": config["amount_usd"],
+                    "currency": "USD",
+                    "days": config["days"],
+                    "name": config["name"],
+                }
+                for plan, config in CRYPTO_PLANS.items()
+            ],
+        },
+        "methods": {
+            "ru": {"name": "ЮKassa", "methods": ["card", "sbp", "yoomoney", "sberpay"], "currency": "RUB"},
+            "crypto": {"name": "CryptoCloud", "methods": ["usdt", "btc", "eth", "sol"], "currency": "USD", "commission": "0.4-1%"},
+            "international": {"name": "Prodamus", "methods": ["visa", "mastercard", "maestro"], "currency": "USD/EUR", "commission": "3.5-5%"},
+        },
+    }
 
 
 @router.get("/history")
@@ -105,7 +200,7 @@ async def payment_history(
                 "amount": p.amount,
                 "currency": p.currency,
                 "status": p.status.value,
-                "stripe_session_id": p.stripe_session_id,
+                "payment_id": p.yookassa_payment_id,
                 "created_at": p.created_at.isoformat() if p.created_at else None,
             }
             for p in payments

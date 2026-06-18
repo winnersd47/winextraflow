@@ -126,3 +126,17 @@ async def revenue_report(
     """Annual revenue report with business stage and tax alerts (admin only)."""
     from app.services.revenue import revenue_service
     return await revenue_service.get_full_report(db)
+
+
+@router.get("/health")
+async def external_health(admin: User = Depends(require_admin)):
+    """Health check of ALL external API sources (admin only)."""
+    from app.services.health_monitor import health_monitor
+    return await health_monitor.check_all()
+
+
+@router.get("/health/cached")
+async def external_health_cached(admin: User = Depends(require_admin)):
+    """Last known health state without re-checking (instant)."""
+    from app.services.health_monitor import health_monitor
+    return health_monitor.get_cached_state()

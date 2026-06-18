@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
+
+const AIChatPage = dynamic(() => import("@/app/dashboard/ai-chat/page"), { ssr: false });
+const ScreenerPage = dynamic(() => import("@/app/dashboard/screener/page"), { ssr: false });
+const HeatmapTab = dynamic(() => import("@/components/heatmap-tab"), { ssr: false });
 
 const REGIME_COLORS: Record<string, string> = {
   trending_up: "text-green-400 bg-green-500/10",
@@ -42,7 +47,41 @@ const REC_COLORS: Record<string, string> = {
   strong_avoid: "text-red-400 bg-red-500/10",
 };
 
+type IntelTab = "market" | "heatmap" | "ai-chat" | "screener";
+
 export default function IntelligencePage() {
+  const [intelTab, setIntelTab] = useState<IntelTab>("market");
+  const { locale } = useI18n();
+  const isRu = locale === "ru";
+
+  const TABS: { key: IntelTab; ru: string; en: string }[] = [
+    { key: "market", ru: "Обзор рынка", en: "Market Overview" },
+    { key: "heatmap", ru: "Тепловая карта", en: "Heatmap" },
+    { key: "ai-chat", ru: "AI Чат", en: "AI Chat" },
+    { key: "screener", ru: "Скринер", en: "Screener" },
+  ];
+
+  return (
+    <div>
+      {/* Tab switcher */}
+      <div className="mb-4 flex flex-wrap gap-2">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setIntelTab(t.key)}
+            className={`rounded-lg px-4 py-2 text-sm font-medium transition ${intelTab === t.key ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+            {isRu ? t.ru : t.en}
+          </button>
+        ))}
+      </div>
+
+      {intelTab === "market" && <MarketOverview />}
+      {intelTab === "heatmap" && <HeatmapTab />}
+      {intelTab === "ai-chat" && <AIChatPage />}
+      {intelTab === "screener" && <ScreenerPage />}
+    </div>
+  );
+}
+
+function MarketOverview() {
   const [data, setData] = useState<any>(null);
   const [readiness, setReadiness] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -276,7 +315,7 @@ export default function IntelligencePage() {
         {!isPremium ? (
           <div className="rounded-xl border border-border bg-surface-card p-8 text-center">
             <p className="text-text-secondary">{isRu ? "AI-оценка сигналов с классификацией стратегий и оценкой качества доступна в Premium." : "AI signal evaluation with strategy classification and Signal Quality is available in Premium."}</p>
-            <a href="/dashboard/premium" className="mt-3 inline-block rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700">
+            <a href="/dashboard/store" className="mt-3 inline-block rounded-lg bg-brand-600 px-6 py-2 text-sm font-medium text-white hover:bg-brand-700">
               {isRu ? "Подключить Premium" : "Get Premium"}
             </a>
           </div>

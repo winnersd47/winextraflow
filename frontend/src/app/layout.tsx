@@ -36,10 +36,18 @@ export default function RootLayout({
   return (
     <html lang="ru" className="dark" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#10b981" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="WinExtraFlow" />
         <script dangerouslySetInnerHTML={{ __html: `
           try { const t = localStorage.getItem('theme');
             if (t === 'light') document.documentElement.classList.remove('dark');
           } catch(e) {}
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(function(){});
+          }
         `}} />
       </head>
       <body>

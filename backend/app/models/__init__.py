@@ -14,5 +14,15 @@ from app.models.kyc import KYCVerification
 from app.models.compliance import ComplianceDocument
 from app.models.backtest_report import BacktestReport
 from app.models.course_access import CourseAccess
+from app.models.journal import JournalEntry
+from app.models.alert import PriceAlert
+from app.models.social import SignalComment, StrategyLike
+from app.models.feedback import Feedback
 
-__all__ = ["User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order", "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement", "Notification", "Payment", "KYCVerification", "ComplianceDocument"]
+__all__ = [
+    "User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order",
+    "Strategy", "Subscription", "CopyTrade", "Achievement", "UserAchievement",
+    "Notification", "Payment", "KYCVerification", "ComplianceDocument",
+    "BacktestReport", "CourseAccess", "JournalEntry", "PriceAlert",
+    "SignalComment", "StrategyLike", "Feedback",
+]

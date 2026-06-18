@@ -318,20 +318,19 @@ class ApiClient {
     return this.request(`/providers/${providerId}/status`);
   }
 
-  // --- Payments ---
-  async createCheckout(plan: string): Promise<{ checkout_url: string; session_id: string; demo: boolean }> {
+  // --- Payments (YooKassa / CryptoCloud / Prodamus) ---
+  async createCheckout(plan: string): Promise<{ payment_url: string; payment_id: string; demo: boolean }> {
     return this.request("/payments/checkout", {
       method: "POST",
       body: JSON.stringify({
         plan,
-        success_url: `${window.location.origin}/dashboard/premium/success`,
-        cancel_url: `${window.location.origin}/dashboard/premium`,
+        return_url: `${window.location.origin}/dashboard/store`,
       }),
     });
   }
 
-  async completeDemoPayment(sessionId: string): Promise<{ status: string; plan: string; days: number }> {
-    return this.request(`/payments/complete-demo?session_id=${sessionId}`, { method: "POST" });
+  async completeDemoPayment(paymentId: string): Promise<{ status: string; plan: string; days: number }> {
+    return this.request(`/payments/complete-demo?payment_id=${paymentId}`, { method: "POST" });
   }
 
   async getPaymentHistory(): Promise<{ total: number; items: any[] }> {

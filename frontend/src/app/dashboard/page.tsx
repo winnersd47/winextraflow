@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useWebSocket } from "@/lib/ws";
+import { useWebSocket, requestNotificationPermission, resetBadge } from "@/lib/ws";
 import { useI18n } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { SignalCard } from "@/components/signal-card";
@@ -46,6 +46,12 @@ export default function DashboardPage() {
       setRefreshing(false);
     }
   }, [statusFilter, tickerFilter]);
+
+  // Request notification permission + reset badge on view
+  useEffect(() => {
+    requestNotificationPermission();
+    resetBadge();
+  }, []);
 
   // Fetch market regime (L1 — available to all)
   useEffect(() => {
@@ -98,7 +104,10 @@ export default function DashboardPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">{t("signals.title")}</h1>
+          <h1 className="text-2xl font-bold text-text-primary flex items-center gap-2">
+            {t("signals.title")}
+            {connected && <span className="pulse-dot" title="Live" />}
+          </h1>
           <p className="text-sm text-text-secondary">
             {total} {t("signals.total")}{" "}
             <span className={`ml-2 inline-block h-2 w-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />

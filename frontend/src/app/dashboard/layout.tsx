@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { CapacityWarning } from "@/components/capacity-warning";
 import { Disclaimer } from "@/components/disclaimer";
 import { ComplianceGate } from "@/components/compliance-gate";
+import { FeedbackButton } from "@/components/feedback-widget";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Disclaimer />
         </main>
       </div>
+      <FeedbackButton />
     </div>
   );
 }

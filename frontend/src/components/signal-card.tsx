@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Signal } from "@/types";
 import { RatingBadge } from "./rating-badge";
+import { Sparkline } from "./sparkline";
 import { useI18n } from "@/lib/i18n";
 import { actionColor, formatPrice, formatPercent, timeAgo } from "@/lib/utils";
 
@@ -42,7 +43,7 @@ export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Sig
   return (
     <Link
       href={`/dashboard/signals/${signal.id}`}
-      className="block rounded-xl border border-border bg-surface-card p-4 transition hover:border-brand-500/40 hover:bg-surface-hover"
+      className="block rounded-xl border border-border bg-surface-card p-4 transition hover:border-brand-500/40 hover:bg-surface-hover stat-glow"
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
@@ -80,12 +81,24 @@ export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Sig
             {isActive ? t(`status.${signal.status}`) : formatPercent(signal.profit_pct)}
           </p>
         </div>
-        {/* Estimated Profit — accent column */}
+        {/* Estimated Profit — accent column with sparkline */}
         <div className="rounded-lg bg-surface px-2 py-1 text-center">
           <span className="text-text-muted text-xs">{t("signals.estProfit")}</span>
           <p className={`text-base font-bold ${profit.color}`}>
             {profit.label}
           </p>
+          {signal.entry_price > 0 && (
+            <Sparkline
+              data={[
+                signal.stop_loss || signal.entry_price * 0.97,
+                signal.entry_price,
+                signal.take_profit || signal.entry_price * 1.03,
+              ]}
+              width={60}
+              height={16}
+              color={signal.action === "buy" ? "#10b981" : "#ef4444"}
+            />
+          )}
         </div>
       </div>
     </Link>

@@ -43,3 +43,32 @@ async def moex_candles(
 ):
     """Candle data for a MOEX security."""
     return {"ticker": ticker.upper(), "interval": interval, "candles": await moex_service.get_candles(ticker.upper(), interval, count)}
+
+
+# Sector mapping for heatmap
+MOEX_SECTORS = {
+    "SBER": "Finance", "VTBR": "Finance", "TCSG": "Finance", "MOEX": "Finance",
+    "GAZP": "Energy", "LKOH": "Energy", "ROSN": "Energy", "NVTK": "Energy", "SNGS": "Energy", "TATN": "Energy",
+    "GMKN": "Metals", "NLMK": "Metals", "CHMF": "Metals", "ALRS": "Metals", "PLZL": "Metals", "RUAL": "Metals", "POLY": "Metals",
+    "YNDX": "Tech", "OZON": "Tech", "FIVE": "Retail", "MGNT": "Retail",
+    "MTSS": "Telecom", "AFLT": "Transport", "PHOR": "Chemicals",
+}
+
+
+@router.get("/heatmap")
+async def moex_heatmap(user: User = Depends(get_current_user)):
+    """Heatmap data: all MOEX tickers with change%, grouped by sector."""
+    quotes = await moex_service.get_live_quotes()
+    result = []
+    for q in quotes:
+        ticker = q.get("ticker", "")
+        result.append({
+            "ticker": ticker,
+            "price": q.get("last_price", 0),
+            "change_pct": q.get("change_pct", 0) or 0,
+            "volume": q.get("volume", 0),
+            "sector": MOEX_SECTORS.get(ticker, "Other"),
+        })
+    # Sort by sector, then by volume desc
+    result.sort(key=lambda x: (x["sector"], -(x["volume"] or 0)))
+    return {"tickers": result, "total": len(result)}

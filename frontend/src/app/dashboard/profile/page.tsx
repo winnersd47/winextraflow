@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import type { ProfileResponse, AchievementResponse } from "@/types";
 
+const KYCPage = dynamic(() => import("@/app/dashboard/kyc/page"), { ssr: false });
+
+type ProfileTab = "settings" | "kyc";
+
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const [profileTab, setProfileTab] = useState<ProfileTab>("settings");
+  const isRu = locale === "ru";
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [tgLink, setTgLink] = useState<any>(null);
@@ -73,6 +80,20 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-3xl">
+      {/* Profile tabs */}
+      <div className="mb-4 flex gap-2">
+        <button onClick={() => setProfileTab("settings")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${profileTab === "settings" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Настройки" : "Settings"}
+        </button>
+        <button onClick={() => setProfileTab("kyc")}
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition ${profileTab === "kyc" ? "bg-brand-500 text-white" : "text-text-secondary hover:bg-surface-hover"}`}>
+          {isRu ? "Верификация KYC" : "KYC Verification"}
+        </button>
+      </div>
+
+      {profileTab === "kyc" ? <KYCPage /> : null}
+      {profileTab !== "settings" ? null : (<>
       {/* User Header */}
       <div className="mb-6 rounded-xl border border-border bg-surface-card p-6">
         <div className="flex items-center gap-4">
@@ -249,6 +270,7 @@ export default function ProfilePage() {
           {t("profile.deleteAccount")}
         </button>
       </div>
+      </>)}
     </div>
   );
 }

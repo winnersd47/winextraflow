@@ -14,6 +14,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 3000,
       "cwd": "frontend"
+    },
+    {
+      "name": "aios-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "-p", "3100"],
+      "port": 3100,
+      "cwd": "C:\\Users\\v.serdyuk\\Desktop\\AI-OS\\frontend"
     }
   ]
 }

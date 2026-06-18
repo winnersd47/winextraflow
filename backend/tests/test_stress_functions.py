@@ -293,19 +293,18 @@ async def test_payment_flow_demo(client: AsyncClient, seed_referrer: str):
     ps1 = await client.get("/api/v1/premium/status", headers=h)
     assert ps1.json()["is_premium"] is False
 
-    # Checkout (demo mode)
+    # Checkout (demo mode — YooKassa)
     checkout = await client.post("/api/v1/payments/checkout", headers=h, json={
         "plan": "monthly",
-        "success_url": "http://test/success",
-        "cancel_url": "http://test/cancel",
+        "return_url": "http://test/store",
     })
     assert checkout.status_code == 200
     data = checkout.json()
     assert data["demo"] is True
-    session_id = data["session_id"]
+    payment_id = data["payment_id"]
 
     # Complete demo payment
-    complete = await client.post(f"/api/v1/payments/complete-demo?session_id={session_id}", headers=h)
+    complete = await client.post(f"/api/v1/payments/complete-demo?payment_id={payment_id}", headers=h)
     assert complete.status_code == 200
 
     # Check: now premium

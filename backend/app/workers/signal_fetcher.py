@@ -33,13 +33,48 @@ class TelegramSignalWorker:
             logger.warning("Telegram credentials not configured. Worker disabled.")
             return
 
+        # Build connection kwargs: SOCKS5 → MTProxy → direct
+        connect_kwargs = {}
+        proxy_label = "direct"
+
+        # Priority 1: SOCKS5 proxy
+        if settings.socks5_host and settings.socks5_port:
+            import socks
+            proxy_tuple = (
+                socks.SOCKS5,
+                settings.socks5_host,
+                settings.socks5_port,
+                True,  # rdns
+                settings.socks5_user or None,
+                settings.socks5_pass or None,
+            )
+            connect_kwargs["proxy"] = proxy_tuple
+            proxy_label = f"SOCKS5 {settings.socks5_host}:{settings.socks5_port}"
+            logger.info(f"SOCKS5 proxy configured: {proxy_label}")
+
+        # Priority 2: MTProxy
+        elif settings.mtproxy_host and settings.mtproxy_port and settings.mtproxy_secret:
+            try:
+                from telethon.network import ConnectionTcpMTProxyRandomizedIntermediate
+                connect_kwargs["connection"] = ConnectionTcpMTProxyRandomizedIntermediate
+                connect_kwargs["proxy"] = (
+                    settings.mtproxy_host,
+                    settings.mtproxy_port,
+                    settings.mtproxy_secret,
+                )
+                proxy_label = f"MTProxy {settings.mtproxy_host}:{settings.mtproxy_port}"
+                logger.info(f"MTProxy configured: {proxy_label}")
+            except ImportError:
+                logger.warning("MTProxy connection class not available")
+
         self.client = TelegramClient(
             "winextraflow_bot",
             int(settings.telegram_api_id),
             settings.telegram_api_hash,
+            **connect_kwargs,
         )
         await self.client.start(phone=settings.telegram_phone)
-        logger.info("Telegram client connected")
+        logger.info(f"Telegram client connected via {proxy_label}")
 
         # Load active Telegram providers from DB
         await self._load_channels()
@@ -80,7 +115,7 @@ class TelegramSignalWorker:
             return None
 
     async def _load_channels(self):
-        """Load active Telegram channel providers from database."""
+        """Load active Telegram channel providers from database + .env channels."""
         async with async_session() as db:
             result = await db.execute(
                 select(Provider).where(
@@ -93,6 +128,41 @@ class TelegramSignalWorker:
             self._monitored_channels = {
                 p.telegram_channel_id: p for p in providers
             }
+
+            # Also register channels from TELEGRAM_PARSE_CHANNELS env var
+            env_channels = [c.strip() for c in settings.telegram_parse_channels.split(",") if c.strip()]
+            for username in env_channels:
+                # Check if already registered
+                existing = await db.execute(
+                    select(Provider).where(Provider.telegram_channel_id == username)
+                )
+                if existing.scalar_one_or_none():
+                    continue
+
+                # Resolve and register
+                if self.client:
+                    try:
+                        entity = await self.client.get_entity(username)
+                        title = getattr(entity, "title", username)
+                        channel_id = str(entity.id)
+
+                        # Create provider
+                        import secrets
+                        provider = Provider(
+                            name=title,
+                            source=ProviderSource.TELEGRAM,
+                            description=f"Auto-registered from Telegram @{username}",
+                            telegram_channel_id=channel_id,
+                            is_active=True,
+                        )
+                        db.add(provider)
+                        await db.commit()
+                        await db.refresh(provider)
+                        self._monitored_channels[channel_id] = provider
+                        logger.info(f"Auto-registered channel @{username} as provider '{title}' (id: {channel_id})")
+                    except Exception as e:
+                        logger.warning(f"Could not resolve channel @{username}: {e}")
+
             logger.info(
                 f"Loaded {len(self._monitored_channels)} channels: "
                 f"{list(self._monitored_channels.keys())}"

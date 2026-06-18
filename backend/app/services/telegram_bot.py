@@ -56,6 +56,15 @@ class TelegramBot:
         """Send a message to a Telegram chat."""
         return await self._call("sendMessage", chat_id=chat_id, text=text, parse_mode=parse_mode)
 
+    async def send_to_channel(self, channel_id: str, text: str, parse_mode: str = "HTML"):
+        """Send a message to a Telegram channel (for content publishing)."""
+        return await self._call("sendMessage", chat_id=channel_id, text=text, parse_mode=parse_mode, disable_web_page_preview=False)
+
+    async def send_raw_message(self, text: str):
+        """Send to the free channel (for digest/announcements)."""
+        if self.free_channel_id:
+            return await self.send_to_channel(self.free_channel_id, text)
+
     # ─── Notification Methods ─────────────────────────────────
 
     async def notify_signal(self, user: User, ticker: str, action: str, price: float, confidence: float | None):

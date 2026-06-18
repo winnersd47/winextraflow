@@ -69,7 +69,7 @@ export default function StorePage() {
       });
       const result = await resp.json();
       if (result.demo) {
-        await fetch(`/api/v1/payments/complete-demo?session_id=${result.session_id}`, { method: "POST", headers });
+        await fetch(`/api/v1/payments/complete-demo?payment_id=${result.payment_id}`, { method: "POST", headers });
         setPremiumSuccess(isRu ? "Premium активирован!" : "Premium activated!");
         const ps = await fetch("/api/v1/premium/status", { headers }).then(r => r.json());
         setPremiumStatus(ps);
@@ -177,31 +177,9 @@ export default function StorePage() {
           {premiumError && <div className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{premiumError}</div>}
           {premiumSuccess && <div className="rounded-lg bg-green-500/10 p-3 text-sm text-green-400">{premiumSuccess}</div>}
 
-          {/* Pricing cards */}
+          {/* Pricing cards with payment method selector */}
           {!premiumStatus?.is_premium && (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-xl border border-border bg-surface-card p-6">
-                <h3 className="text-lg font-bold text-text-primary">Monthly</h3>
-                <p className="mt-1 text-4xl font-extrabold text-text-primary">{isRu ? "2 600 ₽" : "$29"}<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span></p>
-                <p className="mt-1 text-xs text-text-muted">30 {isRu ? "дней" : "days"}{isRu ? " (~$29)" : ""}</p>
-                <button onClick={() => handleBuyPremium("monthly")} disabled={!!buying}
-                  className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                  {buying === "monthly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
-                </button>
-              </div>
-              <div className="rounded-xl border-2 border-brand-500 bg-surface-card p-6 shadow-lg shadow-brand-500/10">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg font-bold text-text-primary">Yearly</h3>
-                  <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">{isRu ? "Экономия 30%" : "Save 30%"}</span>
-                </div>
-                <p className="mt-1 text-4xl font-extrabold text-brand-500">{isRu ? "22 400 ₽" : "$249"}<span className="text-base font-normal text-text-muted">/{isRu ? "год" : "yr"}</span></p>
-                <p className="mt-1 text-xs text-text-muted">365 {isRu ? "дней" : "days"}{isRu ? " (~$249)" : ""}</p>
-                <button onClick={() => handleBuyPremium("yearly")} disabled={!!buying}
-                  className="mt-4 w-full rounded-lg bg-brand-600 py-3 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50">
-                  {buying === "yearly" ? "..." : (isRu ? "Подключить" : "Subscribe")}
-                </button>
-              </div>
-            </div>
+            <PaymentSection isRu={isRu} buying={buying} onBuy={handleBuyPremium} headers={headers} />
           )}
 
           {/* What's included */}
@@ -550,6 +528,154 @@ export default function StorePage() {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══ PAYMENT SECTION — auto-detect jurisdiction ═══ */
+
+type PayMethod = "yookassa" | "crypto" | "international";
+
+const METHODS: { key: PayMethod; ru: string; en: string; desc_ru: string; desc_en: string; icon: string }[] = [
+  { key: "yookassa", ru: "Карты РФ / СБП", en: "RU Cards / SBP", desc_ru: "ЮKassa: МИР, Visa, MC, СБП, SberPay, ЮMoney", desc_en: "YooKassa: MIR, Visa, MC, SBP, SberPay", icon: "🇷🇺" },
+  { key: "international", ru: "Карты USD/EUR", en: "Cards USD/EUR", desc_ru: "Prodamus: Visa, MasterCard в долларах и евро", desc_en: "Prodamus: Visa, MasterCard in USD/EUR", icon: "🌍" },
+  { key: "crypto", ru: "Криптовалюта", en: "Crypto (USDT/BTC)", desc_ru: "CryptoCloud: USDT, BTC, ETH, SOL — комиссия 0.4%", desc_en: "CryptoCloud: USDT, BTC, ETH, SOL — 0.4% fee", icon: "🪙" },
+];
+
+const PLANS: { key: string; tier: string; ru: string; en: string; rub: number; usd: number; eur: number; days: number; badge?: string; features_ru: string[]; features_en: string[] }[] = [
+  { key: "pro_monthly", tier: "pro", ru: "Pro / Месяц", en: "Pro / Monthly", rub: 1490, usd: 16, eur: 15, days: 30,
+    features_ru: ["Все сигналы без лимита", "Бэктест без ограничений", "AI чат + Скринер", "Торговый журнал", "Оповещения"],
+    features_en: ["Unlimited signals", "Unlimited backtesting", "AI Chat + Screener", "Trade Journal", "Price Alerts"] },
+  { key: "monthly", tier: "premium", ru: "Premium / Месяц", en: "Premium / Monthly", rub: 2990, usd: 33, eur: 30, days: 30, badge: "TOP",
+    features_ru: ["Всё из Pro +", "Копитрейдинг", "Исполнение на 9 биржах", "Маркетплейс стратегий", "VIP Telegram канал", "PDF отчёты"],
+    features_en: ["Everything in Pro +", "Copy Trading", "Execution on 9 exchanges", "Strategy Marketplace", "VIP Telegram channel", "PDF Reports"] },
+  { key: "yearly", tier: "premium", ru: "Premium / Год", en: "Premium / Year", rub: 23900, usd: 264, eur: 240, days: 365, badge: "-33%",
+    features_ru: ["Всё из Premium", "Экономия 33%", "12 месяцев по цене 8"],
+    features_en: ["Everything in Premium", "Save 33%", "12 months for the price of 8"] },
+];
+
+function PaymentSection({ isRu, buying, onBuy, headers }: {
+  isRu: boolean; buying: string;
+  onBuy: (plan: string) => void;
+  headers: Record<string, string>;
+}) {
+  const [method, setMethod] = useState<PayMethod>(isRu ? "yookassa" : "international");
+  const [processing, setProcessing] = useState("");
+
+  const handlePay = async (plan: string) => {
+    setProcessing(plan);
+    try {
+      let endpoint = "/api/v1/payments/checkout";
+      let body: any = { plan };
+
+      if (method === "crypto") {
+        endpoint = "/api/v1/payments/checkout/crypto";
+        body = { plan, return_url: window.location.href };
+      } else if (method === "international") {
+        endpoint = "/api/v1/payments/checkout/international";
+        body = { plan, currency: "usd", return_url: window.location.href };
+      } else {
+        body = { plan, return_url: window.location.href };
+      }
+
+      const resp = await fetch(endpoint, {
+        method: "POST", headers,
+        body: JSON.stringify(body),
+      });
+      const result = await resp.json();
+
+      if (result.demo) {
+        // Demo mode — auto-complete
+        const completeUrl = method === "yookassa"
+          ? `/api/v1/payments/complete-demo?payment_id=${result.payment_id}`
+          : `/api/v1/payments/complete-demo?payment_id=${result.payment_id}`;
+        await fetch(completeUrl, { method: "POST", headers });
+        window.location.reload();
+      } else if (result.payment_url) {
+        window.location.href = result.payment_url;
+      }
+    } catch (err) {
+      console.error("Payment error:", err);
+    } finally {
+      setProcessing("");
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Method selector */}
+      <div className="rounded-xl border border-border bg-surface-card p-4">
+        <h3 className="mb-3 text-sm font-bold text-text-muted">{isRu ? "Способ оплаты" : "Payment Method"}</h3>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {METHODS.map(m => (
+            <button key={m.key} onClick={() => setMethod(m.key)}
+              className={`rounded-xl border-2 p-3 text-left transition ${method === m.key ? "border-brand-500 bg-brand-500/5" : "border-border hover:border-brand-500/30"}`}>
+              <div className="flex items-center gap-2">
+                <span className="text-lg">{m.icon}</span>
+                <span className="text-sm font-bold text-text-primary">{isRu ? m.ru : m.en}</span>
+              </div>
+              <p className="mt-1 text-xs text-text-muted">{isRu ? m.desc_ru : m.desc_en}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Plans — 3 tier cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        {PLANS.map(plan => {
+          const price = method === "yookassa" ? plan.rub : plan.usd;
+          const currency = method === "yookassa" ? "₽" : "$";
+          const isPremium = plan.tier === "premium" && plan.key !== "yearly";
+          const isYearly = plan.key === "yearly";
+          const period = plan.days === 365 ? (isRu ? "год" : "yr") : (isRu ? "мес" : "mo");
+
+          return (
+            <div key={plan.key} className={`rounded-xl p-6 flex flex-col ${isPremium ? "border-2 border-brand-500 bg-surface-card shadow-lg shadow-brand-500/10" : "border border-border bg-surface-card"}`}>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold text-text-primary">{isRu ? plan.ru : plan.en}</h3>
+                {plan.badge && (
+                  <span className={`rounded px-2 py-0.5 text-xs font-bold ${plan.badge === "TOP" ? "bg-brand-500/20 text-brand-500" : "bg-yellow-500/20 text-yellow-400"}`}>
+                    {plan.badge}
+                  </span>
+                )}
+              </div>
+              <p className={`mt-1 text-3xl font-extrabold ${isPremium ? "text-brand-500" : "text-text-primary"}`}>
+                {method === "yookassa" ? price.toLocaleString("ru-RU") : price}
+                <span className="text-base font-normal text-text-muted"> {currency}/{period}</span>
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                {plan.days} {isRu ? "дней" : "days"}
+                {method === "yookassa" ? ` (~$${plan.usd})` : ""}
+              </p>
+
+              {/* Features list */}
+              <ul className="mt-3 flex-1 space-y-1.5">
+                {(isRu ? plan.features_ru : plan.features_en).map(f => (
+                  <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                    <span className="text-brand-500">~</span>{f}
+                  </li>
+                ))}
+              </ul>
+
+              <button onClick={() => handlePay(plan.key)} disabled={!!processing}
+                className={`mt-4 w-full rounded-lg py-3 text-sm font-medium transition disabled:opacity-50 ${
+                  isPremium
+                    ? "bg-brand-600 text-white hover:bg-brand-700"
+                    : "border border-brand-500 text-brand-500 hover:bg-brand-500/10"
+                }`}>
+                {processing === plan.key ? "..." : (isRu ? "Оплатить" : "Pay")}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Commission info */}
+      <p className="text-center text-xs text-text-muted">
+        {method === "yookassa" && (isRu ? "Обработка: ЮKassa. Комиссия: карты 2.8%, СБП 0.7%. Чек формируется автоматически." : "Processed by YooKassa. Fee: cards 2.8%, SBP 0.7%. Receipt generated automatically.")}
+        {method === "crypto" && (isRu ? "Обработка: CryptoCloud. Комиссия: 0.4-1%. Автоконверсия в рубли." : "Processed by CryptoCloud. Fee: 0.4-1%. Auto-conversion to RUB.")}
+        {method === "international" && (isRu ? "Обработка: Prodamus. Комиссия: 3.5-5%. Visa/MasterCard в USD и EUR." : "Processed by Prodamus. Fee: 3.5-5%. Visa/MasterCard in USD and EUR.")}
+      </p>
     </div>
   );
 }

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_vip_channel_id: str = ""       # VIP channel chat_id (instant signals)
     telegram_free_channel_id: str = ""      # Free channel chat_id (delayed signals)
+    telegram_growth_group_id: str = ""      # AI Growth Club group (marketing posts)
     telegram_free_delay_minutes: int = 120  # Delay for free channel (2 hours)
 
     # MAX Messenger Bot (Russian national messenger by VK)
@@ -49,18 +50,39 @@ class Settings(BaseSettings):
     # TradingView
     tradingview_webhook_secret: str = ""
 
-    # Telegram
+    # Telegram (Telethon for channel parsing)
     telegram_api_id: str = ""
     telegram_api_hash: str = ""
     telegram_phone: str = ""
+    telegram_parse_channels: str = ""  # comma-separated: beststocksru,channel2
+
+    # MTProxy for Telegram (bypass blocking without VPN)
+    # Get free servers from: https://t.me/ProxyMTProto or https://mtprotoproxy.app
+    mtproxy_host: str = ""       # IP or domain
+    mtproxy_port: int = 0        # port number
+    mtproxy_secret: str = ""     # hex secret string
+
+    # SOCKS5 Proxy for Telegram (alternative to MTProxy)
+    socks5_host: str = ""        # IP or domain
+    socks5_port: int = 0         # port number
+    socks5_user: str = ""        # login (optional)
+    socks5_pass: str = ""        # password (optional)
 
     # AI Rating
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
 
-    # Stripe
-    stripe_api_key: str = ""
-    stripe_webhook_secret: str = ""
+    # YooKassa (primary payment system for RU)
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+
+    # CryptoCloud (crypto payments — USDT/BTC/ETH for international)
+    cryptocloud_api_key: str = ""
+    cryptocloud_shop_id: str = ""
+
+    # Prodamus (USD/EUR card payments for international)
+    prodamus_secret_key: str = ""
+    prodamus_payform_url: str = ""  # e.g. https://winextraflow.payform.ru
 
     # Marketplace
     marketplace_enabled: bool = True
