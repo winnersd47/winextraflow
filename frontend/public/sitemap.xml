@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://winextraflow.com/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://winextraflow.com/login</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://winextraflow.com/register</loc><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://winextraflow.com/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://winextraflow.com/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://winextraflow.com/refund</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://winextraflow.com/cookies</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://winextraflow.com/api-docs</loc><changefreq>weekly</changefreq><priority>0.4</priority></url>
+</urlset>
