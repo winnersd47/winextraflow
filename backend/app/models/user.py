@@ -26,6 +26,10 @@ class User(Base):
         Enum(UserRole), default=UserRole.USER
     )
 
+    # Email verification
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verification_token: Mapped[str | None] = mapped_column(String(100), unique=True)
+
     # Premium
     premium_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     kyc_verified: Mapped[bool] = mapped_column(Boolean, default=False)

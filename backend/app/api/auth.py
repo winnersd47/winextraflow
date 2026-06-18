@@ -89,12 +89,17 @@ async def register(request: Request, data: UserRegister, db: AsyncSession = Depe
     await db.commit()
     await db.refresh(user)
 
-    # Send welcome email
+    # Send welcome email + verification
     try:
+        import secrets as _s
         from app.services.email_service import email_service
+        token = _s.token_urlsafe(32)
+        user.email_verification_token = token
+        await db.commit()
+        email_service.send_verification(user.email, user.username, token)
         email_service.send_welcome(user.email, user.username)
     except Exception as e:
-        logger.warning(f"Failed to send welcome email: {e}")
+        logger.warning(f"Failed to send welcome/verification email: {e}")
 
     # Achievement: referrer gets "first_referral" progress
     if referrer:
@@ -123,6 +128,36 @@ async def login(request: Request, data: UserLogin, db: AsyncSession = Depends(ge
 @router.get("/me", response_model=UserResponse)
 async def me(user: User = Depends(get_current_user)):
     return user
+
+
+@router.get("/verify-email")
+async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
+    """Verify email address via token from email link."""
+    if not token:
+        raise HTTPException(400, "Token required")
+    user = (await db.execute(
+        select(User).where(User.email_verification_token == token)
+    )).scalar_one_or_none()
+    if not user:
+        raise HTTPException(400, "Invalid or expired verification token")
+    user.email_verified = True
+    user.email_verification_token = None
+    await db.commit()
+    return {"status": "verified", "email": user.email}
+
+
+@router.post("/resend-verification")
+async def resend_verification(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Resend email verification link."""
+    if user.email_verified:
+        return {"status": "already_verified"}
+    import secrets as _s
+    from app.services.email_service import email_service
+    token = _s.token_urlsafe(32)
+    user.email_verification_token = token
+    await db.commit()
+    email_service.send_verification(user.email, user.username, token)
+    return {"status": "sent"}
 
 
 @router.patch("/profile")

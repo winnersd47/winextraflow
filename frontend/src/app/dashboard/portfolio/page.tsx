@@ -8,6 +8,8 @@ import { formatPrice, timeAgo } from "@/lib/utils";
 import type { ExchangeAccountResponse, OrderResponse } from "@/types";
 
 const JournalPage = dynamic(() => import("@/app/dashboard/journal/page"), { ssr: false });
+const PortfolioEquityChart = dynamic(() => import("@/components/portfolio-charts").then(m => ({ default: m.PortfolioEquityChart })), { ssr: false });
+const AllocationPieChart = dynamic(() => import("@/components/portfolio-charts").then(m => ({ default: m.AllocationPieChart })), { ssr: false });
 const CopyTradingPage = dynamic(() => import("@/app/dashboard/copy-trading/page"), { ssr: false });
 
 interface Position {
@@ -135,54 +137,23 @@ export default function PortfolioPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {/* Allocation */}
+            {/* Allocation — Pie Chart */}
             <div className="rounded-xl border border-border bg-surface-card p-4">
               <h3 className="mb-3 font-bold text-text-primary">{isRu ? "Распределение по активам" : "Asset Allocation"}</h3>
               {allocationEntries.length === 0 ? (
                 <p className="text-sm text-text-muted">{isRu ? "Нет открытых позиций" : "No open positions"}</p>
               ) : (
-                <div className="space-y-2">
-                  {allocationEntries.map(([ticker, pct], i) => (
-                    <div key={ticker}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="font-medium text-text-primary">{ticker}</span>
-                        <span className="text-text-muted">{pct}%</span>
-                      </div>
-                      <div className="h-3 rounded-full bg-surface overflow-hidden">
-                        <div className={`h-full rounded-full ${COLORS[i % COLORS.length]} transition-all`} style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <AllocationPieChart data={data.allocation} />
               )}
             </div>
 
-            {/* Equity curve */}
+            {/* Equity Curve — Recharts Area */}
             <div className="rounded-xl border border-border bg-surface-card p-4">
               <h3 className="mb-3 font-bold text-text-primary">{isRu ? "Кривая доходности" : "Equity Curve"}</h3>
               {data.equity_curve.length === 0 ? (
                 <p className="text-sm text-text-muted">{isRu ? "Закройте сделки для построения кривой" : "Close trades to build the curve"}</p>
               ) : (
-                <div className="space-y-1 max-h-64 overflow-y-auto">
-                  {data.equity_curve.map((p, i) => {
-                    const maxPnl = Math.max(...data.equity_curve.map(e => Math.abs(e.pnl)), 1);
-                    const width = Math.abs(p.pnl) / maxPnl * 100;
-                    return (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <span className="w-16 text-text-muted shrink-0">
-                          {p.date ? new Date(p.date).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit" }) : "—"}
-                        </span>
-                        <span className="w-12 text-text-muted shrink-0">{p.ticker}</span>
-                        <div className="flex-1 h-4 rounded bg-surface overflow-hidden">
-                          <div className={`h-full rounded ${p.pnl >= 0 ? "bg-green-500/40" : "bg-red-500/40"}`} style={{ width: `${Math.max(width, 2)}%` }} />
-                        </div>
-                        <span className={`w-16 text-right font-medium shrink-0 ${p.pnl >= 0 ? "text-green-400" : "text-red-400"}`}>
-                          {p.pnl >= 0 ? "+" : ""}{p.pnl.toFixed(0)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                <PortfolioEquityChart data={data.equity_curve} />
               )}
             </div>
           </div>
