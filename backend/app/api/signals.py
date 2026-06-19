@@ -41,6 +41,13 @@ async def list_signals(
     query = select(Signal).order_by(Signal.created_at.desc())
     count_query = select(func.count()).select_from(Signal)
 
+    # Quality gate: hide signals with WEF < 50% from non-admin users
+    from app.models.user import UserRole
+    if user.role != UserRole.ADMIN:
+        quality_filter = (Signal.ai_confidence >= 0.5) | (Signal.ai_confidence.is_(None))
+        query = query.where(quality_filter)
+        count_query = count_query.where(quality_filter)
+
     if ticker:
         query = query.where(Signal.ticker == ticker.upper())
         count_query = count_query.where(Signal.ticker == ticker.upper())
@@ -58,6 +65,25 @@ async def list_signals(
     total = (await db.execute(count_query)).scalar()
     result = await db.execute(query.offset(skip).limit(limit))
     return SignalList(items=result.scalars().all(), total=total)
+
+
+@router.get("/{signal_id}/quality")
+async def signal_quality(
+    signal_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Check quality of a specific signal — TP/SL, R:R, WEF, provider WR."""
+    from app.services.signal_quality import check_signal_quality, format_quality_report
+    signal = (await db.execute(select(Signal).where(Signal.id == signal_id))).scalar_one_or_none()
+    if not signal:
+        raise HTTPException(404, "Signal not found")
+    provider = None
+    if signal.provider_id:
+        from app.models.provider import Provider
+        provider = await db.get(Provider, signal.provider_id)
+    quality = await check_signal_quality(db, signal, provider)
+    return format_quality_report(quality)
 
 
 @router.get("/{signal_id}", response_model=SignalResponse)
@@ -108,13 +134,31 @@ async def tradingview_webhook(
     if settings.ai_rating_enabled:
         await ai_rating_service.rate_and_update_signal(db, signal)
 
-    # Notify WebSocket listeners (real-time broadcast)
-    try:
-        await signal_aggregator._notify_listeners(signal)
-    except Exception as e:
-        logger.warning(f"WS broadcast failed: {e}")
+    # Quality gate — check before broadcasting
+    from app.services.signal_quality import check_signal_quality, format_quality_report
+    provider = None
+    if signal.provider_id:
+        from app.models.provider import Provider
+        provider = await db.get(Provider, signal.provider_id)
+    quality = await check_signal_quality(db, signal, provider)
 
-    return signal
+    # Store quality result in ai_reasoning
+    if quality.issues:
+        signal.ai_reasoning = (signal.ai_reasoning or "") + f" | Quality: {quality.tier} ({', '.join(quality.issues)})"
+        await db.commit()
+
+    # Only broadcast high-quality signals
+    if quality.passed:
+        try:
+            await signal_aggregator._notify_listeners(signal)
+        except Exception as e:
+            logger.warning(f"WS broadcast failed: {e}")
+    else:
+        logger.info(f"Signal {signal.ticker} blocked by quality gate: {quality.issues}")
+
+    # Return signal with quality info
+    resp = signal
+    return resp
 
 
 @router.post("", response_model=SignalResponse, status_code=201)
