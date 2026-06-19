@@ -1094,6 +1094,98 @@ class ArticleEvolutionLog:
                 evolution_summary="Walk-forward parameter optimization combined with regime-aware sizing.",
                 processed_at="2026-06-01T10:39:00Z",
             ),
+
+            # ─── Batch 5: MQL5 June 2026 + signal quality + portfolio theory ───
+
+            ProcessedArticle(
+                article_id=22933, url="https://www.mql5.com/ru/articles/22933",
+                title="Принятие торговых решений с учётом неопределённости (UncAD, Окончание)",
+                main_strategy_id=7, secondary_ids=[6],
+                components_extracted=["uncad_adaptive_threshold"],
+                branch_impact="ML(7)+Risk(6): adaptive confidence threshold — model decides when NOT to trade",
+                evolution_summary="UncAD conclusion: adaptive threshold for uncertainty-aware trade decisions.",
+                processed_at="2026-06-18T12:00:00Z",
+            ),
+            ProcessedArticle(
+                article_id=21527, url="https://www.mql5.com/ru/articles/21527",
+                title="Адаптивная факторная токенизация (MTmixAtt)",
+                main_strategy_id=7, secondary_ids=[1],
+                components_extracted=["mtmixatt_tokenizer"],
+                branch_impact="ML(7): multi-scale attention mixing for market factor tokenization",
+                evolution_summary="MTmixAtt: adaptive factor tokenization with multi-scale attention mixing.",
+                processed_at="2026-06-18T12:01:00Z",
+            ),
+            ProcessedArticle(
+                article_id=22816, url="https://www.mql5.com/ru/articles/22816",
+                title="TradeMux: институциональные Python-пайплайны к терминалам и брокерам",
+                main_strategy_id=7, secondary_ids=[5],
+                components_extracted=["trademux_backbone"],
+                branch_impact="ML(7)+Sentiment(5): unified API backbone connecting Python quant pipelines to MT5/IBKR/Binance",
+                evolution_summary="TradeMux: institutional-grade Python pipeline connecting to multiple brokers.",
+                processed_at="2026-06-18T12:02:00Z",
+            ),
+            ProcessedArticle(
+                article_id=21690, url="https://www.mql5.com/ru/articles/21690",
+                title="Архитектура коллективных торговых решений ИИ-агентов",
+                main_strategy_id=7, secondary_ids=[5, 6],
+                components_extracted=["collective_ai_agents"],
+                branch_impact="ML(7)+Risk(6): N independent AI agents vote → consensus → trade. Reduces single-model risk.",
+                evolution_summary="Collective AI agent architecture: voting-based consensus for trade decisions.",
+                processed_at="2026-06-18T12:03:00Z",
+            ),
+            ProcessedArticle(
+                article_id=17531, url="https://www.mql5.com/ru/articles/17531",
+                title="Прогнозируем Ренко-бары при помощи ИИ CatBoost",
+                main_strategy_id=7, secondary_ids=[3],
+                components_extracted=["catboost_renko"],
+                branch_impact="ML(7)+Breakout(3): gradient boosting (CatBoost) for Renko bar prediction with feature importance",
+                evolution_summary="CatBoost model predicting Renko bars with feature importance analysis.",
+                processed_at="2026-06-18T12:04:00Z",
+            ),
+
+            # Signal quality system (internal development)
+            ProcessedArticle(
+                article_id=900040, url="internal://signal-quality-gate",
+                title="Signal Quality Gate — 7-check auto-filter system",
+                main_strategy_id=6, secondary_ids=[7],
+                components_extracted=["signal_quality_gate", "expected_value_calc", "signal_tier_system"],
+                branch_impact="Risk(6): 7-check quality gate (TP/SL, R:R, WEF, provider WR, duplicates, direction). Tiers: excellent/good/average/weak/rejected.",
+                evolution_summary="Internal development: signal quality gate with 7 automated checks and tier classification.",
+                processed_at="2026-06-18T12:05:00Z",
+            ),
+
+            # Portfolio theory (research papers)
+            ProcessedArticle(
+                article_id=900041, url="https://arxiv.org/abs/0904.2592",
+                title="Black-Litterman + Risk Parity + HRP portfolio models",
+                main_strategy_id=6, secondary_ids=[7],
+                components_extracted=["black_litterman", "risk_parity_portfolio", "hierarchical_risk_parity"],
+                branch_impact="Risk(6): 3 advanced portfolio models — Bayesian (BL), equal risk contribution, hierarchical clustering",
+                evolution_summary="Three portfolio optimization models: Black-Litterman, Risk Parity, and HRP.",
+                processed_at="2026-06-18T12:06:00Z",
+            ),
+
+            # Market microstructure (research)
+            ProcessedArticle(
+                article_id=900042, url="https://arxiv.org/abs/market-microstructure",
+                title="Order Flow Imbalance + Trade Intensity + Price Impact models",
+                main_strategy_id=5, secondary_ids=[4, 6],
+                components_extracted=["order_flow_imbalance", "trade_intensity_model", "price_impact_model"],
+                branch_impact="Sentiment(5): 3 microstructure models — order flow, trade clustering, volume-price impact",
+                evolution_summary="Market microstructure: order flow imbalance, trade intensity, and price impact models.",
+                processed_at="2026-06-18T12:07:00Z",
+            ),
+
+            # Advanced regime detection (composite)
+            ProcessedArticle(
+                article_id=900043, url="internal://regime-detection-v2",
+                title="Advanced Regime Detection: HMM + TSI + Multi-Asset",
+                main_strategy_id=1, secondary_ids=[2, 6, 7],
+                components_extracted=["volatility_regime_hmm", "trend_strength_index", "multi_asset_regime"],
+                branch_impact="Trend(1)+Risk(6): 3-state volatility HMM, composite TSI (ADX+ATR+MA+volume), multi-asset regime consensus",
+                evolution_summary="Advanced regime detection: 3 complementary approaches for robust market state classification.",
+                processed_at="2026-06-18T12:08:00Z",
+            ),
         ]
 
     def record(

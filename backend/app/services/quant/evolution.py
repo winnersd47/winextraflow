@@ -355,9 +355,47 @@ class EvolutionaryRegistry:
             ("walk_forward_optimizer", "Walk-Forward Optimizer", "Walk-Forward оптимизация: train/test окна → параметры обновляются периодически", [7], 0.5, "emerging"),
             ("regime_aware_sizing", "Regime-Aware Position Sizing", "Размер позиции зависит от текущего режима рынка: тренд=больше, боковик=меньше", [6, 1, 2], 0.55, "emerging"),
 
+            # ═══ Batch 5: MQL5 June 2026 + research (20 new components) ═══
+
+            # From #22933: UncAD Trading Decisions (Conclusion)
+            ("uncad_adaptive_threshold", "UncAD Adaptive Confidence Threshold", "Адаптивный порог уверенности: модель сама решает когда не торговать", [7, 6], 0.55, "emerging"),
+            # From #21527: MTmixAtt — Adaptive Factor Tokenization
+            ("mtmixatt_tokenizer", "MTmixAtt Factor Tokenizer", "Адаптивная факторная токенизация: мульти-масштабное смешивание attention для рыночных факторов", [7, 1], 0.5, "emerging"),
+            # From #21740: STCA Cross-Attention (extended)
+            ("stca_sparse_attention", "STCA Sparse Cross-Attention", "Разреженное кросс-внимание: target-to-history для сжатия длинных последовательностей без потерь", [7, 1], 0.5, "emerging"),
+            # From #22816: TradeMux Quant Backbone
+            ("trademux_backbone", "TradeMux Quant Backbone", "Институциональный Python-пайплайн → подключение к MT5/IBKR/Binance через единый API", [7, 5], 0.55, "emerging"),
+            # From #21690: Collective AI Agent Architecture
+            ("collective_ai_agents", "Collective AI Trading Agents", "Архитектура коллективных торговых решений: N агентов голосуют → консенсус → сделка", [7, 5, 6], 0.6, "emerging"),
+            # From #17531: CatBoost Renko Prediction
+            ("catboost_renko", "CatBoost Renko Predictor", "Gradient boosting (CatBoost) для прогноза Renko-баров с feature importance", [7, 3], 0.5, "emerging"),
+            # From #22230: Meta-Prompting (extended with P&L feedback)
+            ("meta_prompt_pnl", "Meta-Prompt with P&L Feedback", "LLM оптимизирует промпт по реальному PnL: gradient descent в языковом пространстве", [7], 0.55, "emerging"),
+
+            # Signal quality patterns
+            ("signal_quality_gate", "Signal Quality Gate", "7-проверочный фильтр: TP/SL, R:R>=1.5, WEF>=50%, provider WR, дубликаты, направление", [6, 7], 0.7, "active"),
+            ("expected_value_calc", "Expected Value Calculator", "EV = (WR × avg_win) - (LR × avg_loss) для оценки прибыльности стратегии", [6], 0.6, "emerging"),
+            ("signal_tier_system", "Signal Tier Classification", "Классификация: excellent/good/average/weak/rejected по 7 критериям", [6, 7], 0.65, "emerging"),
+
+            # Advanced portfolio theory
+            ("black_litterman", "Black-Litterman Portfolio Model", "Байесовская модель портфеля: рыночное равновесие + субъективные прогнозы трейдера", [6], 0.4, "emerging"),
+            ("risk_parity_portfolio", "Risk Parity Portfolio", "Распределение капитала по равному вкладу в риск (а не по весам)", [6], 0.45, "emerging"),
+            ("hierarchical_risk_parity", "Hierarchical Risk Parity (HRP)", "Иерархическая кластеризация активов → оптимальное распределение без инверсии ковариационной матрицы", [6, 7], 0.5, "emerging"),
+
+            # Market microstructure advanced
+            ("order_flow_imbalance", "Order Flow Imbalance", "Дисбаланс потока ордеров: агрессивные покупки vs продажи как предиктор", [5, 4], 0.5, "emerging"),
+            ("trade_intensity_model", "Trade Intensity Model", "Модель интенсивности сделок: кластеризация активности по времени суток", [5, 7], 0.45, "emerging"),
+            ("price_impact_model", "Price Impact Model", "Модель влияния объёма на цену: sqrt(volume) × volatility", [5, 6], 0.45, "emerging"),
+
+            # Regime detection advanced
+            ("volatility_regime_hmm", "Volatility Regime HMM", "3-state HMM для волатильности: low/medium/high с transition probabilities", [1, 2, 7], 0.55, "emerging"),
+            ("trend_strength_index", "Trend Strength Index (TSI)", "Композитный индекс силы тренда: ADX + ATR + MA slope + volume confirmation", [1, 5], 0.55, "emerging"),
+            ("multi_asset_regime", "Multi-Asset Regime Detector", "Детекция режима по корзине активов: если >60% в тренде → глобальный тренд", [1, 6, 7], 0.5, "emerging"),
+
             # Foundation layers (future → closer)
-            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.25, "planned"),
-            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.15, "planned"),
+            ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.3, "planned"),
+            ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.2, "planned"),
+            ("quantum_optimization", "Quantum Portfolio Optimization", "Квантовая оптимизация портфеля через QAOA/VQE", [7, 6], 0.1, "planned"),
         ]
         for name, desc_en, desc_ru, sids, strength, status in components:
             self.components[name] = ArchitecturalComponent(
