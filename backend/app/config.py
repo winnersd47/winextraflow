@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     socks5_user: str = ""        # login (optional)
     socks5_pass: str = ""        # password (optional)
 
+    # AI Providers (for deep analysis — SWOT, BCG, period review)
+    openai_api_key: str = ""
+    deepseek_api_key: str = ""
+
     # AI Rating
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days

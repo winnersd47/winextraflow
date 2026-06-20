@@ -40,6 +40,8 @@ from app.api.social import router as social_router
 from app.api.digest import router as digest_router
 from app.api.feedback import router as feedback_router
 from app.api.content import router as content_router
+from app.api.calculator import router as calculator_router
+from app.api.deep_analysis import router as deep_analysis_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
 from app.models import *  # noqa: F401,F403 — ensure all models registered for create_tables
@@ -231,6 +233,8 @@ app.include_router(social_router, prefix="/api/v1/social", tags=["social"])
 app.include_router(digest_router, prefix="/api/v1/digest", tags=["digest"])
 app.include_router(feedback_router, prefix="/api/v1/feedback", tags=["feedback"])
 app.include_router(content_router, prefix="/api/v1/content", tags=["content"])
+app.include_router(calculator_router, prefix="/api/v1/calculator", tags=["calculator"])
+app.include_router(deep_analysis_router, prefix="/api/v1/deep-analysis", tags=["deep-analysis"])
 
 
 @app.get("/health")
