@@ -392,6 +392,26 @@ class EvolutionaryRegistry:
             ("trend_strength_index", "Trend Strength Index (TSI)", "Композитный индекс силы тренда: ADX + ATR + MA slope + volume confirmation", [1, 5], 0.55, "emerging"),
             ("multi_asset_regime", "Multi-Asset Regime Detector", "Детекция режима по корзине активов: если >60% в тренде → глобальный тренд", [1, 6, 7], 0.5, "emerging"),
 
+            # ═══ Top 1% Strategies (Renaissance/Medallion level) ═══
+            ("pairs_trading_zscore", "Pairs Trading Z-Score", "Стат. арбитраж: OLS regression → spread → Z-score → entry/exit at ±2σ, stop ±3σ", [4, 2], 0.7, "active"),
+            ("mean_reversion_zscore", "Mean Reversion Z-Score", "Возврат к среднему: цена vs SMA → Z-score → покупка при -2σ, продажа +2σ", [2], 0.7, "active"),
+            ("dual_momentum_filter", "Dual Momentum Filter", "Относительный + абсолютный моментум: только long если оба положительные", [1, 6], 0.65, "active"),
+            ("multi_factor_composite", "Multi-Factor Composite Score", "6-факторная модель: momentum(1m+3m) + vol + volume + RSI + SMA200 → weighted 0-100", [7, 1, 2], 0.7, "active"),
+            ("regime_strategy_selector", "Regime Strategy Selector", "Матрица 12 режимов: trend×vol → оптимальная стратегия + size + SL mult", [7, 1, 2, 6], 0.65, "active"),
+            ("ols_spread_regression", "OLS Spread Regression", "Линейная регрессия для расчёта beta/alpha спреда между парами", [4, 7], 0.6, "emerging"),
+            ("zscore_dynamic_threshold", "Dynamic Z-Score Threshold", "Адаптивные пороги Z-score: расширяются при высокой vol, сужаются при низкой", [2, 4, 7], 0.55, "emerging"),
+            ("medallion_edge_model", "Medallion Edge Model", "0.01-0.05% на сделку × миллионы сделок = экстраординарная доходность", [7, 4], 0.5, "emerging"),
+
+            # ═══ Top 1% Strategies (Renaissance/Medallion level) ═══
+            ("pairs_trading_zscore", "Pairs Trading Z-Score", "Стат. арбитраж: OLS regression -> spread -> Z-score -> entry/exit at 2s, stop 3s", [4, 2], 0.7, "active"),
+            ("mean_reversion_zscore", "Mean Reversion Z-Score", "Возврат к среднему: цена vs SMA -> Z-score -> покупка при -2s, продажа +2s", [2], 0.7, "active"),
+            ("dual_momentum_filter", "Dual Momentum Filter", "Относительный + абсолютный моментум: только long если оба положительные", [1, 6], 0.65, "active"),
+            ("multi_factor_composite", "Multi-Factor Composite Score", "6-факторная модель: momentum + vol + volume + RSI + SMA200 -> weighted 0-100", [7, 1, 2], 0.7, "active"),
+            ("regime_strategy_selector", "Regime Strategy Selector", "Матрица 12 режимов: trend x vol -> оптимальная стратегия + size + SL mult", [7, 1, 2, 6], 0.65, "active"),
+            ("ols_spread_regression", "OLS Spread Regression", "Линейная регрессия для расчёта beta/alpha спреда между парами", [4, 7], 0.6, "emerging"),
+            ("zscore_dynamic_threshold", "Dynamic Z-Score Threshold", "Адаптивные пороги Z-score: расширяются при высокой vol, сужаются при низкой", [2, 4, 7], 0.55, "emerging"),
+            ("medallion_edge_model", "Medallion Edge Model", "0.01-0.05% на сделку x миллионы сделок = экстраординарная доходность", [7, 4], 0.5, "emerging"),
+
             # Foundation layers (future → closer)
             ("reinforcement_layer", "Reinforcement Learning Layer", "Слой обучения с подкреплением", [7], 0.3, "planned"),
             ("digital_twin", "Digital Twin Simulation", "Цифровой двойник рынка", [7], 0.2, "planned"),
