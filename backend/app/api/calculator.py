@@ -1,4 +1,4 @@
-"""Investment Calculator API — compound interest, trading projections, 3-level strategy.
+"""Investment Calculator API — compound interest, trading projections, 3-level strategy, expert trade plan.
 
 Based on Investology methodology:
 - Level 1: Savings (6-8% annual)
@@ -196,3 +196,55 @@ async def three_level_strategy(
         "roi_pct": round((total / total_contributed - 1) * 100, 1) if total_contributed > 0 else 0,
         "timeline": timeline,
     }
+
+
+# ═══ EXPERT TRADE PLAN ═══
+
+class ExpertTradeRequest(BaseModel):
+    ticker: str
+    action: str = "buy"
+    entry_price: float
+    take_profit: float
+    stop_loss: float
+    capital: float = 100000
+    win_rate: float = 0.60
+    avg_win_pct: float = 3.0
+    avg_loss_pct: float = 2.0
+    regime: str = "trending_up"
+    atr_current: float = 1.0
+    atr_avg: float = 1.0
+    tf_1h: str = "bullish"
+    tf_4h: str = "bullish"
+    tf_1d: str = "neutral"
+
+
+@router.post("/expert-plan")
+async def expert_trade_plan(
+    data: ExpertTradeRequest,
+    user: User = Depends(get_current_user),
+):
+    """Generate expert-level trade plan.
+
+    Combines: Kelly Criterion + Regime Adjustment + Anti-Martingale Pyramiding
+    + Expected Value + Multi-Timeframe Confirmation.
+
+    Returns: should_trade, confidence, position size, pyramid levels, risk adjustments.
+    """
+    from app.services.expert_trading import generate_expert_trade_plan
+    return generate_expert_trade_plan(
+        ticker=data.ticker.upper(),
+        action=data.action.lower(),
+        entry_price=data.entry_price,
+        take_profit=data.take_profit,
+        stop_loss=data.stop_loss,
+        capital=data.capital,
+        win_rate=data.win_rate,
+        avg_win_pct=data.avg_win_pct,
+        avg_loss_pct=data.avg_loss_pct,
+        regime=data.regime,
+        atr_current=data.atr_current,
+        atr_avg=data.atr_avg,
+        tf_1h=data.tf_1h,
+        tf_4h=data.tf_4h,
+        tf_1d=data.tf_1d,
+    )
