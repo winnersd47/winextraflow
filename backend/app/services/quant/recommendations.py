@@ -251,6 +251,56 @@ class RecommendationEngine:
             reasoning_ru.append("R:R < 1.0 — рекомендуется пропустить сделку или сузить SL")
             reasoning_en.append("R:R < 1.0 — consider skipping or tightening SL")
 
+        # ═══ EXPERT STRATEGIES INTEGRATION ═══
+        from app.services.expert_trading import (
+            kelly_position_size, expected_value, regime_risk_adjustment, pyramid_plan,
+        )
+        from app.services.quant.top_strategies import (
+            mean_reversion_signal, multi_factor_score, select_strategy,
+        )
+
+        # Kelly sizing
+        win_rate = provider.win_rate if provider and provider.win_rate else 0.55
+        avg_win = tp2_pct
+        avg_loss = sl_total_pct
+        kelly = kelly_position_size(win_rate, avg_win, avg_loss, account_balance, entry, sl_price)
+
+        # Expected Value
+        ev = expected_value(win_rate, avg_win, avg_loss)
+
+        # Regime strategy recommendation
+        vol_level = "high" if base_vol > 3 else "low" if base_vol < 1.5 else "medium"
+        strategy_rec = select_strategy(regime.value, vol_level, ai_conf)
+
+        # Pyramid plan
+        pyramids = pyramid_plan(entry, signal.action.value, tp2_price, sl_price, base_risk_pct * 3)
+
+        # Multi-factor (simplified — use available data)
+        mf_score = 50 + (ai_conf - 0.5) * 60 + (rr - 1.5) * 10  # approximate
+        mf_score = max(0, min(100, mf_score))
+
+        # Expert verdict
+        should_trade = ev["tradeable"] and rr >= 1.5 and ai_conf >= 0.5
+        trade_strength = (
+            "STRONG" if ev["expected_value_pct"] > 0.5 and rr >= 2 and ai_conf >= 0.7
+            else "GOOD" if ev["tradeable"] and rr >= 1.5
+            else "MARGINAL" if ev["tradeable"]
+            else "SKIP"
+        )
+
+        # Expert reasoning
+        reasoning_ru.append(f"Kelly (half): {kelly.half_kelly_pct}% от депозита")
+        reasoning_ru.append(f"EV: {ev['expected_value_pct']:.2f}% на сделку ({ev['verdict']})")
+        reasoning_ru.append(f"Стратегия для режима: {strategy_rec['recommended_strategy']}")
+        if len(pyramids) > 0:
+            reasoning_ru.append(f"Пирамидинг: {len(pyramids)} уровня (50%/30%/20%)")
+
+        reasoning_en.append(f"Kelly (half): {kelly.half_kelly_pct}% of account")
+        reasoning_en.append(f"EV: {ev['expected_value_pct']:.2f}% per trade ({ev['verdict']})")
+        reasoning_en.append(f"Regime strategy: {strategy_rec['recommended_strategy']}")
+        if len(pyramids) > 0:
+            reasoning_en.append(f"Pyramiding: {len(pyramids)} levels (50%/30%/20%)")
+
         return {
             "signal_id": str(signal.id),
             "ticker": ticker,
@@ -273,6 +323,22 @@ class RecommendationEngine:
             "regime_impact_en": regime_impacts_en.get(regime, ""),
             "reasoning_ru": reasoning_ru,
             "reasoning_en": reasoning_en,
+            # Expert analysis
+            "expert": {
+                "verdict": trade_strength,
+                "should_trade": should_trade,
+                "score": round(mf_score, 1),
+                "kelly_half_pct": kelly.half_kelly_pct,
+                "kelly_lots": kelly.position_size_lots,
+                "ev_per_trade_pct": round(ev["expected_value_pct"], 3),
+                "ev_verdict": ev["verdict"],
+                "profit_factor": ev["profit_factor"],
+                "edge_pct": ev["edge_pct"],
+                "regime_strategy": strategy_rec["recommended_strategy"],
+                "regime_size_mult": strategy_rec["position_size_multiplier"],
+                "pyramid_levels": len(pyramids),
+                "pyramid_plan": pyramids,
+            },
         }
 
 
