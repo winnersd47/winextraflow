@@ -117,15 +117,52 @@ async def lifespan(app: FastAPI):
         signal_aggregator.on_new_signal(copy_trading_service.on_new_signal)
         logger.info("Copy trading listener registered")
 
-    # Startup: register bot signal broadcaster
+    # Startup: register bot signal broadcaster with expert analysis
     if telegram_bot.enabled:
         async def _bot_signal_hook(signal):
+            # Generate expert data for VIP message
+            expert = None
+            try:
+                from app.services.expert_trading import expected_value, kelly_position_size
+                from app.services.quant.top_strategies import select_strategy
+                from app.services.quant.regime import regime_detector
+
+                win_rate = 0.60
+                avg_win = 3.0
+                avg_loss = 2.0
+                if signal.take_profit and signal.stop_loss and signal.entry_price:
+                    avg_win = abs(signal.take_profit - signal.entry_price) / signal.entry_price * 100
+                    avg_loss = abs(signal.entry_price - signal.stop_loss) / signal.entry_price * 100
+
+                ev = expected_value(win_rate, avg_win, avg_loss)
+                kelly = kelly_position_size(win_rate, avg_win, avg_loss, 100000, signal.entry_price, signal.stop_loss or signal.entry_price * 0.97)
+                regime = regime_detector.detect_regime()
+                regime_name = regime.get("regime", "unknown")
+                vol = "medium"
+                strat = select_strategy(regime_name, vol, signal.ai_confidence or 0.5)
+
+                # Determine verdict
+                rr = avg_win / avg_loss if avg_loss > 0 else 0
+                verdict = "STRONG" if ev["tradeable"] and rr >= 2 and (signal.ai_confidence or 0) >= 0.7 else "GOOD" if ev["tradeable"] and rr >= 1.5 else "MARGINAL" if ev["tradeable"] else "SKIP"
+
+                expert = {
+                    "verdict": verdict,
+                    "ev_per_trade_pct": ev["expected_value_pct"],
+                    "profit_factor": ev["profit_factor"],
+                    "kelly_half_pct": kelly.half_kelly_pct,
+                    "regime_strategy": strat["recommended_strategy"],
+                    "pyramid_levels": 3 if verdict in ("STRONG", "GOOD") else 0,
+                    "edge_pct": ev["edge_pct"],
+                }
+            except Exception as e:
+                logger.warning(f"Expert analysis for broadcast failed: {e}")
+
             await telegram_bot.broadcast_signal(
                 signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence,
-                tp=signal.take_profit, sl=signal.stop_loss,
+                tp=signal.take_profit, sl=signal.stop_loss, expert=expert,
             )
         signal_aggregator.on_new_signal(_bot_signal_hook)
-        logger.info("Telegram bot signal broadcaster registered")
+        logger.info("Telegram bot signal broadcaster registered (with expert analysis)")
 
     # Startup: register MAX bot signal broadcaster
     if max_bot.enabled:

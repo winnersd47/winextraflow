@@ -106,17 +106,72 @@ class TelegramBot:
     # ─── Channel Broadcast (VIP + Free) ─────────────────────
 
     def _format_vip_signal(self, ticker: str, action: str, price: float, confidence: float | None,
-                           tp: float | None = None, sl: float | None = None) -> str:
-        """Full signal message for VIP channel."""
+                           tp: float | None = None, sl: float | None = None,
+                           expert: dict | None = None) -> str:
+        """Full VIP signal with expert analysis."""
         arrow = "🟢" if action == "buy" else "🔴"
-        conf_str = f"\nАI качество: {confidence:.0%}" if confidence else ""
-        tp_str = f"\nTP: {tp:,.2f}" if tp else ""
-        sl_str = f"\nSL: {sl:,.2f}" if sl else ""
-        return (
-            f"{arrow} <b>{action.upper()} {ticker}</b>\n"
-            f"Вход: {price:,.2f}{tp_str}{sl_str}{conf_str}\n"
-            f"\n<a href='{settings.frontend_url}/dashboard'>Открыть платформу</a>"
-        )
+        wef = f"{confidence:.0%}" if confidence else "N/A"
+
+        # WEF tier
+        if confidence and confidence >= 0.8:
+            tier = "STRONG"
+        elif confidence and confidence >= 0.6:
+            tier = "GOOD"
+        elif confidence and confidence >= 0.5:
+            tier = "AVERAGE"
+        else:
+            tier = "WEAK"
+
+        # R:R ratio
+        rr = ""
+        if tp and sl and price > 0:
+            reward = abs(tp - price)
+            risk = abs(price - sl)
+            if risk > 0:
+                rr = f"\nR:R = 1:{reward/risk:.1f}"
+
+        lines = [
+            f"{arrow} <b>{action.upper()} {ticker}</b>  |  WEF {wef} ({tier})",
+            f"",
+            f"Вход: <b>{price:,.2f}</b>",
+        ]
+        if tp:
+            lines.append(f"TP: <b>{tp:,.2f}</b>")
+        if sl:
+            lines.append(f"SL: <b>{sl:,.2f}</b>")
+        if rr:
+            lines.append(rr)
+
+        # Expert analysis (if available)
+        if expert:
+            lines.append("")
+            lines.append("--- Expert Analysis ---")
+            verdict = expert.get("verdict", "")
+            if verdict:
+                lines.append(f"Вердикт: <b>{verdict}</b>")
+            ev = expert.get("ev_per_trade_pct")
+            if ev is not None:
+                lines.append(f"EV: {ev:.2f}% на сделку")
+            pf = expert.get("profit_factor")
+            if pf:
+                lines.append(f"Profit Factor: {pf}")
+            kelly = expert.get("kelly_half_pct")
+            if kelly:
+                lines.append(f"Kelly (half): {kelly}%")
+            strategy = expert.get("regime_strategy")
+            if strategy:
+                lines.append(f"Стратегия: {strategy}")
+            pyramid = expert.get("pyramid_levels", 0)
+            if pyramid:
+                lines.append(f"Пирамидинг: {pyramid} уровня")
+            edge = expert.get("edge_pct")
+            if edge:
+                lines.append(f"Edge: {edge}%")
+
+        lines.append("")
+        lines.append(f"<a href='{settings.frontend_url}/dashboard'>Открыть платформу</a>")
+
+        return "\n".join(lines)
 
     def _format_free_signal(self, ticker: str, action: str, confidence: float | None) -> str:
         """Shortened signal for free channel (no price, no TP/SL)."""
@@ -133,14 +188,32 @@ class TelegramBot:
         )
 
     async def broadcast_signal(self, ticker: str, action: str, price: float, confidence: float | None,
-                               tp: float | None = None, sl: float | None = None):
-        """Broadcast signal to VIP (instant) + Free (delayed) channels + personal notifications."""
+                               tp: float | None = None, sl: float | None = None,
+                               expert: dict | None = None, signal_id: str | None = None):
+        """Broadcast signal to VIP (instant) + Free (delayed) channels + personal notifications.
 
-        # 1. VIP channel — instant, full details
-        if settings.telegram_vip_channel_id:
-            vip_text = self._format_vip_signal(ticker, action, price, confidence, tp, sl)
+        VIP: only WEF >= 50%, full expert analysis
+        Free: delayed, no prices, teaser only
+        """
+
+        # 1. VIP channel — instant, full expert details (WEF >= 50% only)
+        if settings.telegram_vip_channel_id and (not confidence or confidence >= 0.5):
+            vip_text = self._format_vip_signal(ticker, action, price, confidence, tp, sl, expert)
             await self.send_message(settings.telegram_vip_channel_id, vip_text)
-            logger.info(f"VIP broadcast: {action} {ticker} → {settings.telegram_vip_channel_id}")
+            logger.info(f"VIP broadcast: {action} {ticker} WEF={confidence} → VIP")
+
+            # Forward to AI Growth Club if high quality
+            if confidence and confidence >= 0.7 and settings.telegram_growth_group_id:
+                try:
+                    tagged = vip_text + "\n\n#repost #aigc #winextraflow"
+                    msg = await self.send_to_channel(settings.telegram_free_channel_id or settings.telegram_vip_channel_id, tagged)
+                    if msg and msg.get("result", {}).get("message_id") and settings.telegram_growth_group_id:
+                        await self._call("forwardMessage",
+                            chat_id=settings.telegram_growth_group_id,
+                            from_chat_id=settings.telegram_free_channel_id or settings.telegram_vip_channel_id,
+                            message_id=msg["result"]["message_id"])
+                except Exception as e:
+                    logger.warning(f"Growth Club forward failed: {e}")
 
         # 2. Free channel — delayed, no prices
         if settings.telegram_free_channel_id:
