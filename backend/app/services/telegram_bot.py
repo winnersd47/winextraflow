@@ -58,7 +58,7 @@ class TelegramBot:
 
     async def send_to_channel(self, channel_id: str, text: str, parse_mode: str = "HTML"):
         """Send a message to a Telegram channel (for content publishing)."""
-        return await self._call("sendMessage", chat_id=channel_id, text=text, parse_mode=parse_mode, disable_web_page_preview=False)
+        return await self._call("sendMessage", chat_id=channel_id, text=text, parse_mode=parse_mode, disable_web_page_preview=False, disable_notification=True)
 
     async def send_raw_message(self, text: str):
         """Send to the free channel (for digest/announcements)."""

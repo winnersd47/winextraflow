@@ -113,7 +113,7 @@ async def check_signal_quality(
             Signal.status == SignalStatus.ACTIVE,
             Signal.action == signal.action,
             Signal.id != signal.id,
-        )
+        ).limit(1)
     )).scalar_one_or_none()
     if existing:
         result.warn(f"Duplicate active {signal.action.value} signal for {signal.ticker}")
