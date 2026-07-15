@@ -7,6 +7,8 @@ import { useI18n } from "@/lib/i18n";
 import { formatConfidence, confidenceColor } from "@/lib/utils";
 import type { StrategyResponse } from "@/types";
 
+export function generateStaticParams() { return []; }
+
 export default function StrategyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();

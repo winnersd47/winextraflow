@@ -10,6 +10,8 @@ import { CapacityWarning } from "@/components/capacity-warning";
 import { Disclaimer } from "@/components/disclaimer";
 import { ComplianceGate } from "@/components/compliance-gate";
 import { FeedbackButton } from "@/components/feedback-widget";
+import dynamic from "next/dynamic";
+const TickerTape = dynamic(() => import("@/components/ticker-tape").then(m => ({ default: m.TickerTape })), { ssr: false });
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -37,6 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <CapacityWarning />
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <TickerTape />
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <ErrorBoundary>

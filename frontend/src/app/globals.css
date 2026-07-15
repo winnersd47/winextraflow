@@ -183,3 +183,94 @@ body {
     radial-gradient(1px 1px at 50% 90%, rgba(255,255,255,0.1) 0%, transparent 100%);
   pointer-events: none;
 }
+
+/* ═══ MICRO-ANIMATIONS (trading-specific) ═══ */
+
+/* Price flash: green for up, red for down */
+@keyframes flashGreen {
+  0% { background-color: rgba(16, 185, 129, 0.3); }
+  100% { background-color: transparent; }
+}
+@keyframes flashRed {
+  0% { background-color: rgba(239, 68, 68, 0.3); }
+  100% { background-color: transparent; }
+}
+.flash-green { animation: flashGreen 0.8s ease-out; }
+.flash-red { animation: flashRed 0.8s ease-out; }
+
+/* Slide in from right (new signal) */
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.slide-in { animation: slideInRight 0.4s ease-out; }
+
+/* Fade in up (cards loading) */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-up { animation: fadeInUp 0.5s ease-out forwards; }
+.fade-in-up-delay-1 { animation: fadeInUp 0.5s ease-out 0.1s forwards; opacity: 0; }
+.fade-in-up-delay-2 { animation: fadeInUp 0.5s ease-out 0.2s forwards; opacity: 0; }
+.fade-in-up-delay-3 { animation: fadeInUp 0.5s ease-out 0.3s forwards; opacity: 0; }
+
+/* Scale pop (button confirm) */
+@keyframes scalePop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.scale-pop { animation: scalePop 0.3s ease; }
+
+/* Profit counter tick */
+@keyframes tickUp {
+  from { color: #10b981; transform: translateY(0); }
+  to { color: inherit; transform: translateY(0); }
+}
+@keyframes tickDown {
+  from { color: #ef4444; transform: translateY(0); }
+  to { color: inherit; transform: translateY(0); }
+}
+.tick-up { animation: tickUp 0.5s ease-out; }
+.tick-down { animation: tickDown 0.5s ease-out; }
+
+/* Live data connection indicator */
+@keyframes liveBreath {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+.live-breath { animation: liveBreath 2s ease-in-out infinite; }
+
+/* Order progress bar fill */
+@keyframes fillProgress {
+  from { width: 0%; }
+  to { width: var(--progress, 100%); }
+}
+.fill-progress { animation: fillProgress 1s ease-out forwards; }
+
+/* Card entrance stagger */
+.stagger-enter > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-enter > *:nth-child(2) { animation-delay: 80ms; }
+.stagger-enter > *:nth-child(3) { animation-delay: 160ms; }
+.stagger-enter > *:nth-child(4) { animation-delay: 240ms; }
+.stagger-enter > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-enter > * { animation: fadeInUp 0.4s ease-out forwards; opacity: 0; }
+
+/* ═══ BLOOMBERG PRO MODE ═══ */
+.pro-mode {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  letter-spacing: -0.02em;
+}
+.pro-mode .stat-card {
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+.pro-mode table {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pro-mode td, .pro-mode th {
+  padding: 3px 8px;
+}

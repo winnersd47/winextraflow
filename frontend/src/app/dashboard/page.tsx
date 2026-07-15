@@ -241,7 +241,7 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-text-muted">{t("signals.emptyHint")}</p>
         </div>
       ) : (
-        <div className="space-y-3">{signals.map((s) => {
+        <div className="space-y-3 stagger-enter">{signals.map((s) => {
           const ev = evaluations[s.id];
           return (
             <SignalCard
