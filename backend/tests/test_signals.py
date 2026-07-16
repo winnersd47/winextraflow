@@ -33,9 +33,10 @@ async def test_tradingview_webhook(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_list_signals_after_webhook(client: AsyncClient, auth_headers: dict):
-    # Create signal via webhook
+    # Create signal via webhook — with TP/SL so it passes the quality gate (WEF >= 50%)
     await client.post("/api/v1/signals/webhook/tradingview", json={
         "ticker": "ETHUSDT", "action": "sell", "price": 3500.0,
+        "take_profit": 3200.0, "stop_loss": 3650.0,
     })
     resp = await client.get("/api/v1/signals", headers=auth_headers)
     assert resp.status_code == 200

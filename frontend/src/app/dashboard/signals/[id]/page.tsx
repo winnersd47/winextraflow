@@ -17,8 +17,6 @@ import type { Signal, RatingDetail } from "@/types";
 import dynamic from "next/dynamic";
 const CandlestickChart = dynamic(() => import("@/components/candlestick-chart"), { ssr: false });
 
-export function generateStaticParams() { return []; }
-
 export default function SignalDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();

@@ -1,6 +1,6 @@
 """Deep signal analysis using LLM reasoning models.
 
-Uses DeepSeek V3.2-Speciale (ultra-reasoning) as primary, with OpenAI GPT-4o fallback.
+Uses YandexGPT Pro as primary, DeepSeek as first fallback, OpenAI GPT-4o as second fallback.
 Provides SWOT analysis, BCG portfolio matrix, and period performance reviews.
 """
 from __future__ import annotations
@@ -14,9 +14,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Primary: DeepSeek V3.2 API (OpenAI-compatible)
 _DEEPSEEK_BASE = "https://api.deepseek.com/v1"
 _OPENAI_BASE = "https://api.openai.com/v1"
+_YANDEX_LLM_BASE = "https://llm.api.cloud.yandex.net/foundationModels/v1"
 
 
 @dataclass
@@ -31,12 +31,26 @@ class DeepAnalysisResult:
 class DeepAnalysisService:
     """LLM-powered deep analysis for trading signals and portfolios."""
 
-    def __init__(self, deepseek_key: str = "", openai_key: str = "") -> None:
+    def __init__(
+        self,
+        deepseek_key: str = "",
+        openai_key: str = "",
+        yandex_api_key: str = "",
+        yandex_folder_id: str = "",
+    ) -> None:
         self._deepseek_key = deepseek_key
         self._openai_key = openai_key
+        self._yandex_api_key = yandex_api_key
+        self._yandex_folder_id = yandex_folder_id
 
     async def _chat(self, prompt: str, system: str, json_mode: bool = True) -> tuple[str, str, str]:
-        """Call DeepSeek reasoner with OpenAI fallback. Returns (text, provider, model)."""
+        """YandexGPT primary → DeepSeek fallback → OpenAI fallback. Returns (text, provider, model)."""
+        if self._yandex_api_key and self._yandex_folder_id:
+            try:
+                return await self._call_yandex(prompt, system)
+            except Exception as exc:
+                logger.warning("YandexGPT failed: %s — falling back to DeepSeek", exc)
+
         if self._deepseek_key:
             try:
                 return await self._call_openai_compat(
@@ -54,6 +68,29 @@ class DeepAnalysisService:
 
         # Stub mode — no API keys
         return self._stub(prompt), "stub", "stub"
+
+    async def _call_yandex(self, prompt: str, system: str) -> tuple[str, str, str]:
+        """Call YandexGPT Pro via Foundation Models API."""
+        model_uri = f"gpt://{self._yandex_folder_id}/yandexgpt/latest"
+        async with httpx.AsyncClient(timeout=90) as client:
+            resp = await client.post(
+                f"{_YANDEX_LLM_BASE}/completion",
+                headers={
+                    "Authorization": f"Api-Key {self._yandex_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "modelUri": model_uri,
+                    "completionOptions": {"stream": False, "temperature": 0.2, "maxTokens": 4096},
+                    "messages": [
+                        {"role": "system", "text": system},
+                        {"role": "user", "text": prompt},
+                    ],
+                },
+            )
+            resp.raise_for_status()
+        text = resp.json()["result"]["alternatives"][0]["message"]["text"]
+        return text, "yandex", "yandexgpt"
 
     async def _call_openai_compat(
         self, base: str, key: str, model: str, prompt: str, system: str, json_mode: bool
@@ -222,6 +259,8 @@ def _make_service() -> DeepAnalysisService:
         return DeepAnalysisService(
             deepseek_key=settings.deepseek_api_key,
             openai_key=settings.openai_api_key,
+            yandex_api_key=settings.yandex_api_key,
+            yandex_folder_id=settings.yandex_folder_id,
         )
     except Exception:
         return DeepAnalysisService()

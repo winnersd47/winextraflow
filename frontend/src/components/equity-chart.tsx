@@ -19,7 +19,7 @@ interface EquityPoint {
 }
 
 interface EquityChartProps {
-  data: EquityPoint[] | number[];
+  data: Array<number | EquityPoint>;
   initialCapital: number;
 }
 

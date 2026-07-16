@@ -40,7 +40,7 @@ export default function CandlestickChart({
 
     let disposed = false;
 
-    import("lightweight-charts").then(({ createChart, CrosshairMode, LineStyle }) => {
+    import("lightweight-charts").then(({ createChart, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries, createSeriesMarkers }) => {
       if (disposed || !containerRef.current) return;
 
       // Clean previous
@@ -71,7 +71,7 @@ export default function CandlestickChart({
       chartRef.current = chart;
 
       // Candlestick series
-      const candleSeries = chart.addCandlestickSeries({
+      const candleSeries = chart.addSeries(CandlestickSeries, {
         upColor: "#10b981",
         downColor: "#ef4444",
         borderUpColor: "#10b981",
@@ -114,14 +114,14 @@ export default function CandlestickChart({
         });
       }
 
-      // Markers (buy/sell signals)
+      // Markers (buy/sell signals) — v5 uses createSeriesMarkers
       if (markers && markers.length > 0) {
-        candleSeries.setMarkers(markers as any);
+        createSeriesMarkers(candleSeries, markers as any);
       }
 
       // Volume
       if (data.some(d => d.volume)) {
-        const volumeSeries = chart.addHistogramSeries({
+        const volumeSeries = chart.addSeries(HistogramSeries, {
           color: "#10b98140",
           priceFormat: { type: "volume" },
           priceScaleId: "",

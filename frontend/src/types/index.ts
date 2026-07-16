@@ -175,7 +175,7 @@ export interface ReferralTree {
 }
 
 // --- Execution ---
-export type ExchangeName = "binance" | "bybit" | "demo";
+export type ExchangeName = "binance" | "bybit" | "demo" | "metatrader5" | "interactive_brokers" | "okx" | "kraken" | "tinkoff";
 export type OrderSide = "buy" | "sell";
 export type OrderStatusType = "pending" | "filled" | "partial" | "failed" | "cancelled";
 

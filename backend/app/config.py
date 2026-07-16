@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     deepseek_api_key: str = ""
 
+    # Yandex AI (YandexGPT reasoning + SpeechKit + Translate)
+    yandex_api_key: str = ""
+    yandex_folder_id: str = ""
+
     # AI Rating
     ai_rating_enabled: bool = True
     signal_expiry_hours: int = 168  # 7 days
