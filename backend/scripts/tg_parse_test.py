@@ -56,12 +56,16 @@ async def main():
             if telegram_parser.is_signal_message(m.text):
                 flagged += 1
                 parsed = telegram_parser.parse_message(m.text)
+                via = "regex"
+                if not parsed:
+                    parsed = await telegram_parser.parse_with_llm(m.text)
+                    via = "LLM"
                 if parsed:
                     signals_here += 1
                     total_signals += 1
                     tp = f" TP:{parsed.take_profit}" if parsed.take_profit else ""
                     sl = f" SL:{parsed.stop_loss}" if parsed.stop_loss else ""
-                    print(f"  [SIGNAL] @{ch}: {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price}{tp}{sl}")
+                    print(f"  [SIGNAL/{via}] @{ch}: {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price}{tp}{sl}")
 
         print(f"@{ch}: {len(msgs)} msgs, {flagged} signal-like, {signals_here} parsed")
 

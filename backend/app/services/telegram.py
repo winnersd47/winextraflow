@@ -65,6 +65,12 @@ SIGNAL_PATTERNS = [
     ),
 ]
 
+# Words that are NOT tickers (order types, common false-positives)
+NON_TICKER_WORDS = {
+    "LIMIT", "STOP", "MARKET", "BUY", "SELL", "LONG", "SHORT",
+    "TP", "SL", "ENTRY", "PRICE", "TARGET", "NOW", "AT",
+}
+
 # Keywords that indicate a trading signal message (EN + RU)
 SIGNAL_KEYWORDS = [
     # English
@@ -103,6 +109,82 @@ class TelegramParser:
         return keyword_count >= 2
 
     @staticmethod
+    def parse_ru_recommendation(text: str) -> ParsedSignal | None:
+        """Parse RU analyst-recommendation format (beststocks-style).
+
+        Example:
+            Тикер: JBHT
+            Рекомендация: Покупать
+            Прогнозная цена: $335 (+21%)
+
+        Derives: action from Покупать/Продавать, TP = target price,
+        entry = target / (1 + pct/100), SL = default 10% adverse.
+        """
+        # Must contain a recommendation line
+        rec_match = re.search(r"Рекоменд\w*[:\s*]+\**\s*(Покупать|Продавать|Держать)", text, re.IGNORECASE)
+        if not rec_match:
+            return None
+
+        rec_word = rec_match.group(1).lower()
+        if rec_word.startswith("держ"):
+            return None  # "Hold" is not actionable
+        action = "buy" if rec_word.startswith("покуп") else "sell"
+
+        # Target price + optional percentage: "Прогнозная цена: 596.27 ₽ (+57%)" or "$335 (+21%)"
+        price_match = re.search(
+            r"Прогнозная\s+цена[:\s*]+\**\s*\$?([\d\s.,]+)\s*[₽$]?\s*\**\s*(?:\(([+\-]?[\d.,]+)\s*%\))?",
+            text, re.IGNORECASE,
+        )
+        if not price_match:
+            return None
+
+        try:
+            target = float(price_match.group(1).replace(" ", "").replace(",", ".").rstrip("."))
+        except ValueError:
+            return None
+        if target <= 0:
+            return None
+
+        pct = None
+        if price_match.group(2):
+            try:
+                pct = float(price_match.group(2).replace(",", "."))
+            except ValueError:
+                pct = None
+
+        # Extract ticker: "Тикер: XXX" or beststocks URL (/stock/xxx, /rustock/xxx)
+        ticker = None
+        t_match = re.search(r"Тикер[:\s*]+\**\s*([A-Z]{2,6})", text, re.IGNORECASE)
+        if t_match:
+            ticker = t_match.group(1).upper()
+        else:
+            url_match = re.search(r"beststocks\.ru/(?:rustock|stock)/([a-z0-9]+)", text, re.IGNORECASE)
+            if url_match:
+                ticker = url_match.group(1).upper()
+        if not ticker:
+            return None
+
+        # Derive entry from target + pct; default SL 10% adverse
+        if pct and pct != 0:
+            entry = target / (1 + pct / 100) if action == "buy" else target / (1 - pct / 100)
+        else:
+            entry = target  # no pct → can't derive; use target as reference
+        entry = round(entry, 4)
+
+        if action == "buy":
+            sl = round(entry * 0.90, 4)
+        else:
+            sl = round(entry * 1.10, 4)
+
+        return ParsedSignal(
+            ticker=ticker,
+            action=action,
+            entry_price=entry,
+            take_profit=round(target, 4),
+            stop_loss=sl,
+        )
+
+    @staticmethod
     def parse_message(text: str) -> ParsedSignal | None:
         """Parse a Telegram message into a structured signal.
 
@@ -111,6 +193,11 @@ class TelegramParser:
         """
         if not text or len(text) < 5:
             return None
+
+        # Try RU analyst-recommendation format first (beststocks-style)
+        rec = TelegramParser.parse_ru_recommendation(text)
+        if rec:
+            return rec
 
         for pattern in SIGNAL_PATTERNS:
             match = pattern.search(text)
@@ -133,8 +220,13 @@ class TelegramParser:
                     if price <= 0:
                         continue
 
+                    ticker = groups["ticker"].upper().strip("#")
+                    # Reject order-type words captured as ticker (e.g. "SELL LIMIT")
+                    if ticker in NON_TICKER_WORDS or len(ticker) < 2:
+                        continue
+
                     result = ParsedSignal(
-                        ticker=groups["ticker"].upper().strip("#"),
+                        ticker=ticker,
                         action=_normalize_action(action_raw),
                         entry_price=price,
                     )
