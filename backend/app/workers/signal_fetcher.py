@@ -144,36 +144,48 @@ class TelegramSignalWorker:
             # Also register channels from TELEGRAM_PARSE_CHANNELS env var
             env_channels = [c.strip() for c in settings.telegram_parse_channels.split(",") if c.strip()]
             for username in env_channels:
-                # Check if already registered
-                existing = await db.execute(
-                    select(Provider).where(Provider.telegram_channel_id == username)
-                )
-                if existing.scalar_one_or_none():
-                    continue
+                if not self.client:
+                    break
+                try:
+                    # Resolve first to get the real numeric channel_id + title
+                    entity = await self.client.get_entity(username)
+                    title = getattr(entity, "title", username)
+                    channel_id = str(entity.id)
 
-                # Resolve and register
-                if self.client:
-                    try:
-                        entity = await self.client.get_entity(username)
-                        title = getattr(entity, "title", username)
-                        channel_id = str(entity.id)
+                    # Already monitored this run?
+                    if channel_id in self._monitored_channels:
+                        continue
 
-                        # Create provider
-                        import secrets
-                        provider = Provider(
-                            name=title,
-                            source=ProviderSource.TELEGRAM,
-                            description=f"Auto-registered from Telegram @{username}",
-                            telegram_channel_id=channel_id,
-                            is_active=True,
-                        )
-                        db.add(provider)
-                        await db.commit()
-                        await db.refresh(provider)
-                        self._monitored_channels[channel_id] = provider
-                        logger.info(f"Auto-registered channel @{username} as provider '{title}' (id: {channel_id})")
-                    except Exception as e:
-                        logger.warning(f"Could not resolve channel @{username}: {e}")
+                    # Already in DB? (check by channel_id OR name to avoid UNIQUE clashes)
+                    existing = (await db.execute(
+                        select(Provider).where(
+                            (Provider.telegram_channel_id == channel_id) | (Provider.name == title)
+                        ).limit(1)
+                    )).scalar_one_or_none()
+                    if existing:
+                        # Ensure it's monitored + channel_id is correct
+                        if not existing.telegram_channel_id:
+                            existing.telegram_channel_id = channel_id
+                            await db.commit()
+                        self._monitored_channels[channel_id] = existing
+                        continue
+
+                    # Create new provider
+                    provider = Provider(
+                        name=title,
+                        source=ProviderSource.TELEGRAM,
+                        description=f"Auto-registered from Telegram @{username}",
+                        telegram_channel_id=channel_id,
+                        is_active=True,
+                    )
+                    db.add(provider)
+                    await db.commit()
+                    await db.refresh(provider)
+                    self._monitored_channels[channel_id] = provider
+                    logger.info(f"Auto-registered @{username} as '{title}' (id: {channel_id})")
+                except Exception as e:
+                    await db.rollback()
+                    logger.warning(f"Could not register channel @{username}: {e}")
 
             logger.info(
                 f"Loaded {len(self._monitored_channels)} channels: "
