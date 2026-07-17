@@ -73,8 +73,20 @@ class TelegramSignalWorker:
             settings.telegram_api_hash,
             **connect_kwargs,
         )
-        await self.client.start(phone=settings.telegram_phone)
-        logger.info(f"Telegram client connected via {proxy_label}")
+        # Use existing session if authorized; only prompt for phone if no session
+        await self.client.connect()
+        if not await self.client.is_user_authorized():
+            if settings.telegram_phone:
+                await self.client.start(phone=settings.telegram_phone)
+            else:
+                logger.warning(
+                    "Telegram session not authorized and no phone set. "
+                    "Run scripts/tg_send_code.py + tg_signin.py to create a session."
+                )
+                await self.client.disconnect()
+                return
+        me = await self.client.get_me()
+        logger.info(f"Telegram client connected via {proxy_label} as @{getattr(me, 'username', '?')}")
 
         # Load active Telegram providers from DB
         await self._load_channels()

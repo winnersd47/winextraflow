@@ -65,10 +65,15 @@ SIGNAL_PATTERNS = [
     ),
 ]
 
-# Keywords that indicate a trading signal message
+# Keywords that indicate a trading signal message (EN + RU)
 SIGNAL_KEYWORDS = [
+    # English
     "buy", "sell", "long", "short", "entry", "take profit",
     "stop loss", "tp", "sl", "target", "signal",
+    # Russian
+    "покупа", "продаж", "продаём", "продаем", "лонг", "шорт",
+    "вход", "цель", "тейк", "стоп", "сигнал", "покупк",
+    "докуп", "фиксир", "цена входа",
 ]
 
 
@@ -168,20 +173,28 @@ class TelegramParser:
 
     @staticmethod
     async def parse_with_llm(text: str) -> ParsedSignal | None:
-        """Fallback: use Claude API to parse non-standard signal formats.
+        """Fallback: use an LLM to parse non-standard / Russian signal formats.
 
-        Requires ANTHROPIC_API_KEY in environment. Returns None if unavailable.
+        Uses OpenRouter (OpenAI-compatible) with a free model by default.
+        Requires OPENROUTER_API_KEY in environment. Returns None if unavailable.
+        Falls back to ANTHROPIC_API_KEY (direct Claude) for backward compat.
         """
         import os
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            return None
+        or_key = os.environ.get("OPENROUTER_API_KEY", "")
+        model = os.environ.get("LLM_MODEL", "deepseek/deepseek-chat:free")
 
-        prompt = f"""Extract trading signal from this message. Return JSON only, no explanation.
-If this is NOT a trading signal, return {{"error": "not a signal"}}.
+        prompt = f"""Extract a trading signal from this message (may be Russian or English).
+Return JSON only, no explanation. If this is NOT an actionable trading signal
+(news, analytics, opinion), return {{"error": "not a signal"}}.
 
-Required fields: ticker (string), action ("buy" or "sell"), entry_price (number)
-Optional fields: take_profit (number or null), stop_loss (number or null)
+Rules:
+- action: "buy" for покупка/лонг/buy/long, "sell" for продажа/шорт/sell/short
+- ticker: the instrument symbol (e.g. SBER, BTCUSDT, EURUSD, XAUUSD). Not an order type like "LIMIT".
+- entry_price: entry/цена входа as a number
+- take_profit: TP/цель/тейк (number or null)
+- stop_loss: SL/стоп (number or null)
+
+Required: ticker, action, entry_price. Optional: take_profit, stop_loss.
 
 Message:
 {text}
@@ -189,47 +202,73 @@ Message:
 JSON:"""
 
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json={
-                        "model": "claude-sonnet-4-20250514",
-                        "max_tokens": 200,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
-                )
-                if resp.status_code != 200:
-                    logger.debug(f"LLM parser HTTP error: {resp.status_code}")
-                    return None
-
-                content = resp.json()["content"][0]["text"].strip()
-                # Extract JSON from response
-                if content.startswith("{"):
-                    data = json.loads(content)
-                else:
-                    # Try to find JSON in response
-                    start = content.find("{")
-                    end = content.rfind("}") + 1
-                    if start >= 0 and end > start:
-                        data = json.loads(content[start:end])
-                    else:
+            if or_key:
+                # OpenRouter (OpenAI-compatible)
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(
+                        "https://openrouter.ai/api/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {or_key}",
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": "https://winextraflow.com",
+                            "X-Title": "WinExtraFlow",
+                        },
+                        json={
+                            "model": model,
+                            "max_tokens": 200,
+                            "temperature": 0.1,
+                            "messages": [{"role": "user", "content": prompt}],
+                        },
+                    )
+                    if resp.status_code != 200:
+                        logger.debug(f"LLM parser HTTP error: {resp.status_code} {resp.text[:200]}")
                         return None
+                    content = resp.json()["choices"][0]["message"]["content"].strip()
+            else:
+                # Backward-compat: direct Anthropic
+                api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+                if not api_key:
+                    return None
+                async with httpx.AsyncClient(timeout=15) as client:
+                    resp = await client.post(
+                        "https://api.anthropic.com/v1/messages",
+                        headers={
+                            "x-api-key": api_key,
+                            "anthropic-version": "2023-06-01",
+                            "content-type": "application/json",
+                        },
+                        json={
+                            "model": "claude-sonnet-4-20250514",
+                            "max_tokens": 200,
+                            "messages": [{"role": "user", "content": prompt}],
+                        },
+                    )
+                    if resp.status_code != 200:
+                        logger.debug(f"LLM parser HTTP error: {resp.status_code}")
+                        return None
+                    content = resp.json()["content"][0]["text"].strip()
 
-                if "error" in data:
+            # Extract JSON from response
+            if content.startswith("{"):
+                data = json.loads(content)
+            else:
+                start = content.find("{")
+                end = content.rfind("}") + 1
+                if start >= 0 and end > start:
+                    data = json.loads(content[start:end])
+                else:
                     return None
 
-                return ParsedSignal(
-                    ticker=data["ticker"].upper(),
-                    action=_normalize_action(data["action"]),
-                    entry_price=float(data["entry_price"]),
-                    take_profit=float(data["take_profit"]) if data.get("take_profit") else None,
-                    stop_loss=float(data["stop_loss"]) if data.get("stop_loss") else None,
-                )
+            if "error" in data or not data.get("ticker") or data.get("entry_price") is None:
+                return None
+
+            return ParsedSignal(
+                ticker=str(data["ticker"]).upper(),
+                action=_normalize_action(data["action"]),
+                entry_price=float(data["entry_price"]),
+                take_profit=float(data["take_profit"]) if data.get("take_profit") else None,
+                stop_loss=float(data["stop_loss"]) if data.get("stop_loss") else None,
+            )
         except Exception as e:
             logger.debug(f"LLM parser error: {e}")
             return None
