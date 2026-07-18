@@ -228,6 +228,28 @@ class TelegramBot:
             asyncio.create_task(_delayed_free())
 
         # 3. Personal notifications to linked users
+        await self.broadcast_free_and_personal(ticker, action, price, confidence, skip_free=True)
+
+    async def broadcast_free_and_personal(self, ticker: str, action: str, price: float,
+                                          confidence: float | None, skip_free: bool = False):
+        """Send delayed free-channel teaser + personal notifications (no VIP).
+
+        Used by the connected-signals pipeline whose VIP message is the rich
+        chart card (sent separately), so this avoids a duplicate VIP post.
+        """
+        # Free channel — delayed teaser, no prices
+        if not skip_free and settings.telegram_free_channel_id:
+            delay = settings.telegram_free_delay_minutes * 60
+            free_text = self._format_free_signal(ticker, action, confidence)
+
+            async def _delayed_free():
+                await asyncio.sleep(delay)
+                await self.send_message(settings.telegram_free_channel_id, free_text)
+                logger.info(f"Free broadcast (delayed {settings.telegram_free_delay_minutes}m): {action} {ticker}")
+
+            asyncio.create_task(_delayed_free())
+
+        # Personal notifications to linked users
         async with async_session() as db:
             result = await db.execute(
                 select(User).where(
@@ -240,7 +262,8 @@ class TelegramBot:
             for user in users:
                 await self.notify_signal(user, ticker, action, price, confidence)
                 await asyncio.sleep(0.05)
-            logger.info(f"Personal broadcast: {action} {ticker} to {len(users)} users")
+            if users:
+                logger.info(f"Personal broadcast: {action} {ticker} to {len(users)} users")
 
     # ─── Polling (updates processing) ─────────────────────────
 

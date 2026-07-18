@@ -129,18 +129,28 @@ async def process_and_broadcast(
 
     if telegram_bot.enabled and settings.telegram_vip_channel_id:
         try:
-            await telegram_bot.broadcast_signal(
+            # VIP: rich signal card (candlestick chart + full RU expert analysis)
+            from app.services.signal_chart import broadcast_card
+            sent = await broadcast_card(
                 signal.ticker, signal.action.value, signal.entry_price,
-                signal.ai_confidence,
-                tp=corrected_tp, sl=corrected_sl, expert=expert_for_vip,
+                corrected_tp, corrected_sl, result["wef"], expert=expert_for_vip,
             )
-            result["broadcast"] = True
+            result["broadcast"] = sent
+
+            # Free channel (delayed teaser) + personal notifications — no VIP dup
+            try:
+                await telegram_bot.broadcast_free_and_personal(
+                    signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence,
+                )
+            except AttributeError:
+                pass  # method optional
+
             logger.info(
-                f"VIP broadcast [{source}]: {signal.action.value.upper()} {signal.ticker} "
-                f"@ {signal.entry_price} WEF={result['wef']}% verdict={verdict}"
+                f"VIP card [{source}]: {signal.action.value.upper()} {signal.ticker} "
+                f"@ {signal.entry_price} WEF={result['wef']}% verdict={verdict} sent={sent}"
             )
         except Exception as e:
-            logger.error(f"VIP broadcast failed for {signal.ticker}: {e}")
+            logger.error(f"VIP card failed for {signal.ticker}: {e}")
             result["broadcast"] = False
             result["reason"] = "broadcast_error"
     else:
