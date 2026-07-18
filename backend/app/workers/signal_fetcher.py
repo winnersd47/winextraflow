@@ -252,10 +252,22 @@ class TelegramSignalWorker:
                     provider_db.total_signals = (provider_db.total_signals or 0) + 1
 
                 await db.commit()
+                await db.refresh(signal)
                 logger.info(
                     f"New signal from {provider.name}: "
                     f"{parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price}"
                 )
+
+                # Connected-signals pipeline: evolutionary check + correction + VIP broadcast
+                try:
+                    from app.services.signal_pipeline import process_and_broadcast
+                    outcome = await process_and_broadcast(db, signal, provider_db, source="telegram")
+                    if outcome.get("broadcast"):
+                        logger.info(f"-> VIP broadcast: {parsed.ticker} ({outcome.get('verdict')})")
+                    else:
+                        logger.info(f"-> Not broadcast: {parsed.ticker} ({outcome.get('reason')})")
+                except Exception as e:
+                    logger.error(f"Pipeline failed for {parsed.ticker}: {e}", exc_info=True)
 
         except Exception as e:
             logger.error(f"Error processing Telegram message: {e}", exc_info=True)

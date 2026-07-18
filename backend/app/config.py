@@ -37,6 +37,7 @@ class Settings(BaseSettings):
 
     # Telegram Bot
     telegram_bot_token: str = ""
+    telegram_bot_polling: bool = False      # start getUpdates polling (off when token shared)
     telegram_vip_channel_id: str = ""       # VIP channel chat_id (instant signals)
     telegram_free_channel_id: str = ""      # Free channel chat_id (delayed signals)
     telegram_growth_group_id: str = ""      # AI Growth Club group (marketing posts)

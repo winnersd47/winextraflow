@@ -182,14 +182,16 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Telegram worker failed to start: {e}")
 
-    # Startup: launch Telegram bot polling
-    if telegram_bot.enabled:
+    # Startup: launch Telegram bot polling (only if enabled AND polling turned on;
+    # sending to VIP works without polling, so polling stays off when the token is
+    # shared with another bot instance to avoid Telegram 409 conflicts)
+    if telegram_bot.enabled and settings.telegram_bot_polling:
         import asyncio
         asyncio.create_task(telegram_bot.start_polling())
         logger.info("Telegram bot polling started")
 
     # Startup: launch MAX bot polling
-    if max_bot.enabled:
+    if max_bot.enabled and settings.telegram_bot_polling:
         import asyncio
         asyncio.create_task(max_bot.start_polling())
         logger.info("MAX bot polling started")

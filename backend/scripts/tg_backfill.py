@@ -115,17 +115,28 @@ async def main():
             await db.commit()
             await db.refresh(signal)
 
-            # AI rating -> WEF Score
-            try:
-                await ai_rating_service.rate_and_update_signal(db, signal)
+            # Full pipeline: rate -> evolutionary check + correction -> quality -> VIP
+            from app.services.signal_pipeline import process_and_broadcast
+            broadcast = "--vip" in sys.argv
+            if broadcast:
+                outcome = await process_and_broadcast(db, signal, provider, source="backfill")
                 await db.refresh(signal)
-            except Exception as e:
-                print(f"  (rating failed: {e})")
-
-            wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
-            saved += 1
-            print(f"  [SAVED] {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price} "
-                  f"TP:{parsed.take_profit} SL:{parsed.stop_loss} | WEF: {wef}")
+                wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
+                bc = "VIP-SENT" if outcome.get("broadcast") else f"no-broadcast({outcome.get('reason')})"
+                saved += 1
+                print(f"  [SAVED] {parsed.action.upper()} {parsed.ticker} @ {signal.entry_price} "
+                      f"TP:{signal.take_profit} SL:{signal.stop_loss} | WEF:{wef} | {outcome.get('verdict','')} | {bc}")
+            else:
+                # rate only (no broadcast) — safe default
+                try:
+                    await ai_rating_service.rate_and_update_signal(db, signal)
+                    await db.refresh(signal)
+                except Exception as e:
+                    print(f"  (rating failed: {e})")
+                wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
+                saved += 1
+                print(f"  [SAVED] {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price} "
+                      f"TP:{parsed.take_profit} SL:{parsed.stop_loss} | WEF: {wef}")
 
     print(f"\n{'='*55}")
     print(f"Backfill complete: {saved} new signals saved from @{CHANNEL}")
