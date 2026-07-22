@@ -20,13 +20,17 @@ from app.services.backtesting_real import fetch_candles
 
 logger = logging.getLogger(__name__)
 
-MOEX_TICKERS = {"SBER", "GAZP", "LKOH", "YNDX", "ROSN", "GMKN", "NVTK", "MGNT",
-                "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "PHOR", "NLMK",
-                "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "TATN"}
+MOEX_TICKERS = {"SBER", "SBERP", "GAZP", "LKOH", "YNDX", "YDEX", "ROSN", "GMKN", "NVTK",
+                "MGNT", "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "T", "PHOR", "NLMK",
+                "MAGN", "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "SNGSP",
+                "TATN", "TATNP", "SIBN", "PIKK", "AFKS", "RTKM", "HYDR", "IRAO", "FEES",
+                "TRNFP", "BANE", "SELG", "UPRO", "MSNG", "FLOT", "SMLT", "SGZH", "POSI",
+                "ASTR", "WUSH", "LEAS", "SVCB", "RENI", "BSPB", "CBOM", "ENPG", "VKCO", "UGLD"}
 FOREX_CURRENCIES = {"EUR", "USD", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"}
 NAME_MAP = {
     "SBER": "Сбер", "GAZP": "Газпром", "LKOH": "Лукойл", "ROSN": "Роснефть",
-    "GMKN": "Норникель", "NVTK": "Новатэк", "YNDX": "Яндекс", "VTBR": "ВТБ",
+    "GMKN": "Норникель", "NVTK": "Новатэк", "YNDX": "Яндекс", "YDEX": "Яндекс",
+    "SIBN": "Газпром нефть", "VTBR": "ВТБ",
     "MGNT": "Магнит", "MTSS": "МТС", "NLMK": "НЛМК", "CHMF": "Северсталь",
     "ALRS": "Алроса", "PLZL": "Полюс", "TATN": "Татнефть", "AFLT": "Аэрофлот",
     "BTCUSDT": "Биткоин", "ETHUSDT": "Эфириум", "BNBUSDT": "BNB",

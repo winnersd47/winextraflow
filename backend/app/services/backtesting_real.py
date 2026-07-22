@@ -184,9 +184,12 @@ def _is_forex_pair(ticker: str) -> bool:
 def detect_source(ticker: str) -> str:
     """Detect data source by ticker format."""
     MOEX_TICKERS = {
-        "SBER", "GAZP", "LKOH", "YNDX", "ROSN", "GMKN", "NVTK", "MGNT",
-        "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "PHOR", "NLMK",
-        "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "TATN",
+        "SBER", "SBERP", "GAZP", "LKOH", "YNDX", "YDEX", "ROSN", "GMKN", "NVTK", "MGNT",
+        "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "T", "PHOR", "NLMK", "MAGN",
+        "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "SNGSP", "TATN", "TATNP",
+        "SIBN", "PIKK", "AFKS", "RTKM", "HYDR", "IRAO", "FEES", "TRNFP", "BANE", "SELG",
+        "UPRO", "MSNG", "FLOT", "SMLT", "SGZH", "POSI", "ASTR", "WUSH", "LEAS", "SVCB",
+        "RENI", "BSPB", "CBOM", "ENPG", "FIXP", "GLTR", "MDMG", "SOFL", "UGLD", "VKCO",
     }
     t = ticker.upper()
     if t in MOEX_TICKERS:

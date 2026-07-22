@@ -85,24 +85,38 @@ async def process_and_broadcast(
     # 4. Apply evolutionary corrections (regime-adjusted SL + calibrated TP)
     corrected_tp = signal.take_profit
     corrected_sl = signal.stop_loss
-    if apply_correction and rec:
-        # recommendation engine returns tp2 as the main target + regime-adjusted sl
+    # Skip correction for long-horizon recommendations (huge TP%): the regime
+    # engine's intraday-scale stop would pair a tight SL with a 1-year target
+    # and produce an absurd R:R (e.g. 1:20). Keep the parser's own levels there.
+    orig_tp_pct = (abs((signal.take_profit or 0) - signal.entry_price) / signal.entry_price * 100
+                   if signal.entry_price else 0)
+    long_horizon = orig_tp_pct > 15  # analyst price target, not a trade signal
+
+    if apply_correction and rec and not long_horizon:
         new_tp = rec.get("tp2")
         new_sl = rec.get("sl")
         if new_tp and new_sl:
-            # Record the original before overwriting
-            note = (
-                f"Evolution corrected: TP {signal.take_profit}->{new_tp}, "
-                f"SL {signal.stop_loss}->{new_sl} (regime={rec.get('regime')})"
-            )
-            signal.take_profit = round(float(new_tp), 6)
-            signal.stop_loss = round(float(new_sl), 6)
-            signal.ai_reasoning = (signal.ai_reasoning or "") + f" | {note}"
-            await db.commit()
-            await db.refresh(signal)
-            corrected_tp = signal.take_profit
-            corrected_sl = signal.stop_loss
-            result["corrected"] = {"tp": corrected_tp, "sl": corrected_sl}
+            # Sanity-check the resulting R:R before accepting the correction
+            if signal.action.value == "buy":
+                reward = abs(float(new_tp) - signal.entry_price)
+                risk = abs(signal.entry_price - float(new_sl))
+            else:
+                reward = abs(signal.entry_price - float(new_tp))
+                risk = abs(float(new_sl) - signal.entry_price)
+            rr_new = reward / risk if risk > 0 else 999
+            if 0.8 <= rr_new <= 6:  # only accept realistic corrections
+                note = (f"Evolution corrected: TP {signal.take_profit}->{new_tp}, "
+                        f"SL {signal.stop_loss}->{new_sl} (regime={rec.get('regime')})")
+                signal.take_profit = round(float(new_tp), 6)
+                signal.stop_loss = round(float(new_sl), 6)
+                signal.ai_reasoning = (signal.ai_reasoning or "") + f" | {note}"
+                await db.commit()
+                await db.refresh(signal)
+                corrected_tp = signal.take_profit
+                corrected_sl = signal.stop_loss
+                result["corrected"] = {"tp": corrected_tp, "sl": corrected_sl}
+    elif long_horizon:
+        result["correction_skipped"] = "long_horizon_target"
 
     # 5. Quality gate (after correction, so it judges the final levels)
     quality = await check_signal_quality(db, signal, provider)
