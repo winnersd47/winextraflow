@@ -128,6 +128,52 @@ class TelegramParser:
         return keyword_count >= 2
 
     @staticmethod
+    def parse_ru_futures_signal(text: str) -> ParsedSignal | None:
+        """Parse RU futures signal format (DluxTrading-style).
+
+        Example:
+            Нефть
+            Br-8.26 Шорт
+            Вход 94,12
+            Стоп  94,64
+            Тейк.   59  пунктов +3%. (93,53)
+
+        Comma decimals, RU direction (Шорт/Лонг), futures ticker code.
+        """
+        # Direction
+        if re.search(r"\bШорт\b", text, re.IGNORECASE):
+            action = "sell"
+        elif re.search(r"\bЛонг\b", text, re.IGNORECASE):
+            action = "buy"
+        else:
+            return None
+
+        def _num(pattern):
+            m = re.search(pattern, text, re.IGNORECASE)
+            if not m:
+                return None
+            try:
+                return float(m.group(1).replace(" ", "").replace(",", ".").rstrip("."))
+            except ValueError:
+                return None
+
+        entry = _num(r"Вход[:\s]+([\d\s.,]+?)[\n\r]")
+        if entry is None or entry <= 0:
+            return None  # watchlist post without explicit entry — skip
+        sl = _num(r"Стоп[:\s]+([\d\s.,]+?)[\n\r]")
+        # Take profit: prefer explicit price in parens after Тейк
+        tp = _num(r"Тейк[^\n\r]*?\(([\d\s.,]+)\)")
+
+        # Ticker: futures code on the direction line, e.g. "Br-8.26 Шорт"
+        tm = re.search(r"([A-Za-z]{1,5}[-–][\d.]+|[A-Z]{2,6})\s+(?:Шорт|Лонг)", text, re.IGNORECASE)
+        ticker = tm.group(1).upper().replace("–", "-") if tm else None
+        if not ticker or not any(c.isalpha() for c in ticker):
+            return None
+
+        return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
+                            take_profit=tp, stop_loss=sl)
+
+    @staticmethod
     def parse_ru_recommendation(text: str) -> ParsedSignal | None:
         """Parse RU analyst-recommendation format (beststocks-style).
 
@@ -217,6 +263,11 @@ class TelegramParser:
         rec = TelegramParser.parse_ru_recommendation(text)
         if rec:
             return rec
+
+        # Try RU futures signal format (DluxTrading-style: Вход/Стоп/Тейк)
+        fut = TelegramParser.parse_ru_futures_signal(text)
+        if fut:
+            return fut
 
         for pattern in SIGNAL_PATTERNS:
             match = pattern.search(text)
