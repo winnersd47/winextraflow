@@ -41,6 +41,7 @@ from app.api.digest import router as digest_router
 from app.api.feedback import router as feedback_router
 from app.api.content import router as content_router
 from app.api.calculator import router as calculator_router
+from app.api.channels import router as channels_router
 from app.api.deep_analysis import router as deep_analysis_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
@@ -274,6 +275,7 @@ app.include_router(feedback_router, prefix="/api/v1/feedback", tags=["feedback"]
 app.include_router(content_router, prefix="/api/v1/content", tags=["content"])
 app.include_router(calculator_router, prefix="/api/v1/calculator", tags=["calculator"])
 app.include_router(deep_analysis_router, prefix="/api/v1/deep-analysis", tags=["deep-analysis"])
+app.include_router(channels_router, prefix="/api/v1/channels", tags=["channel-discovery"])
 
 
 @app.get("/health")

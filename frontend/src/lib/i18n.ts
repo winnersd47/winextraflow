@@ -364,6 +364,7 @@ const translations: Record<Locale, Record<string, string>> = {
     // Telegram
     "nav.telegram": "Telegram",
     "nav.messengers": "Мессенджеры",
+    "nav.channels": "Поиск каналов",
     "telegram.title": "Telegram каналы",
     "telegram.subtitle": "Управление каналами с торговыми сигналами",
     "telegram.addChannel": "+ Добавить канал",
@@ -773,6 +774,7 @@ const translations: Record<Locale, Record<string, string>> = {
 
     "nav.telegram": "Telegram",
     "nav.messengers": "Messengers",
+    "nav.channels": "Channel Discovery",
     "telegram.title": "Telegram Channels",
     "telegram.subtitle": "Manage channels with trading signals",
     "telegram.addChannel": "+ Add Channel",

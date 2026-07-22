@@ -25,6 +25,7 @@ const navItems = [
   { href: "/dashboard/portfolio", labelKey: "nav.portfolio", Icon: IconHelm, adminOnly: false },
   // ─── Social ───
   { href: "/dashboard/telegram", labelKey: "nav.messengers", Icon: IconSail, adminOnly: false, analystOnly: false },
+  { href: "/dashboard/channels", labelKey: "nav.channels", Icon: IconRadar, adminOnly: true },
   { href: "/dashboard/referrals", labelKey: "nav.referrals", Icon: IconNet, adminOnly: false },
   { href: "/dashboard/store", labelKey: "nav.store", Icon: IconPearl, adminOnly: false },
   // ─── Account ───

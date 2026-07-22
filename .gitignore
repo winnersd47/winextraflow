@@ -52,3 +52,5 @@ backend/*.session
 backend/*.session-journal
 frontend/next.config.js.standalone.bak
 frontend/next.config.pages.js
+backend/discovered_channels.json
+backend/monitored_channels.json

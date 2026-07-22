@@ -71,6 +71,7 @@ NON_TICKER_WORDS = {
     "TP", "SL", "ENTRY", "PRICE", "TARGET", "NOW", "AT",
     "BELOW", "ABOVE", "HERE", "AROUND", "ZONE", "SPOT", "FUTURES",
     "LEVERAGE", "CROSS", "ISOLATED", "SIGNAL", "COIN", "PAIR", "USDT",
+    "USING", "FROM", "WITH", "TODAY", "PROFIT", "LOSS", "RISK", "RR",
 }
 
 # Leverage patterns wrongly captured as ticker: "5X", "2-5X", "10-20X", "5-10x"

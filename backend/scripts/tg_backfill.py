@@ -21,8 +21,9 @@ from app.models.signal import Signal, SignalAction
 from app.services.telegram import telegram_parser
 from app.services.ai_rating import ai_rating_service
 
-# Channels proven to post parseable structured signals (analyst recommendations)
-SIGNAL_CHANNELS = ["beststocksru", "ricesignal"]
+# Channels to scan are loaded per-run from the UI-managed monitored list
+# (monitored_channels.json, seeded from .env). See load_monitored().
+from app.services.channel_discovery import load_monitored
 
 
 def _proxy():
@@ -58,9 +59,10 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
         await client.disconnect()
         return
 
-    # Fetch messages from all signal channels while connected
+    # Fetch messages from all monitored channels while connected (fresh list per run)
+    channels = load_monitored()
     fetched = []  # list of (username, entity_id, title, messages)
-    for ch in SIGNAL_CHANNELS:
+    for ch in channels:
         try:
             entity = await client.get_entity(ch)
             msgs = await client.get_messages(entity, limit=limit)
