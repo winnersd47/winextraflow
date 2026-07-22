@@ -21,7 +21,8 @@ from app.models.signal import Signal, SignalAction
 from app.services.telegram import telegram_parser
 from app.services.ai_rating import ai_rating_service
 
-CHANNEL = "beststocksru"
+# Channels proven to post parseable structured signals (analyst recommendations)
+SIGNAL_CHANNELS = ["beststocksru", "ricesignal"]
 
 
 def _proxy():
@@ -57,90 +58,86 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
         await client.disconnect()
         return
 
-    entity = await client.get_entity(CHANNEL)
-    channel_id = str(entity.id)
-    title = getattr(entity, "title", CHANNEL)
-    msgs = await client.get_messages(entity, limit=limit)
+    # Fetch messages from all signal channels while connected
+    fetched = []  # list of (username, entity_id, title, messages)
+    for ch in SIGNAL_CHANNELS:
+        try:
+            entity = await client.get_entity(ch)
+            msgs = await client.get_messages(entity, limit=limit)
+            fetched.append((ch, str(entity.id), getattr(entity, "title", ch), msgs))
+            print(f"Fetched {len(msgs)} messages from @{ch}")
+        except Exception as e:
+            print(f"@{ch}: fetch failed — {e}")
     await client.disconnect()
 
-    print(f"Fetched {len(msgs)} messages from @{CHANNEL}")
-
+    from app.services.signal_pipeline import process_and_broadcast
     saved = 0
     async with async_session() as db:
-        # Find or create provider
-        provider = (await db.execute(
-            select(Provider).where(Provider.telegram_channel_id == channel_id).limit(1)
-        )).scalar_one_or_none()
-        if not provider:
+        for ch, channel_id, title, msgs in fetched:
+            # Find or create provider for this channel
             provider = (await db.execute(
-                select(Provider).where(Provider.name == title).limit(1)
+                select(Provider).where(Provider.telegram_channel_id == channel_id).limit(1)
             )).scalar_one_or_none()
-        if not provider:
-            provider = Provider(name=title, source=ProviderSource.TELEGRAM,
-                                description=f"Auto @{CHANNEL}", telegram_channel_id=channel_id, is_active=True)
-            db.add(provider)
-            await db.commit()
-            await db.refresh(provider)
+            if not provider:
+                provider = (await db.execute(
+                    select(Provider).where(Provider.name == title).limit(1)
+                )).scalar_one_or_none()
+            if not provider:
+                provider = Provider(name=title, source=ProviderSource.TELEGRAM,
+                                    description=f"Auto @{ch}", telegram_channel_id=channel_id, is_active=True)
+                db.add(provider)
+                await db.commit()
+                await db.refresh(provider)
 
-        for m in msgs:
-            if not m.text:
-                continue
-            if not telegram_parser.is_signal_message(m.text):
-                continue
-            parsed = telegram_parser.parse_message(m.text)
-            if not parsed:
-                continue
+            for m in msgs:
+                if not m.text or not telegram_parser.is_signal_message(m.text):
+                    continue
+                parsed = telegram_parser.parse_message(m.text)
+                if not parsed:
+                    continue
 
-            # Dedup: skip if same ticker+action already active from this provider
-            dup = (await db.execute(
-                select(Signal).where(
-                    Signal.provider_id == provider.id,
-                    Signal.ticker == parsed.ticker,
-                    Signal.action == SignalAction(parsed.action),
-                ).limit(1)
-            )).scalar_one_or_none()
-            if dup:
-                print(f"  [skip dup] {parsed.action.upper()} {parsed.ticker}")
-                continue
+                # Dedup: same ticker+action from this provider
+                dup = (await db.execute(
+                    select(Signal).where(
+                        Signal.provider_id == provider.id,
+                        Signal.ticker == parsed.ticker,
+                        Signal.action == SignalAction(parsed.action),
+                    ).limit(1)
+                )).scalar_one_or_none()
+                if dup:
+                    continue
 
-            signal = Signal(
-                provider_id=provider.id,
-                ticker=parsed.ticker,
-                action=SignalAction(parsed.action),
-                entry_price=parsed.entry_price,
-                take_profit=parsed.take_profit,
-                stop_loss=parsed.stop_loss,
-                raw_message=m.text[:500],
-            )
-            db.add(signal)
-            provider.total_signals = (provider.total_signals or 0) + 1
-            await db.commit()
-            await db.refresh(signal)
-
-            # Full pipeline: rate -> evolutionary check + correction -> quality -> VIP
-            from app.services.signal_pipeline import process_and_broadcast
-            if broadcast:
-                outcome = await process_and_broadcast(db, signal, provider, source="backfill")
+                signal = Signal(
+                    provider_id=provider.id, ticker=parsed.ticker,
+                    action=SignalAction(parsed.action), entry_price=parsed.entry_price,
+                    take_profit=parsed.take_profit, stop_loss=parsed.stop_loss,
+                    raw_message=m.text[:500],
+                )
+                db.add(signal)
+                provider.total_signals = (provider.total_signals or 0) + 1
+                await db.commit()
                 await db.refresh(signal)
-                wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
-                bc = "VIP-SENT" if outcome.get("broadcast") else f"no-broadcast({outcome.get('reason')})"
-                saved += 1
-                print(f"  [SAVED] {parsed.action.upper()} {parsed.ticker} @ {signal.entry_price} "
-                      f"TP:{signal.take_profit} SL:{signal.stop_loss} | WEF:{wef} | {outcome.get('verdict','')} | {bc}")
-            else:
-                # rate only (no broadcast) — safe default
-                try:
-                    await ai_rating_service.rate_and_update_signal(db, signal)
+
+                if broadcast:
+                    outcome = await process_and_broadcast(db, signal, provider, source="backfill")
                     await db.refresh(signal)
-                except Exception as e:
-                    print(f"  (rating failed: {e})")
-                wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
+                    wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
+                    bc = "VIP-SENT" if outcome.get("broadcast") else f"no-broadcast({outcome.get('reason')})"
+                    print(f"  [{ch}] {parsed.action.upper()} {parsed.ticker} @ {signal.entry_price} "
+                          f"TP:{signal.take_profit} SL:{signal.stop_loss} | WEF:{wef} | {outcome.get('verdict','')} | {bc}")
+                else:
+                    try:
+                        await ai_rating_service.rate_and_update_signal(db, signal)
+                        await db.refresh(signal)
+                    except Exception as e:
+                        print(f"  (rating failed: {e})")
+                    wef = f"{signal.ai_confidence:.0%}" if signal.ai_confidence else "N/A"
+                    print(f"  [{ch}] {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price} "
+                          f"TP:{parsed.take_profit} SL:{parsed.stop_loss} | WEF: {wef}")
                 saved += 1
-                print(f"  [SAVED] {parsed.action.upper()} {parsed.ticker} @ {parsed.entry_price} "
-                      f"TP:{parsed.take_profit} SL:{parsed.stop_loss} | WEF: {wef}")
 
     print(f"\n{'='*55}")
-    print(f"Backfill complete: {saved} new signals saved from @{CHANNEL}")
+    print(f"Backfill complete: {saved} new signals from {len(fetched)} channels")
     print(f"{'='*55}")
 
 

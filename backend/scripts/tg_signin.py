@@ -46,7 +46,8 @@ async def main():
     with open(STATE_FILE) as f:
         state = json.load(f)
 
-    client = TelegramClient("winextraflow_bot", int(settings.telegram_api_id),
+    session_name = state.get("session", "winextraflow_bot")
+    client = TelegramClient(session_name, int(settings.telegram_api_id),
                             settings.telegram_api_hash, proxy=_proxy())
     await client.connect()
 
@@ -61,7 +62,7 @@ async def main():
 
     me = await client.get_me()
     print(f"\nAuthenticated as: {me.first_name} (@{me.username or 'no-username'})")
-    print(f"Session saved: winextraflow_bot.session")
+    print(f"Session saved: {session_name}.session")
 
     # Test channel access
     channels = [c.strip() for c in settings.telegram_parse_channels.split(",") if c.strip()]

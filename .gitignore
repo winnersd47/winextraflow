@@ -48,3 +48,7 @@ htmlcov/
 *.log
 
 backend/scripts/poller.log
+backend/*.session
+backend/*.session-journal
+frontend/next.config.js.standalone.bak
+frontend/next.config.pages.js
