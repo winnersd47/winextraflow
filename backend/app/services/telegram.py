@@ -65,11 +65,30 @@ SIGNAL_PATTERNS = [
     ),
 ]
 
-# Words that are NOT tickers (order types, common false-positives)
+# Words that are NOT tickers (order types, directions, common false-positives)
 NON_TICKER_WORDS = {
     "LIMIT", "STOP", "MARKET", "BUY", "SELL", "LONG", "SHORT",
     "TP", "SL", "ENTRY", "PRICE", "TARGET", "NOW", "AT",
+    "BELOW", "ABOVE", "HERE", "AROUND", "ZONE", "SPOT", "FUTURES",
+    "LEVERAGE", "CROSS", "ISOLATED", "SIGNAL", "COIN", "PAIR", "USDT",
 }
+
+# Leverage patterns wrongly captured as ticker: "5X", "2-5X", "10-20X", "5-10x"
+_LEVERAGE_RE = re.compile(r"^\d+([-–]\d+)?X$", re.IGNORECASE)
+
+
+def _is_valid_ticker(ticker: str) -> bool:
+    """A ticker must contain letters, not be an order/direction word or leverage."""
+    if not ticker or len(ticker) < 2:
+        return False
+    if ticker.upper() in NON_TICKER_WORDS:
+        return False
+    if _LEVERAGE_RE.match(ticker):
+        return False
+    # Must contain at least one letter (rejects "5-10", "1.5")
+    if not any(c.isalpha() for c in ticker):
+        return False
+    return True
 
 # Keywords that indicate a trading signal message (EN + RU)
 SIGNAL_KEYWORDS = [
@@ -221,8 +240,8 @@ class TelegramParser:
                         continue
 
                     ticker = groups["ticker"].upper().strip("#")
-                    # Reject order-type words captured as ticker (e.g. "SELL LIMIT")
-                    if ticker in NON_TICKER_WORDS or len(ticker) < 2:
+                    # Reject order-type / direction / leverage words captured as ticker
+                    if not _is_valid_ticker(ticker):
                         continue
 
                     result = ParsedSignal(
