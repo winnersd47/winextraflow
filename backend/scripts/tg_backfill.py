@@ -32,8 +32,10 @@ def _proxy():
     return None
 
 
-async def main():
-    limit = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+async def main(limit: int | None = None, broadcast: bool | None = None):
+    limit = limit if limit is not None else (int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 30)
+    if broadcast is None:
+        broadcast = "--vip" in sys.argv
     await create_tables()
 
     # Auto-copy the session so we never fight the live worker / stuck backend lock
@@ -117,7 +119,6 @@ async def main():
 
             # Full pipeline: rate -> evolutionary check + correction -> quality -> VIP
             from app.services.signal_pipeline import process_and_broadcast
-            broadcast = "--vip" in sys.argv
             if broadcast:
                 outcome = await process_and_broadcast(db, signal, provider, source="backfill")
                 await db.refresh(signal)
