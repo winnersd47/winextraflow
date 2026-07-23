@@ -175,6 +175,60 @@ class TelegramParser:
                             take_profit=tp, stop_loss=sl)
 
     @staticmethod
+    def parse_crypto_range(text: str) -> ParsedSignal | None:
+        """Parse the common crypto range-format signal.
+
+        Example:
+            Long enjusdt 2.47-2.50
+            Target 2.54-2.61-2.74+
+            Stop loss- 2.4499
+            Lev- 5x
+
+        Takes first of entry range, first target as TP, the stop as SL.
+        Requires all three (entry, target, stop) to avoid promo false positives.
+        """
+        # Direction + ticker + entry (first of an optional range)
+        m = re.search(
+            r"\b(Long|Short|Buy|Sell)\s+#?([A-Za-z]{2,12}(?:USDT|USD|BTC|PERP)?)\s+(?:@|at|entry[:\s]*)?([\d]+\.?[\d]*)",
+            text, re.IGNORECASE,
+        )
+        if not m:
+            return None
+        action = "buy" if m.group(1).lower() in ("long", "buy") else "sell"
+        ticker = m.group(2).upper()
+        if not _is_valid_ticker(ticker):
+            return None
+        try:
+            entry = float(m.group(3))
+        except ValueError:
+            return None
+        if entry <= 0:
+            return None
+
+        # First target
+        tm = re.search(r"(?:Target|Targets|TP\d?|Take\s*profit)[s:\-\s]*([\d]+\.?[\d]*)", text, re.IGNORECASE)
+        # Stop
+        sm = re.search(r"(?:Stop\s*loss|Stoploss|Stop|SL)[:\-\s]*([\d]+\.?[\d]*)", text, re.IGNORECASE)
+        if not tm or not sm:
+            return None  # need a complete signal
+        try:
+            tp = float(tm.group(1))
+            sl = float(sm.group(1))
+        except ValueError:
+            return None
+        if tp <= 0 or sl <= 0:
+            return None
+
+        # Direction sanity: buy => tp>entry>sl ; sell => tp<entry<sl
+        if action == "buy" and not (tp > entry > sl):
+            return None
+        if action == "sell" and not (tp < entry < sl):
+            return None
+
+        return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
+                            take_profit=tp, stop_loss=sl)
+
+    @staticmethod
     def parse_ru_recommendation(text: str) -> ParsedSignal | None:
         """Parse RU analyst-recommendation format (beststocks-style).
 
@@ -269,6 +323,11 @@ class TelegramParser:
         fut = TelegramParser.parse_ru_futures_signal(text)
         if fut:
             return fut
+
+        # Try crypto range format (Long TICKER lo-hi / Target ... / Stop loss ...)
+        crange = TelegramParser.parse_crypto_range(text)
+        if crange:
+            return crange
 
         for pattern in SIGNAL_PATTERNS:
             match = pattern.search(text)
