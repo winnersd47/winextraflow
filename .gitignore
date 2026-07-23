@@ -54,3 +54,6 @@ frontend/next.config.js.standalone.bak
 frontend/next.config.pages.js
 backend/discovered_channels.json
 backend/monitored_channels.json
+backend/wef_logo.png
+backend/*_disc.session
+backend/*_dlg.session

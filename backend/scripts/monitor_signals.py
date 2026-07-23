@@ -85,7 +85,8 @@ async def check_all():
                 f"{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
                 f"TP: {sig['tp']} — ДОСТИГНУТ\n"
                 f"Прибыль: {status['pnl_pct']:+.1f}%\n\n"
-                f"Сигнал закрыт с прибылью."
+                f"Сигнал закрыт с прибылью.\n"
+                f"🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
             )
             await send_update(text)
 
@@ -97,7 +98,8 @@ async def check_all():
                 f"{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
                 f"SL: {sig['sl']} — СРАБОТАЛ\n"
                 f"Убыток: {status['pnl_pct']:+.1f}%\n\n"
-                f"Сигнал закрыт по стопу."
+                f"Сигнал закрыт по стопу.\n"
+                f"🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
             )
             await send_update(text)
 

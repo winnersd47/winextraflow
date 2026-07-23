@@ -20,6 +20,8 @@ from app.services.backtesting_real import fetch_candles
 
 logger = logging.getLogger(__name__)
 
+PLATFORM_URL = "https://winextraflow.pages.dev"
+
 MOEX_TICKERS = {"SBER", "SBERP", "GAZP", "LKOH", "YNDX", "YDEX", "ROSN", "GMKN", "NVTK",
                 "MGNT", "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "T", "PHOR", "NLMK",
                 "MAGN", "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "SNGSP",
@@ -224,6 +226,12 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
 
     price_fmt = ",.2f" if entry >= 1 else ",.5f"
     pyr = "\U0001f53a Пирамидинг: 3 уровня" if not trend_conflict else "\U0001f6ab Пирамидинг: не рекомендуется"
+
+    # Market hashtag for filtering
+    market_tag = {"Акции РФ": "MOEX", "Криптовалюта": "crypto", "Валютная пара": "forex",
+                  "Акции": "stocks"}.get(asset_type, "market")
+    hashtags = f"#{ticker} #{market_tag} #WinExtraFlow"
+
     return (
         f"{arrow} {action.upper()} {ticker}  |  WEF {wef}%\n"
         f"\U0001f3e6 {asset_type} | {instrument}\n\n"
@@ -240,8 +248,10 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
         f"{pyr}\n"
         f"⚡ Edge: +{edge:.1f}%\n\n"
         f"\U0001f4a1 Вывод: {conclusion}\n\n"
-        f"\U0001f4b1 Где торговать: {where}\n\n"
-        f"⚠️ Не является инвестиционной рекомендацией."
+        f"\U0001f4b1 Где торговать: {where}\n"
+        f"\U0001f4f2 Полный разбор и WEF Score: {PLATFORM_URL}\n\n"
+        f"⚠️ Не является инвестиционной рекомендацией.\n"
+        f"{hashtags}"
     )
 
 
@@ -257,20 +267,24 @@ async def broadcast_card(ticker: str, action: str, entry: float, tp: float, sl: 
     chart_path, trend, recent_change = await render_chart(ticker, action, entry, tp, sl, wef)
     caption = build_caption(ticker, action, entry, tp, sl, wef, trend, recent_change, expert)
 
+    # WEF-based notification: strong signals (>=80%) alert with sound, others silent
+    silent = wef < 80
+
     try:
         async with httpx.AsyncClient(timeout=40) as client:
             if chart_path and os.path.exists(chart_path):
                 with open(chart_path, "rb") as f:
                     resp = await client.post(
                         f"https://api.telegram.org/bot{token}/sendPhoto",
-                        data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML", "disable_notification": "true"},
+                        data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML",
+                              "disable_notification": str(silent).lower()},
                         files={"photo": (f"chart_{ticker}.png", f, "image/png")},
                     )
             else:
                 # No candles — send text-only card
                 resp = await client.post(
                     f"https://api.telegram.org/bot{token}/sendMessage",
-                    json={"chat_id": chat_id, "text": caption, "parse_mode": "HTML", "disable_notification": True},
+                    json={"chat_id": chat_id, "text": caption, "parse_mode": "HTML", "disable_notification": silent},
                 )
         ok = resp.json().get("ok", False)
         if not ok:
