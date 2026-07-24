@@ -18,19 +18,13 @@ sys.stdout.reconfigure(encoding="utf-8")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import httpx
+from sqlalchemy import select
+from app.config import settings
+from app.database import async_session
+from app.models.signal import Signal, SignalStatus, SignalAction
 from app.services.live_price import check_signal_status
 
-
-# Active signals to monitor (in production: load from DB)
-ACTIVE_SIGNALS = [
-    {"ticker": "SBER", "action": "buy", "entry": 296.77, "tp": 315.29, "sl": 287.51},
-    {"ticker": "GAZP", "action": "sell", "entry": 98.35, "tp": 88.09, "sl": 104.21},
-    {"ticker": "LKOH", "action": "sell", "entry": 4145, "tp": 3595, "sl": 4459},
-    {"ticker": "EURUSD", "action": "buy", "entry": 1.13598, "tp": 1.1502, "sl": 1.12886},
-    {"ticker": "NVDA", "action": "sell", "entry": 199, "tp": 177, "sl": 212},
-]
-
-TOKEN = os.getenv("BOT_TOKEN", "8942312432:AAH2veIFPzRiJIavz9VuG2ILgk3AUY7HaHU")
+TOKEN = os.getenv("BOT_TOKEN", "") or settings.telegram_bot_token or "8942312432:AAH2veIFPzRiJIavz9VuG2ILgk3AUY7HaHU"
 VIP_CHANNEL = os.getenv("VIP_CHANNEL_ID", "-1003914705738")
 
 # Track notified signals to avoid spam
@@ -58,12 +52,57 @@ async def send_update(text: str):
 
 
 async def check_all():
-    """Check all active signals against live prices."""
+    """Check all ACTIVE DB signals against live prices; close + notify on TP/SL hit."""
     print(f"\n{'='*50}")
     print(f"Signal Monitor — {__import__('datetime').datetime.now().strftime('%H:%M:%S')}")
     print(f"{'='*50}")
 
-    for sig in ACTIVE_SIGNALS:
+    async with async_session() as db:
+        db_signals = (await db.execute(
+            select(Signal).where(
+                Signal.status == SignalStatus.ACTIVE,
+                Signal.take_profit.isnot(None),
+                Signal.stop_loss.isnot(None),
+            ).order_by(Signal.created_at.desc()).limit(80)
+        )).scalars().all()
+
+        print(f"Checking {len(db_signals)} active signals...")
+        for s in db_signals:
+            sig = {"ticker": s.ticker, "action": s.action.value,
+                   "entry": s.entry_price, "tp": s.take_profit, "sl": s.stop_loss}
+            ticker = s.ticker
+            status = await check_signal_status(ticker, sig["action"], sig["entry"], sig["tp"], sig["sl"])
+            if not status or status.get("status") == "unknown":
+                continue
+            action_icon = "🟢" if sig["action"] == "buy" else "🔴"
+
+            if status["status"] == "tp_hit":
+                s.status = SignalStatus.CLOSED_TP
+                await db.commit()
+                await send_update(
+                    f"🟢 TAKE PROFIT {ticker}!\n\n{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
+                    f"TP: {sig['tp']} — ДОСТИГНУТ\nПрибыль: {status['pnl_pct']:+.1f}%\n\n"
+                    f"Сигнал закрыт с прибылью.\n🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
+                )
+                print(f"  {ticker}: TP HIT -> closed")
+            elif status["status"] == "sl_hit":
+                s.status = SignalStatus.CLOSED_SL
+                await db.commit()
+                await send_update(
+                    f"🔴 STOP LOSS {ticker}!\n\n{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
+                    f"SL: {sig['sl']} — СРАБОТАЛ\nУбыток: {status['pnl_pct']:+.1f}%\n\n"
+                    f"Сигнал закрыт по стопу.\n🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
+                )
+                print(f"  {ticker}: SL HIT -> closed")
+            else:
+                print(f"  {ticker}: active ({status['pnl_pct']:+.1f}%)")
+            await asyncio.sleep(0.1)
+    return
+
+
+async def _legacy_unused():
+    """kept for reference — old in-memory flow below is disabled."""
+    for sig in []:
         ticker = sig["ticker"]
         status = await check_signal_status(ticker, sig["action"], sig["entry"], sig["tp"], sig["sl"])
 
