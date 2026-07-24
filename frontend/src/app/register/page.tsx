@@ -60,8 +60,9 @@ export default function RegisterPage() {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} className="w-full rounded-lg border border-gray-700 bg-surface px-4 py-2.5 text-white outline-none focus:border-brand-500" />
           </div>
           <div>
-            <label className="mb-1 block text-sm text-gray-400">{t("auth.referralCodeRequired")}</label>
-            <input type="text" value={referral} onChange={(e) => setReferral(e.target.value)} required className="w-full rounded-lg border border-gray-700 bg-surface px-4 py-2.5 text-white outline-none focus:border-brand-500" placeholder={t("auth.referralPlaceholder")} />
+            <label className="mb-1 block text-sm text-gray-400">{t("auth.referralCodeOptional")}</label>
+            <input type="text" value={referral} onChange={(e) => setReferral(e.target.value)} className="w-full rounded-lg border border-gray-700 bg-surface px-4 py-2.5 text-white outline-none focus:border-brand-500" placeholder={t("auth.referralPlaceholder")} />
+            <p className="mt-1 text-xs text-text-muted">{locale === "ru" ? "Есть код друга? Введите — оба получите бонусные дни Premium." : "Have a friend's code? Enter it — you both get bonus Premium days."}</p>
           </div>
           <label className="flex items-start gap-2 text-sm text-text-secondary">
             <input type="checkbox" checked={agreeTerms} onChange={e => setAgreeTerms(e.target.checked)} required className="mt-1 rounded" />

@@ -21,24 +21,39 @@ async def test_register(client: AsyncClient, seed_referrer: str):
 
 
 @pytest.mark.asyncio
-async def test_register_without_referral(client: AsyncClient):
-    """Registration without referral code should fail."""
+async def test_register_without_referral_public(client: AsyncClient):
+    """Public mode (default): registration without a referral code succeeds."""
     resp = await client.post("/api/v1/auth/register", json={
         "email": "noreferral@test.com",
         "username": "noreferral",
         "password": "pass123",
     })
-    assert resp.status_code == 422  # Validation error — referral_code is required
+    assert resp.status_code == 201
+    assert resp.json()["referral_code"] is not None  # gets own code
 
 
 @pytest.mark.asyncio
-async def test_register_invalid_referral(client: AsyncClient):
-    """Registration with invalid referral code should fail."""
+async def test_register_invalid_referral_public(client: AsyncClient):
+    """Public mode: an unknown referral code is ignored (registers without referrer)."""
     resp = await client.post("/api/v1/auth/register", json={
         "email": "badref@test.com",
         "username": "badref",
         "password": "pass123",
         "referral_code": "INVALID_CODE_123",
+    })
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_register_invite_only_requires_code(client: AsyncClient, monkeypatch):
+    """Invite-only mode: registration without a valid referral code is rejected."""
+    from app.config import settings
+    monkeypatch.setattr(settings, "registration_invite_only", True)
+    resp = await client.post("/api/v1/auth/register", json={
+        "email": "inviteonly@test.com",
+        "username": "inviteonly",
+        "password": "pass123",
+        "referral_code": "",
     })
     assert resp.status_code == 400
 

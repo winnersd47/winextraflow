@@ -103,12 +103,15 @@ class Settings(BaseSettings):
     execution_min_confidence: float = 0.6
     execution_daily_loss_limit: float = 500.0  # USD, 0 = no limit
 
+    # Registration
+    registration_invite_only: bool = False  # True = referral code required; False = public signup
+
     # Referral
     referral_reward_type: str = "premium_days"
     referral_level1_reward: int = 7   # days of Premium for direct referral
     referral_level2_reward: int = 3   # days of Premium for indirect referral
     referral_max_levels: int = 2
-    referral_base_url: str = "http://localhost:3000/register"
+    referral_base_url: str = "https://winextraflow.pages.dev/register"
 
     # Security
     allowed_origins: str = "http://localhost:3000"  # comma-separated in production

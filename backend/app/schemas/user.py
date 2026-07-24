@@ -10,7 +10,7 @@ class UserRegister(BaseModel):
     email: EmailStr
     username: str
     password: str
-    referral_code: str  # Required — must have a valid referral code to register
+    referral_code: str = ""  # Optional in public mode; required only if REGISTRATION_INVITE_ONLY=true
 
 
 class UserLogin(BaseModel):
