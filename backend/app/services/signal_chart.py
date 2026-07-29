@@ -41,8 +41,34 @@ NAME_MAP = {
 }
 
 
+import re as _re
+
+# MOEX futures codes: BR-8.26 (Brent), GAZR-9.26 (Gazprom), CNY-9.26, MXI-9.26, SILV-9.26...
+_FUTURES_RE = _re.compile(r"^([A-Z]{2,5})-(\d{1,2})\.(\d{2})$")
+FUTURES_NAMES = {
+    "BR": "Нефть Brent (фьючерс)", "GAZR": "Газпром (фьючерс)", "SBRF": "Сбербанк (фьючерс)",
+    "CNY": "Юань/рубль (фьючерс)", "MXI": "Индекс МосБиржи (фьючерс)", "RTS": "Индекс РТС (фьючерс)",
+    "SI": "Доллар/рубль (фьючерс)", "EU": "Евро/рубль (фьючерс)", "GOLD": "Золото (фьючерс)",
+    "SILV": "Серебро (фьючерс)", "NG": "Газ (фьючерс)", "LKOH": "Лукойл (фьючерс)",
+}
+
+
+def is_moex_futures(ticker: str) -> bool:
+    return bool(_FUTURES_RE.match(ticker.upper()))
+
+
+def futures_label(ticker: str) -> str:
+    m = _FUTURES_RE.match(ticker.upper())
+    if not m:
+        return ticker
+    return FUTURES_NAMES.get(m.group(1), f"{m.group(1)} (фьючерс)")
+
+
 def _instrument(ticker: str):
     t = ticker.upper()
+    if is_moex_futures(t):
+        return ("MOEX FORTS (срочный рынок)", "QUIK, Тинькофф Инвестиции, Финам",
+                "Фьючерс", "RUB")
     if t in MOEX_TICKERS:
         return "MOEX (Московская биржа)", "Тинькофф Инвестиции, QUIK, MetaTrader 5", "Акции РФ", "RUB"
     if t.endswith("USDT") or t.endswith("BTC"):
@@ -196,7 +222,7 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
     v_emoji = {"ОТЛИЧНЫЙ": "✅", "ХОРОШИЙ": "✅", "СРЕДНИЙ": "⚠️", "РИСКОВАННЫЙ": "⚠️", "ПРОПУСТИТЬ": "❌"}.get(verdict, "⚠️")
 
     # Detailed conclusion
-    name = NAME_MAP.get(ticker.upper(), ticker.upper())
+    name = futures_label(ticker) if is_moex_futures(ticker) else NAME_MAP.get(ticker.upper(), ticker.upper())
     act_ru = "покупку" if is_buy else "продажу"
     trend_ru = {"uptrend": "восходящем тренде", "downtrend": "нисходящем тренде", "ranging": "боковике"}.get(trend, "неопределённом состоянии")
     parts = [f"{name} находится в {trend_ru} (изменение за 20 дней: {recent_change:+.1f}%)."]
@@ -228,7 +254,7 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
     pyr = "\U0001f53a Пирамидинг: 3 уровня" if not trend_conflict else "\U0001f6ab Пирамидинг: не рекомендуется"
 
     # Market hashtag for filtering
-    market_tag = {"Акции РФ": "MOEX", "Криптовалюта": "crypto", "Валютная пара": "forex",
+    market_tag = {"Акции РФ": "MOEX", "Фьючерс": "фьючерсы", "Криптовалюта": "crypto", "Валютная пара": "forex",
                   "Акции": "stocks"}.get(asset_type, "market")
     hashtags = f"#{ticker} #{market_tag} #WinExtraFlow"
 
