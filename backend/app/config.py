@@ -106,6 +106,13 @@ class Settings(BaseSettings):
     # Registration
     registration_invite_only: bool = False  # True = referral code required; False = public signup
 
+    # Signal video clips (9:16 stories) — rendered locally with matplotlib + ffmpeg
+    signal_clips_enabled: bool = True
+
+    # Free channel: only tease signals BELOW this WEF score.
+    # Strong signals (WEF >= threshold) stay VIP-exclusive — not even a teaser.
+    free_teaser_max_wef: int = 70
+
     # Referral
     referral_reward_type: str = "premium_days"
     referral_level1_reward: int = 7   # days of Premium for direct referral

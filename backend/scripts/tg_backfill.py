@@ -25,6 +25,10 @@ from app.services.ai_rating import ai_rating_service
 # (monitored_channels.json, seeded from .env). See load_monitored().
 from app.services.channel_discovery import load_monitored
 
+# Ignore channel posts older than this — prevents ancient history being ingested
+# as fresh signals (stale entry prices produce absurd P&L).
+MAX_MESSAGE_AGE_HOURS = 48
+
 
 def _proxy():
     if settings.socks5_host and settings.socks5_port:
@@ -59,15 +63,22 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
         await client.disconnect()
         return
 
-    # Fetch messages from all monitored channels while connected (fresh list per run)
+    # Fetch messages from all monitored channels while connected (fresh list per run).
+    # Only RECENT messages: channels keep years of history and an old post (e.g. BTC at
+    # 43650 from 2024) would otherwise be ingested as a fresh signal.
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=MAX_MESSAGE_AGE_HOURS)
     channels = load_monitored()
     fetched = []  # list of (username, entity_id, title, messages)
     for ch in channels:
         try:
             entity = await client.get_entity(ch)
             msgs = await client.get_messages(entity, limit=limit)
-            fetched.append((ch, str(entity.id), getattr(entity, "title", ch), msgs))
-            print(f"Fetched {len(msgs)} messages from @{ch}")
+            fresh = [m for m in msgs if m.date and m.date >= cutoff]
+            skipped = len(msgs) - len(fresh)
+            fetched.append((ch, str(entity.id), getattr(entity, "title", ch), fresh))
+            note = f" ({skipped} too old, skipped)" if skipped else ""
+            print(f"Fetched {len(fresh)}/{len(msgs)} recent messages from @{ch}{note}")
         except Exception as e:
             print(f"@{ch}: fetch failed — {e}")
     await client.disconnect()

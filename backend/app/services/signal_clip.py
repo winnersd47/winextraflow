@@ -183,7 +183,11 @@ def build_clip_caption(ticker: str, action: str, entry: float, tp: float, sl: fl
             f"{arrow} {action.upper()} {ticker} — WEF {wef}%\n"
             f"\U0001f3e6 {name} · {asset_type}\n"
             f"⚖️ R:R 1:{rr:.1f}\n\n"
-            f"\U0001f512 Точка входа, цель и стоп — в VIP-канале\n"
+            f"\U0001f512 Точка входа, цель и стоп — в VIP-канале\n\n"
+            f"\U0001f48e <b>Сигналы с WEF 70%+ публикуются только в VIP</b>\n"
+            f"Это самые сильные сетапы: по тренду, R:R от 1:2, с полным "
+            f"экспертным разбором (Kelly, EV, Profit Factor, пирамидинг).\n"
+            f"В общий канал они не попадают.\n\n"
             f"\U0001f4f2 {PLATFORM_URL}\n\n"
             f"⚠️ Не является инвестиционной рекомендацией.\n{tag}"
         )
@@ -199,11 +203,18 @@ def build_clip_caption(ticker: str, action: str, entry: float, tp: float, sl: fl
     )
 
 
+MAX_CAPTION = 1024  # Telegram limit for media captions
+
+
 async def broadcast_clip(ticker: str, action: str, entry: float, tp: float, sl: float,
                          wef: int, verdict: str = "", strategy: str = "",
                          chat_id: str | None = None, teaser: bool = False,
-                         avatar_path: str | None = None, clip_path: str | None = None) -> bool:
-    """Render (or reuse) a clip and send it as a video to a channel."""
+                         avatar_path: str | None = None, clip_path: str | None = None,
+                         caption: str | None = None) -> bool:
+    """Render (or reuse) a clip and send it as a video to a channel.
+
+    `caption` overrides the default (used to attach the full expert description).
+    """
     token = settings.telegram_bot_token
     chat_id = chat_id or settings.telegram_vip_channel_id
     if not token or not chat_id:
@@ -215,7 +226,10 @@ async def broadcast_clip(ticker: str, action: str, entry: float, tp: float, sl: 
     if not path or not os.path.exists(path):
         return False
 
-    caption = build_clip_caption(ticker, action, entry, tp, sl, wef, teaser=teaser)
+    caption = caption or build_clip_caption(ticker, action, entry, tp, sl, wef, teaser=teaser)
+    if len(caption) > MAX_CAPTION:
+        # Trim on a line boundary, keep the disclaimer/link tail readable
+        caption = caption[:MAX_CAPTION - 60].rsplit("\n", 1)[0] + f"\n\n\U0001f4f2 {PLATFORM_URL}"
     method = "sendVideo" if path.endswith(".mp4") else "sendAnimation"
     field = "video" if path.endswith(".mp4") else "animation"
     try:

@@ -51,6 +51,27 @@ async def process_and_broadcast(
     if provider is None and signal.provider_id:
         provider = await db.get(Provider, signal.provider_id)
 
+    # 0. Stale-entry guard: reject signals whose entry is far from the live market
+    #    (parsed from old channel history). Publishing these would show fake levels.
+    try:
+        from app.services.live_price import get_live_price
+        live = await get_live_price(signal.ticker)
+        lp = (live or {}).get("price") or 0
+        if lp > 0 and signal.entry_price > 0:
+            dev = abs(signal.entry_price - lp) / lp
+            if dev > 0.10:
+                logger.info(
+                    f"Stale signal rejected {signal.ticker}: entry {signal.entry_price} "
+                    f"vs live {lp} ({dev:.0%} off)"
+                )
+                signal.ai_reasoning = (signal.ai_reasoning or "") + f" | Stale entry ({dev:.0%} off market)"
+                await db.commit()
+                result["broadcast"] = False
+                result["reason"] = "stale_entry"
+                return result
+    except Exception as e:
+        logger.debug(f"Stale check skipped for {signal.ticker}: {e}")
+
     # 1. AI rating -> WEF Score
     if settings.ai_rating_enabled and signal.ai_confidence is None:
         try:
@@ -143,25 +164,83 @@ async def process_and_broadcast(
 
     if telegram_bot.enabled and settings.telegram_vip_channel_id:
         try:
-            # VIP: rich signal card (candlestick chart + full RU expert analysis)
-            from app.services.signal_chart import broadcast_card
-            sent = await broadcast_card(
-                signal.ticker, signal.action.value, signal.entry_price,
-                corrected_tp, corrected_sl, result["wef"], expert=expert_for_vip,
-            )
+            sent = False
+            clip = None
+
+            # ── VIP: ONE message — video clip carrying the full expert description ──
+            if settings.signal_clips_enabled:
+                try:
+                    from app.services.signal_clip import make_clip, broadcast_clip
+                    clip = await make_clip(
+                        signal.ticker, signal.action.value, signal.entry_price,
+                        corrected_tp, corrected_sl, result["wef"],
+                        verdict=verdict, strategy=expert.get("regime_strategy", ""),
+                    )
+                except Exception as e:
+                    logger.warning(f"Clip render failed for {signal.ticker}: {e}")
+
+            if clip:
+                from app.services.signal_chart import build_caption
+                from app.services.signal_clip import broadcast_clip
+                # Full rich description (same text as the old photo card) on the clip
+                full_caption = build_caption(
+                    signal.ticker, signal.action.value, signal.entry_price,
+                    corrected_tp, corrected_sl, result["wef"],
+                    trend="unknown", recent_change=0.0, expert=expert_for_vip,
+                )
+                sent = await broadcast_clip(
+                    signal.ticker, signal.action.value, signal.entry_price,
+                    corrected_tp, corrected_sl, result["wef"], clip_path=clip,
+                    caption=full_caption,
+                )
+                result["clip"] = True
+            else:
+                # Fallback: no clip (no candles / no ffmpeg) — send the chart card instead
+                from app.services.signal_chart import broadcast_card
+                sent = await broadcast_card(
+                    signal.ticker, signal.action.value, signal.entry_price,
+                    corrected_tp, corrected_sl, result["wef"], expert=expert_for_vip,
+                )
             result["broadcast"] = sent
 
-            # Free channel (delayed teaser) + personal notifications — no VIP dup
+            # ── Free channel: teaser ONLY here (never a second VIP post) ──
+            # Strong signals (WEF >= threshold) stay VIP-exclusive — no teaser at all.
+            vip_exclusive = result["wef"] >= settings.free_teaser_max_wef
+            if vip_exclusive:
+                result["free_teaser"] = False
+                logger.info(
+                    f"VIP-exclusive (WEF {result['wef']}% >= {settings.free_teaser_max_wef}%): "
+                    f"no free-channel teaser for {signal.ticker}"
+                )
+            if settings.telegram_free_channel_id and not vip_exclusive:
+                try:
+                    if clip:
+                        from app.services.signal_clip import broadcast_clip
+                        await broadcast_clip(
+                            signal.ticker, signal.action.value, signal.entry_price,
+                            corrected_tp, corrected_sl, result["wef"], clip_path=clip,
+                            chat_id=settings.telegram_free_channel_id, teaser=True,
+                        )
+                    else:
+                        await telegram_bot.broadcast_free_and_personal(
+                            signal.ticker, signal.action.value, signal.entry_price,
+                            signal.ai_confidence, skip_free=False,
+                        )
+                except Exception as e:
+                    logger.warning(f"Free-channel teaser failed for {signal.ticker}: {e}")
+
+            # Personal notifications to linked users (no channel posts here)
             try:
                 await telegram_bot.broadcast_free_and_personal(
-                    signal.ticker, signal.action.value, signal.entry_price, signal.ai_confidence,
+                    signal.ticker, signal.action.value, signal.entry_price,
+                    signal.ai_confidence, skip_free=True,
                 )
-            except AttributeError:
-                pass  # method optional
+            except (AttributeError, TypeError):
+                pass  # method optional / older signature
 
             logger.info(
-                f"VIP card [{source}]: {signal.action.value.upper()} {signal.ticker} "
-                f"@ {signal.entry_price} WEF={result['wef']}% verdict={verdict} sent={sent}"
+                f"VIP {'clip' if clip else 'card'} [{source}]: {signal.action.value.upper()} "
+                f"{signal.ticker} @ {signal.entry_price} WEF={result['wef']}% verdict={verdict} sent={sent}"
             )
         except Exception as e:
             logger.error(f"VIP card failed for {signal.ticker}: {e}")

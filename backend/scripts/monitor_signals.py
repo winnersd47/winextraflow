@@ -25,10 +25,34 @@ from app.models.signal import Signal, SignalStatus, SignalAction
 from app.services.live_price import check_signal_status
 
 TOKEN = os.getenv("BOT_TOKEN", "") or settings.telegram_bot_token or "8942312432:AAH2veIFPzRiJIavz9VuG2ILgk3AUY7HaHU"
+
+# If a signal's entry deviates from the live price by more than this, it is stale
+# (parsed from old channel history) — expire it instead of reporting fake P&L.
+STALE_ENTRY_TOLERANCE = 0.10  # 10%
 VIP_CHANNEL = os.getenv("VIP_CHANNEL_ID", "-1003914705738")
 
 # Track notified signals to avoid spam
 notified = set()
+
+
+async def send_free(text: str):
+    """Send a result teaser to the free channel (proof of work -> VIP conversion)."""
+    chan = settings.telegram_free_channel_id
+    if not chan:
+        return
+    try:
+        body = {"chat_id": chan, "text": text, "parse_mode": "HTML", "disable_notification": True}
+        body_bytes = __import__("json").dumps(body).encode("utf-8")
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                content=body_bytes,
+                headers={"Content-Type": "application/json; charset=utf-8"},
+            )
+            if resp.json().get("ok"):
+                print("  Sent result teaser to free channel")
+    except Exception as e:
+        print(f"  Free send error: {e}")
 
 
 async def send_update(text: str):
@@ -74,26 +98,53 @@ async def check_all():
             status = await check_signal_status(ticker, sig["action"], sig["entry"], sig["tp"], sig["sl"])
             if not status or status.get("status") == "unknown":
                 continue
+
+            live = status.get("current_price") or 0
+            # Sanity: an entry far from the live market means a stale/bad signal.
+            # Expire it silently instead of claiming a huge profit/loss.
+            if live > 0 and abs(sig["entry"] - live) / live > STALE_ENTRY_TOLERANCE:
+                s.status = SignalStatus.EXPIRED
+                await db.commit()
+                print(f"  {ticker}: STALE entry {sig['entry']} vs live {live} -> EXPIRED (no post)")
+                continue
+
             action_icon = "🟢" if sig["action"] == "buy" else "🔴"
+            # Realized P&L is measured at the TP/SL level, not at the current price.
+            tp_pnl = (sig["tp"] - sig["entry"]) / sig["entry"] * 100
+            sl_pnl = (sig["sl"] - sig["entry"]) / sig["entry"] * 100
+            if sig["action"] == "sell":
+                tp_pnl, sl_pnl = -tp_pnl, -sl_pnl
 
             if status["status"] == "tp_hit":
                 s.status = SignalStatus.CLOSED_TP
                 await db.commit()
                 await send_update(
                     f"🟢 TAKE PROFIT {ticker}!\n\n{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
-                    f"TP: {sig['tp']} — ДОСТИГНУТ\nПрибыль: {status['pnl_pct']:+.1f}%\n\n"
+                    f"TP: {sig['tp']} — ДОСТИГНУТ\nПрибыль: {tp_pnl:+.1f}%\n\n"
                     f"Сигнал закрыт с прибылью.\n🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
                 )
-                print(f"  {ticker}: TP HIT -> closed")
+                print(f"  {ticker}: TP HIT -> closed ({tp_pnl:+.1f}%)")
+                # Result teaser for the free channel — proof the signals work,
+                # without revealing the entry/TP levels themselves.
+                wef_s = f"{s.ai_confidence:.0%}" if s.ai_confidence else "—"
+                await send_free(
+                    f"✅ <b>Цель достигнута: {ticker}</b>\n\n"
+                    f"{action_icon} {sig['action'].upper()} — результат <b>{tp_pnl:+.1f}%</b>\n"
+                    f"WEF Score сигнала: {wef_s}\n\n"
+                    f"💎 Этот сигнал был в VIP с точкой входа, целью и стопом.\n"
+                    f"<b>Сигналы с WEF 70%+ публикуются только в VIP.</b>\n\n"
+                    f"🔗 https://winextraflow.pages.dev\n"
+                    f"⚠️ Не является инвестиционной рекомендацией.\n#результат #WinExtraFlow"
+                )
             elif status["status"] == "sl_hit":
                 s.status = SignalStatus.CLOSED_SL
                 await db.commit()
                 await send_update(
                     f"🔴 STOP LOSS {ticker}!\n\n{action_icon} {sig['action'].upper()} @ {sig['entry']}\n"
-                    f"SL: {sig['sl']} — СРАБОТАЛ\nУбыток: {status['pnl_pct']:+.1f}%\n\n"
+                    f"SL: {sig['sl']} — СРАБОТАЛ\nУбыток: {sl_pnl:+.1f}%\n\n"
                     f"Сигнал закрыт по стопу.\n🔗 https://winextraflow.pages.dev\n#результат #WinExtraFlow"
                 )
-                print(f"  {ticker}: SL HIT -> closed")
+                print(f"  {ticker}: SL HIT -> closed ({sl_pnl:+.1f}%)")
             else:
                 print(f"  {ticker}: active ({status['pnl_pct']:+.1f}%)")
             await asyncio.sleep(0.1)

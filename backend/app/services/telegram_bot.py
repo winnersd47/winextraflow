@@ -184,7 +184,9 @@ class TelegramBot:
         return (
             f"{arrow} <b>{action.upper()} {ticker}</b>{quality}\n"
             f"\n💎 Цена входа, TP и SL — в VIP-канале"
-            f"\n📊 <a href='{settings.frontend_url}/dashboard/store'>Подключить Premium</a>"
+            f"\n\n💎 <b>Сигналы с WEF 70%+ — только в VIP</b>"
+            f"\nСамые сильные сетапы в общий канал не публикуются."
+            f"\n📊 <a href='https://winextraflow.pages.dev'>Подключить Premium</a>"
         )
 
     async def broadcast_signal(self, ticker: str, action: str, price: float, confidence: float | None,

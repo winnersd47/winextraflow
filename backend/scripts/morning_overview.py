@@ -49,18 +49,48 @@ async def main():
     if fg_val is not None:
         emoji = "😱" if fg_val < 25 else "😟" if fg_val < 45 else "😐" if fg_val < 55 else "🙂" if fg_val < 75 else "🤑"
         lines.append(f"  {emoji} Индекс страха и жадности: {fg_val} ({fg_cls})")
-    lines += ["", "<b>MOEX:</b>", f"  🇷🇺 SBER: {fmt(sber, ' ₽')}", "",
-              f"📲 Сигналы и аналитика дня: {PLATFORM}", "", "#обзор #WinExtraFlow"]
+    lines += ["", "<b>MOEX:</b>", f"  🇷🇺 SBER: {fmt(sber, ' ₽')}"]
+
+    # ── Market regime (what the strategy engine sees today) ──
+    try:
+        from app.database import async_session
+        from app.services.quant.regime import regime_detector
+        regime_ru = {
+            "trending_up": "восходящий тренд — работаем по тренду",
+            "trending_down": "нисходящий тренд — осторожно с покупками",
+            "ranging": "боковик — работаем от уровней",
+            "high_volatility": "высокая волатильность — уменьшаем размер позиции",
+            "low_volatility": "низкая волатильность — точные входы важнее",
+            "breakout": "пробой — высокий потенциал",
+            "unknown": "режим не определён — стандартные параметры",
+        }
+        async with async_session() as db:
+            st = await regime_detector.detect(db)
+        r_key = st.regime.value if hasattr(st.regime, "value") else str(st.regime)
+        lines += ["", "<b>Режим рынка:</b>",
+                  f"  🧭 {regime_ru.get(r_key, r_key)}",
+                  f"  Уверенность: {st.confidence:.0%}"]
+    except Exception as e:
+        print(f"(regime skipped: {e})")
+
+    lines += ["", f"📲 Сигналы и аналитика дня: {PLATFORM}",
+              "", "💎 <b>Сигналы с WEF 70%+ — только в VIP.</b>",
+              "", "⚠️ Не является инвестиционной рекомендацией.", "#обзор #WinExtraFlow"]
     text = "\n".join(lines)
 
     token = settings.telegram_bot_token
-    chat = settings.telegram_vip_channel_id
-    if not token or not chat:
+    if not token:
         print("Bot not configured\n\n" + text); return
-    async with httpx.AsyncClient(timeout=20) as c:
-        r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                         json={"chat_id": chat, "text": text, "parse_mode": "HTML", "disable_notification": True})
-    print("Sent" if r.json().get("ok") else f"Failed: {r.text[:200]}")
+    # Post to BOTH channels — free value for the general audience, context for VIP
+    for chat in [settings.telegram_vip_channel_id, settings.telegram_free_channel_id]:
+        if not chat:
+            continue
+        async with httpx.AsyncClient(timeout=20) as c:
+            r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                             json={"chat_id": chat, "text": text, "parse_mode": "HTML",
+                                   "disable_notification": True})
+        print(f"{chat}: {'Sent' if r.json().get('ok') else 'Failed: ' + r.text[:120]}")
+        await asyncio.sleep(1)
 
 
 if __name__ == "__main__":
