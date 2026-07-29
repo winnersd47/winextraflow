@@ -59,3 +59,4 @@ backend/*_disc.session
 backend/*_dlg.session
 backend/scripts/content.log
 backend/scripts/monitor.log
+backend/feature_post_state.json
