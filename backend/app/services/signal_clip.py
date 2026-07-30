@@ -42,8 +42,14 @@ def _find_ffmpeg() -> str | None:
 
 async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float,
                     wef: int, verdict: str = "", strategy: str = "",
-                    days: int = 60, avatar_path: str | None = None) -> str | None:
-    """Render a vertical animated MP4 for one signal. Returns path or None."""
+                    days: int = 60, avatar_path: str | None = None,
+                    hide_levels: bool = False) -> str | None:
+    """Render a vertical animated MP4 for one signal. Returns path or None.
+
+    hide_levels=True renders the free-channel teaser: candles + WEF only, with no
+    level lines, no price labels and no y-axis prices — so the entry/TP/SL stay
+    exclusive to VIP.
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -77,8 +83,13 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
     ax = fig.add_axes([0.10, 0.34, 0.86, 0.40])
     ax.set_facecolor(BG)
 
-    lo = min(min(l), sl, tp) * 0.985
-    hi = max(max(h), tp, sl) * 1.015
+    if hide_levels:
+        # Teaser: scale to the candles only — including a hidden far-away target
+        # would squash the price action into a corner.
+        lo, hi = min(l) * 0.98, max(h) * 1.02
+    else:
+        lo = min(min(l), sl, tp) * 0.985
+        hi = max(max(h), tp, sl) * 1.015
     ax.set_xlim(-1, n + 4)
     ax.set_ylim(lo, hi)
     ax.tick_params(colors="#64748b", labelsize=7)
@@ -93,11 +104,19 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
     acc = "#10b981" if is_buy else "#ef4444"
     fig.text(0.5, 0.955, f"{arrow}  {ticker}", ha="center", color=acc, fontsize=34, fontweight="bold")
     fig.text(0.5, 0.918, f"{name} · {asset_type}", ha="center", color="#94a3b8", fontsize=13)
-    fig.text(0.5, 0.885, f"WEF Score {wef}%   ·   R:R 1:{rr:.1f}", ha="center", color="#14b8a6",
-             fontsize=17, fontweight="bold")
+    head = f"WEF Score {wef}%" if hide_levels else f"WEF Score {wef}%   ·   R:R 1:{rr:.1f}"
+    fig.text(0.5, 0.885, head, ha="center", color="#14b8a6", fontsize=17, fontweight="bold")
     fig.text(0.5, 0.045, "WinExtraFlow", ha="center", color="#14b8a6", fontsize=15, fontweight="bold")
     fig.text(0.5, 0.021, PLATFORM_URL.replace("https://", ""), ha="center", color="#64748b", fontsize=11)
     fig.text(0.5, 0.005, "Не является инвестиционной рекомендацией", ha="center", color="#475569", fontsize=8)
+
+    # Teaser: no prices anywhere on the frame (y-axis included)
+    if hide_levels:
+        ax.set_yticklabels([])
+        fig.text(0.5, 0.255, "Уровни входа, цели и стопа", ha="center",
+                 color="#94a3b8", fontsize=15)
+        fig.text(0.5, 0.213, "в VIP-канале", ha="center", color="#14b8a6",
+                 fontsize=17, fontweight="bold")
 
     # dynamic text handles (levels + verdict), filled during animation
     t_entry = fig.text(0.10, 0.285, "", color="#3b82f6", fontsize=15, fontweight="bold")
@@ -131,25 +150,27 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
             ax.plot([k, k], [l[k], h[k]], color=col, linewidth=1.0)
             ax.plot([k, k], [min(o[k], c[k]), max(o[k], c[k])], color=col, linewidth=3.4)
 
-        # levels appear after the draw phase
-        if i >= draw_frames * 0.62:
-            ax.axhline(entry, color="#3b82f6", ls="--", lw=1.6, alpha=0.9)
-            t_entry.set_text(f"Вход   {entry:{price_fmt}} {currency}")
-        if i >= draw_frames * 0.78:
-            ax.axhline(tp, color="#10b981", ls=":", lw=1.6, alpha=0.9)
-            pct = abs(tp - entry) / entry * 100
-            t_tp.set_text(f"Цель   {tp:{price_fmt}}  (+{pct:.1f}%)")
-        if i >= draw_frames * 0.9:
-            ax.axhline(sl, color="#ef4444", ls=":", lw=1.6, alpha=0.9)
-            pct = abs(entry - sl) / entry * 100
-            t_sl.set_text(f"Стоп   {sl:{price_fmt}}  (-{pct:.1f}%)")
+        # levels appear after the draw phase (skipped entirely in teaser mode)
+        if not hide_levels:
+            if i >= draw_frames * 0.62:
+                ax.axhline(entry, color="#3b82f6", ls="--", lw=1.6, alpha=0.9)
+                t_entry.set_text(f"Вход   {entry:{price_fmt}} {currency}")
+            if i >= draw_frames * 0.78:
+                ax.axhline(tp, color="#10b981", ls=":", lw=1.6, alpha=0.9)
+                pct = abs(tp - entry) / entry * 100
+                t_tp.set_text(f"Цель   {tp:{price_fmt}}  (+{pct:.1f}%)")
+            if i >= draw_frames * 0.9:
+                ax.axhline(sl, color="#ef4444", ls=":", lw=1.6, alpha=0.9)
+                pct = abs(entry - sl) / entry * 100
+                t_sl.set_text(f"Стоп   {sl:{price_fmt}}  (-{pct:.1f}%)")
         if i >= draw_frames and verdict:
             t_verdict.set_text(f"Вердикт: {verdict}")
         if i >= draw_frames + 6 and strategy:
             t_strategy.set_text(strategy)
         return []
 
-    out = os.path.join(tempfile.gettempdir(), f"wef_clip_{ticker}.mp4")
+    suffix = "_teaser" if hide_levels else ""
+    out = os.path.join(tempfile.gettempdir(), f"wef_clip_{ticker}{suffix}.mp4")
     ff = _find_ffmpeg()
     try:
         anim = animation.FuncAnimation(fig, frame, frames=total, interval=1000 / FPS, blit=False)
@@ -181,13 +202,16 @@ def build_clip_caption(ticker: str, action: str, entry: float, tp: float, sl: fl
     if teaser:
         return (
             f"{arrow} {action.upper()} {ticker} — WEF {wef}%\n"
-            f"\U0001f3e6 {name} · {asset_type}\n"
-            f"⚖️ R:R 1:{rr:.1f}\n\n"
-            f"\U0001f512 Точка входа, цель и стоп — в VIP-канале\n\n"
-            f"\U0001f48e <b>Сигналы с WEF 70%+ публикуются только в VIP</b>\n"
-            f"Это самые сильные сетапы: по тренду, R:R от 1:2, с полным "
-            f"экспертным разбором (Kelly, EV, Profit Factor, пирамидинг).\n"
-            f"В общий канал они не попадают.\n\n"
+            f"\U0001f3e6 {name} · {asset_type}\n\n"
+            f"<b>Подробности сделки — в VIP-канале:</b>\n"
+            f"• Цена входа, цель и стоп\n"
+            f"• Соотношение риск/прибыль\n"
+            f"• Размер позиции по Kelly\n"
+            f"• Мат. ожидание и Profit Factor\n"
+            f"• План входа частями (пирамидинг)\n"
+            f"• Где торговать инструмент\n\n"
+            f"\U0001f48e Сигналы с WEF 70%+ в общий канал не попадают — "
+            f"только в VIP.\n\n"
             f"\U0001f4f2 {PLATFORM_URL}\n\n"
             f"⚠️ Не является инвестиционной рекомендацией.\n{tag}"
         )

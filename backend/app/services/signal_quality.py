@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 # Thresholds
 MIN_WEF_SCORE = 0.50
 MIN_RR_RATIO = 1.5
+# Upper bounds: beyond these the "signal" is a long-horizon analyst price target
+# (e.g. +226% in a year vs a -10% stop = R:R 1:22), not an actionable trade setup.
+MAX_RR_RATIO = 10.0
+MAX_TP_PCT = 60.0
 MIN_PROVIDER_WIN_RATE = 0.55
 MIN_PROVIDER_SIGNALS = 5  # need at least N closed signals to judge
 
@@ -84,8 +88,17 @@ async def check_signal_quality(
 
         if risk > 0:
             rr = reward / risk
+            tp_pct = reward / signal.entry_price * 100 if signal.entry_price else 0
             if rr < 1.0:
                 result.fail(f"R:R ratio {rr:.1f} < 1.0 (risk exceeds reward)")
+            elif rr > MAX_RR_RATIO or tp_pct > MAX_TP_PCT:
+                # A +200% target against a -10% stop is a long-horizon analyst price
+                # forecast, not a tradeable setup. Publishing it as a trade with
+                # "R:R 1:22" is misleading.
+                result.fail(
+                    f"Unrealistic setup: target {tp_pct:.0f}%, R:R {rr:.1f} "
+                    f"(analyst price forecast, not a trade signal)"
+                )
             elif rr < MIN_RR_RATIO:
                 result.warn(f"R:R ratio {rr:.1f} < {MIN_RR_RATIO} (marginal)")
         else:

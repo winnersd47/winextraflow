@@ -215,10 +215,19 @@ async def process_and_broadcast(
             if settings.telegram_free_channel_id and not vip_exclusive:
                 try:
                     if clip:
-                        from app.services.signal_clip import broadcast_clip
+                        # Separate teaser render: no levels, no prices on the frame —
+                        # reusing the VIP clip would show entry/TP/SL for free.
+                        from app.services.signal_clip import make_clip, broadcast_clip
+                        teaser_clip = await make_clip(
+                            signal.ticker, signal.action.value, signal.entry_price,
+                            corrected_tp, corrected_sl, result["wef"],
+                            verdict=verdict, strategy=expert.get("regime_strategy", ""),
+                            hide_levels=True,
+                        )
                         await broadcast_clip(
                             signal.ticker, signal.action.value, signal.entry_price,
-                            corrected_tp, corrected_sl, result["wef"], clip_path=clip,
+                            corrected_tp, corrected_sl, result["wef"],
+                            clip_path=teaser_clip or clip,
                             chat_id=settings.telegram_free_channel_id, teaser=True,
                         )
                     else:
