@@ -1,0 +1,36 @@
+# WinExtraFlow — scheduled automation (Linux equivalent of the Windows tasks).
+# Install:  crontab -u wef /opt/winextraflow/deploy/crontab
+# Verify:   crontab -u wef -l
+#
+# Times are server-local. Set the box to Moscow time so the market schedule lines up:
+#   sudo timedatectl set-timezone Europe/Moscow
+
+SHELL=/bin/bash
+PYTHONIOENCODING=utf-8
+WEF=/opt/winextraflow/backend
+PY=/opt/winextraflow/venv/bin/python
+LOG=/var/log/winextraflow
+
+# ── Signals: parse monitored channels -> evolution check -> VIP/free publish ──
+*/30 * * * *  cd $WEF && $PY scripts/tg_backfill.py 30 --vip   >> $LOG/poller.log 2>&1
+
+# ── Track open signals: TP/SL hit -> close in DB + post result ──
+17 * * * *    cd $WEF && $PY scripts/monitor_signals.py        >> $LOG/monitor.log 2>&1
+
+# ── Daily morning overview (BTC/ETH, Fear&Greed, MOEX, market regime) ──
+0 9 * * *     cd $WEF && $PY scripts/morning_overview.py       >> $LOG/content.log 2>&1
+
+# ── Weekly performance digest (Sunday evening) ──
+0 19 * * 0    cd $WEF && $PY scripts/weekly_digest.py          >> $LOG/content.log 2>&1
+
+# ── Weekly free-channel posts: rejected-signals stats + top-3 by WEF (Saturday) ──
+0 12 * * 6    cd $WEF && $PY scripts/free_weekly.py            >> $LOG/content.log 2>&1
+
+# ── Feature posts (Mon/Wed/Fri) — rotates through the 16-post library ──
+0 14 * * 1,3,5 cd $WEF && $PY scripts/feature_posts.py next    >> $LOG/content.log 2>&1
+
+# ── Nightly backup: DB + Telethon session (keeps 14 days) ──
+30 3 * * *    /opt/winextraflow/deploy/backup.sh               >> $LOG/backup.log 2>&1
+
+# ── Weekly: expire signals whose entry drifted far from the market ──
+0 4 * * 1     cd $WEF && $PY scripts/expire_stale.py           >> $LOG/monitor.log 2>&1

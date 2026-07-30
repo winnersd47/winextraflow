@@ -567,10 +567,15 @@ export default function LandingPage() {
             <Link href="/privacy" className="hover:text-text-primary">{t("landing.footerPrivacy")}</Link>
             <Link href="/refund" className="hover:text-text-primary">{t("landing.footerRefund")}</Link>
             <Link href="/cookies" className="hover:text-text-primary">{t("landing.footerCookies")}</Link>
+            <Link href="/contacts" className="hover:text-text-primary">{t("landing.footerContacts")}</Link>
             <Link href="/login" className="hover:text-text-primary">{t("landing.ctaLogin")}</Link>
           </div>
           <p className="mt-3 text-center text-xs leading-relaxed text-text-muted">{t("landing.disclaimer")}</p>
-          <p className="mt-1 text-xs text-text-muted">&copy; 2026 WinExtraFlow. {t("landing.footerRights")}</p>
+          <p className="mt-1 text-xs text-text-muted">
+            &copy; 2026 WinExtraFlow. {t("landing.footerRights")}
+            {" · "}
+            {isRu ? "Самозанятый Сердюк В.Н., ИНН 250715201810" : "Self-employed V. Serdyuk, INN 250715201810"}
+          </p>
         </div>
       </footer>
     </div>

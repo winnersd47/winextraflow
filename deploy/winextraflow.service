@@ -1,0 +1,28 @@
+[Unit]
+Description=WinExtraFlow API (FastAPI/uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=wef
+Group=wef
+WorkingDirectory=/opt/winextraflow/backend
+EnvironmentFile=/opt/winextraflow/backend/.env
+# 2 workers is enough for a 1-2 vCPU VPS; SQLite does not like many writers.
+ExecStart=/opt/winextraflow/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers \
+    --forwarded-allow-ips='127.0.0.1'
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/winextraflow/api.log
+StandardError=append:/var/log/winextraflow/api.err.log
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
