@@ -567,6 +567,7 @@ export default function LandingPage() {
             <Link href="/privacy" className="hover:text-text-primary">{t("landing.footerPrivacy")}</Link>
             <Link href="/refund" className="hover:text-text-primary">{t("landing.footerRefund")}</Link>
             <Link href="/cookies" className="hover:text-text-primary">{t("landing.footerCookies")}</Link>
+            <Link href="/track-record" className="hover:text-text-primary">{t("landing.footerTrackRecord")}</Link>
             <Link href="/contacts" className="hover:text-text-primary">{t("landing.footerContacts")}</Link>
             <Link href="/login" className="hover:text-text-primary">{t("landing.ctaLogin")}</Link>
           </div>
