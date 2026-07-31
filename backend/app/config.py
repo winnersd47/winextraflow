@@ -113,6 +113,15 @@ class Settings(BaseSettings):
     # Strong signals (WEF >= threshold) stay VIP-exclusive — not even a teaser.
     free_teaser_max_wef: int = 70
 
+    # Where the watchdog sends operational reports (your own chat id, not a channel).
+    # Get it by messaging @userinfobot. Empty = report only to the log.
+    admin_telegram_chat_id: str = ""
+
+    # LLM (OpenRouter) — fallback parser for freeform/RU signals + MT5 bridge.
+    # Must be declared here: code reading os.environ alone never sees .env values.
+    openrouter_api_key: str = ""
+    llm_model: str = "openai/gpt-oss-20b:free"
+
     # Referral
     referral_reward_type: str = "premium_days"
     referral_level1_reward: int = 7   # days of Premium for direct referral

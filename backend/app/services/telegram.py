@@ -402,8 +402,10 @@ class TelegramParser:
         Falls back to ANTHROPIC_API_KEY (direct Claude) for backward compat.
         """
         import os
-        or_key = os.environ.get("OPENROUTER_API_KEY", "")
-        model = os.environ.get("LLM_MODEL", "deepseek/deepseek-chat:free")
+        # settings first (.env is loaded there), env var as an override
+        from app.config import settings as _s
+        or_key = os.environ.get("OPENROUTER_API_KEY", "") or _s.openrouter_api_key
+        model = os.environ.get("LLM_MODEL", "") or _s.llm_model
 
         prompt = f"""Extract a trading signal from this message (may be Russian or English).
 Return JSON only, no explanation. If this is NOT an actionable trading signal
@@ -437,7 +439,10 @@ JSON:"""
                         },
                         json={
                             "model": model,
-                            "max_tokens": 200,
+                            # Reasoning models (e.g. gpt-oss) spend tokens on a
+                            # thinking pass first — a small budget truncates them
+                            # before any answer is produced.
+                            "max_tokens": 900,
                             "temperature": 0.1,
                             "messages": [{"role": "user", "content": prompt}],
                         },
@@ -445,7 +450,13 @@ JSON:"""
                     if resp.status_code != 200:
                         logger.debug(f"LLM parser HTTP error: {resp.status_code} {resp.text[:200]}")
                         return None
-                    content = resp.json()["choices"][0]["message"]["content"].strip()
+                    msg = (resp.json().get("choices") or [{}])[0].get("message", {}) or {}
+                    # Reasoning models may leave `content` empty and put the answer
+                    # in `reasoning`; accept either.
+                    content = (msg.get("content") or msg.get("reasoning") or "").strip()
+                    if not content:
+                        logger.debug("LLM parser: empty content and reasoning")
+                        return None
             else:
                 # Backward-compat: direct Anthropic
                 api_key = os.environ.get("ANTHROPIC_API_KEY", "")
@@ -470,16 +481,27 @@ JSON:"""
                         return None
                     content = resp.json()["content"][0]["text"].strip()
 
-            # Extract JSON from response
+            # Extract JSON. Reasoning models wrap the answer in prose (and may show
+            # several draft objects), so try every {...} block, last one first.
+            data = None
             if content.startswith("{"):
-                data = json.loads(content)
-            else:
-                start = content.find("{")
-                end = content.rfind("}") + 1
-                if start >= 0 and end > start:
-                    data = json.loads(content[start:end])
-                else:
-                    return None
+                try:
+                    data = json.loads(content)
+                except json.JSONDecodeError:
+                    data = None
+            if data is None:
+                blocks = re.findall(r"\{[^{}]*\}", content, re.DOTALL)
+                for block in reversed(blocks):
+                    try:
+                        cand = json.loads(block)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(cand, dict) and ("ticker" in cand or "error" in cand):
+                        data = cand
+                        break
+            if data is None:
+                logger.debug(f"LLM parser: no JSON in response: {content[:120]}")
+                return None
 
             if "error" in data or not data.get("ticker") or data.get("entry_price") is None:
                 return None

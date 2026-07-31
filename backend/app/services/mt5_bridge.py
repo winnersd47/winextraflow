@@ -33,8 +33,9 @@ logger = logging.getLogger(__name__)
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
-LLM_MODEL = os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-20250514")
+# settings first (.env is loaded there), env var as an override
+OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "") or settings.openrouter_api_key
+LLM_MODEL = os.getenv("LLM_MODEL", "") or settings.llm_model
 MAX_BATCH_SIZE = 10
 BATCH_TIMEOUT = 2.0  # seconds to wait for batch to fill
 RATE_LIMIT_DELAY = 0.5  # seconds between LLM calls

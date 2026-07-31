@@ -61,3 +61,4 @@ backend/scripts/content.log
 backend/scripts/monitor.log
 backend/feature_post_state.json
 backend/.env.production
+backend/scripts/watchdog.log
