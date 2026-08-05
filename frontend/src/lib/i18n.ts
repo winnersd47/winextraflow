@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 import React from "react";
+// Side-effect import: retargets relative /api/* calls in a static export.
+import "@/lib/api-origin";
 
 export type Locale = "ru" | "en";
 
