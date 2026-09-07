@@ -109,9 +109,34 @@ class Settings(BaseSettings):
     # Signal video clips (9:16 stories) — rendered locally with matplotlib + ffmpeg
     signal_clips_enabled: bool = True
 
+    # FRED (St. Louis Fed) — free key for the US economic-release calendar.
+    # Without it the US block is omitted rather than filled with guesses.
+    # Get one at https://fred.stlouisfed.org/docs/api/api_key.html
+    fred_api_key: str = ""
+
+    # MT5 bridge shared secret. Required to bind anything but 127.0.0.1: every
+    # `analyze` command spends the OpenRouter key, so an open port is an open wallet.
+    # Put the same value in the EA's inputs. Generate: python -c "import secrets;
+    # print(secrets.token_urlsafe(32))"
+    mt5_bridge_token: str = ""
+
+    # Paid subscriptions. Off until the platform has a measured record of
+    # profitable signals — see api/payments.py:require_paid_subscriptions_enabled.
+    # Do not flip this on without a run of scripts/wef_validation.py behind it.
+    paid_subscriptions_enabled: bool = False
+
     # Free channel: only tease signals BELOW this WEF score.
     # Strong signals (WEF >= threshold) stay VIP-exclusive — not even a teaser.
     free_teaser_max_wef: int = 70
+    # ...and additionally the top (100 - N)% of recent scores. The absolute cut-off
+    # alone caught ~6% of signals, because the score's real range is only ~43-71.
+    free_teaser_percentile: int = 75
+
+    # Results of signals at or above this score are published to the main channel
+    # (owner's rule). The setup stays VIP-only; only the outcome is shown. Filtering
+    # by rating is safe because the rating is fixed before the outcome is known —
+    # filtering by outcome would be cherry-picking.
+    free_result_min_wef: int = 60
 
     # Where the watchdog sends operational reports (your own chat id, not a channel).
     # Get it by messaging @userinfobot. Empty = report only to the log.
@@ -133,11 +158,25 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"  # comma-separated in production
     max_token_expire_minutes: int = 1440  # 24h hard cap
 
+    # GoClaw AI Agent Gateway (optional — enables multi-agent Telegram routing)
+    # When set, broadcast_signal() tries GoClaw first and falls back to direct Bot API.
+    # Leave empty to use direct Bot API only.
+    goclaw_url: str = ""    # e.g. https://goclaw.internal/
+    goclaw_token: str = ""  # Bearer token issued by GoClaw admin
+
     # App
     app_env: str = "development"
     app_debug: bool = False
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_db_url(cls, v: str) -> str:
+        # Railway Postgres plugin provides postgresql:// but asyncpg needs postgresql+asyncpg://
+        if isinstance(v, str) and v.startswith("postgresql://"):
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
 
     @field_validator("access_token_expire_minutes")
     @classmethod

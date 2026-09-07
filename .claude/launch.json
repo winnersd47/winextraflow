@@ -3,8 +3,17 @@
   "configurations": [
     {
       "name": "backend",
-      "runtimeExecutable": "py",
+      "//": "Explicit 3.13 path: `py` and PATH `python` both resolve to 3.14, which has none of the project's dependencies installed.",
+      "runtimeExecutable": "C:\\Users\\v.serdyuk\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
       "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"],
+      "port": 8000,
+      "cwd": "backend"
+    },
+    {
+      "name": "api",
+      "//": "Same as `backend`, kept because the launcher cached the old `py`-based entry.",
+      "runtimeExecutable": "C:\\Users\\v.serdyuk\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
       "port": 8000,
       "cwd": "backend"
     },
