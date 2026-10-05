@@ -232,15 +232,30 @@ class TelegramSignalWorker:
                 logger.warning(f"No provider found for channel {chat_id}")
                 return
 
+            # Analyst formats publish only a direction and a target — anchor the
+            # entry to the live market and size the stop by ATR before storing.
+            from app.services.signal_levels import resolve_levels
+            lv = await resolve_levels(
+                parsed.ticker, parsed.action, parsed.entry_price,
+                parsed.take_profit, parsed.stop_loss,
+                derived=getattr(parsed, "derived_levels", False),
+            )
+            if not lv["usable"]:
+                logger.info(f"Skipped {parsed.ticker}: no usable entry price")
+                return
+            for note in lv["notes"]:
+                logger.info(f"{parsed.ticker}: {note}")
+
             # Save signal to database
             async with async_session() as db:
                 signal = Signal(
                     provider_id=provider.id,
                     ticker=parsed.ticker,
                     action=SignalAction(parsed.action),
-                    entry_price=parsed.entry_price,
-                    take_profit=parsed.take_profit,
-                    stop_loss=parsed.stop_loss,
+                    entry_price=lv["entry"],
+                    take_profit=lv["take_profit"],
+                    stop_loss=lv["stop_loss"],
+                    long_target=lv["long_target"],
                     timeframe=parsed.timeframe,
                     raw_message=message_text,
                 )

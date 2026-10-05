@@ -14,7 +14,11 @@ async def test_public_stats(client: AsyncClient):
     assert "providers" in data
     assert "users" in data
     assert "exchanges" in data
-    assert data["exchanges"] == 9
+    # 9 was a hardcoded constant. The field now reports the markets the platform
+    # actually fetches candles for (MOEX shares, MOEX FORTS, US/EU stocks, Binance,
+    # forex), so it is asserted as a real count rather than pinned to the old value.
+    assert data["exchanges"] == data["markets"]
+    assert 1 <= data["markets"] <= 20
 
 
 @pytest.mark.asyncio

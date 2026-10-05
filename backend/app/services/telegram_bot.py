@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import async_session
 from app.models.user import User
+from app.services.goclaw_telegram import goclaw_telegram_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -201,8 +202,26 @@ class TelegramBot:
         # 1. VIP channel — instant, full expert details (WEF >= 50% only)
         if settings.telegram_vip_channel_id and (not confidence or confidence >= 0.5):
             vip_text = self._format_vip_signal(ticker, action, price, confidence, tp, sl, expert)
-            await self.send_message(settings.telegram_vip_channel_id, vip_text)
-            logger.info(f"VIP broadcast: {action} {ticker} WEF={confidence} → VIP")
+
+            # Try GoClaw gateway first; fall back to direct Bot API on any failure.
+            vip_delivered = False
+            if goclaw_telegram_adapter.enabled:
+                try:
+                    vip_delivered = await goclaw_telegram_adapter.broadcast_via_goclaw(
+                        vip_text, [settings.telegram_vip_channel_id]
+                    )
+                except Exception as exc:
+                    logger.warning("GoClaw VIP broadcast raised unexpectedly: %s", exc)
+                    vip_delivered = False
+
+            if not vip_delivered:
+                await self.send_message(settings.telegram_vip_channel_id, vip_text)
+
+            logger.info(
+                "VIP broadcast: %s %s WEF=%s → %s",
+                action, ticker, confidence,
+                "GoClaw" if vip_delivered else "direct Bot API",
+            )
 
             # Forward to AI Growth Club if high quality
             if confidence and confidence >= 0.7 and settings.telegram_growth_group_id:

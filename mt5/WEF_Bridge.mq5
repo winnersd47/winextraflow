@@ -15,10 +15,17 @@
 // ═══ INPUT PARAMETERS ═══
 input string   ServerHost     = "127.0.0.1";   // Python server IP
 input int      ServerPort     = 8765;           // Python server port
+// Must match MT5_BRIDGE_TOKEN in the server's .env. Required whenever the server
+// listens on anything but 127.0.0.1 — without it the server answers Unauthorized.
+input string   BridgeToken    = "";             // Shared secret (MT5_BRIDGE_TOKEN)
 input int      CandleCount    = 60;             // Candles to send
 input int      CheckInterval  = 300;            // Check every N seconds (300 = 5 min)
 input double   RiskPercent    = 1.0;            // Risk % per trade
 input bool     AutoTrade      = false;          // Auto-execute signals (false = alerts only)
+// true  -> cmd=signal: the decision is stored on the platform, rated, put through
+//          the quality gate and published like any other signal.
+// false -> cmd=analyze: terminal Alert only, nothing leaves the terminal.
+input bool     PublishToPlatform = true;        // Send signals to WinExtraFlow
 input ENUM_TIMEFRAMES TF      = PERIOD_H1;      // Timeframe
 
 // ═══ GLOBALS ═══
@@ -30,6 +37,19 @@ CTrade g_trade;
 int OnInit()
 {
    Print("WEF Bridge v1.0 — connecting to ", ServerHost, ":", ServerPort);
+
+   // A remote server always requires the shared secret; failing here is clearer
+   // than every request coming back Unauthorized with no explanation.
+   bool isLocal = (ServerHost == "127.0.0.1" || ServerHost == "localhost");
+   if(!isLocal && BridgeToken == "")
+   {
+      Print("ERROR: BridgeToken is empty but ServerHost is remote. ",
+            "Set it to the same value as MT5_BRIDGE_TOKEN on the server.");
+      return(INIT_PARAMETERS_INCORRECT);
+   }
+   if(AutoTrade)
+      Print("WARNING: AutoTrade is ON — orders will be placed automatically.");
+
    EventSetTimer(CheckInterval);
    return(INIT_SUCCEEDED);
 }
@@ -65,8 +85,11 @@ void AnalyzeCurrentSymbol()
       return;
    }
 
-   // Build request
-   string request = "{\"cmd\":\"analyze\",\"ticker\":\"" + ticker +
+   // Build request. "signal" stores the decision on the platform and runs it
+   // through the quality gate; "analyze" only returns it to the terminal.
+   string cmd = PublishToPlatform ? "signal" : "analyze";
+   string request = "{\"cmd\":\"" + cmd + "\",\"auth\":\"" + BridgeToken +
+                    "\",\"ticker\":\"" + ticker +
                     "\",\"timeframe\":\"" + TimeframeToString(TF) +
                     "\",\"candles\":" + candles + "}";
 
@@ -78,34 +101,61 @@ void AnalyzeCurrentSymbol()
       return;
    }
 
-   // Parse response
+   // Parse response.
+   // cmd=analyze returns {action, confidence, tp, sl, reasoning}.
+   // cmd=signal returns {stored, action, tp, sl, wef, verdict, published, reason,
+   // model_confidence} — its tp/sl are already ATR-adjusted by the platform, and
+   // its verdict comes from the seven quality checks.
    string action = JSONGetString(response, "action");
-   double confidence = JSONGetDouble(response, "confidence");
    double tp = JSONGetDouble(response, "tp");
    double sl = JSONGetDouble(response, "sl");
    string reasoning = JSONGetString(response, "reasoning");
 
-   // Log
-   Print("WEF Signal: ", action, " ", ticker, " | Confidence: ",
-         DoubleToString(confidence * 100, 0), "% | TP: ", DoubleToString(tp, Digits()),
-         " | SL: ", DoubleToString(sl, Digits()));
-   Print("Reasoning: ", reasoning);
+   double modelConf = JSONGetDouble(response, "model_confidence");
+   if(modelConf <= 0)
+      modelConf = JSONGetDouble(response, "confidence");
+   double wef = JSONGetDouble(response, "wef");
+   string verdict = JSONGetString(response, "verdict");
+   string reason = JSONGetString(response, "reason");
 
-   // Alert
-   if(action == "buy" || action == "sell")
+   Print("MT5 -> WEF: ", action, " ", ticker,
+         " | самооценка модели ", DoubleToString(modelConf * 100, 0), "%",
+         " | TP ", DoubleToString(tp, Digits()),
+         " | SL ", DoubleToString(sl, Digits()));
+   if(reasoning != "")
+      Print("Обоснование: ", reasoning);
+   if(PublishToPlatform)
+      Print("Платформа: WEF ", DoubleToString(wef, 0), "% | вердикт ", verdict,
+            (reason == "" ? "" : " | " + reason));
+
+   if(action != "buy" && action != "sell")
+      return;                               // hold — nothing to do
+
+   string alertMsg = "WEF " + action + " " + ticker +
+                     (PublishToPlatform ? " | WEF " + DoubleToString(wef, 0) + "%"
+                                        : " | conf " + DoubleToString(modelConf * 100, 0) + "%") +
+                     " | TP " + DoubleToString(tp, Digits()) +
+                     " | SL " + DoubleToString(sl, Digits());
+   Alert(alertMsg);
+
+   if(!AutoTrade)
+      return;
+
+   // The trade trigger is the platform's quality gate, not the model's opinion of
+   // itself: `confidence` is a number the model assigns after looking at five
+   // indicators, and it has not been shown to mean what it says. When publishing is
+   // off there is no gate available, so no automatic trade is placed either.
+   if(!PublishToPlatform)
    {
-      string alertMsg = "WEF " + action + " " + ticker +
-                        " | WEF " + DoubleToString(confidence * 100, 0) + "%" +
-                        " | TP " + DoubleToString(tp, Digits()) +
-                        " | SL " + DoubleToString(sl, Digits());
-      Alert(alertMsg);
-
-      // Auto-trade if enabled
-      if(AutoTrade && confidence >= 0.6)
-      {
-         ExecuteTrade(action, tp, sl);
-      }
+      Print("AutoTrade пропущен: без PublishToPlatform нет вердикта гейта качества.");
+      return;
    }
+   if(verdict == "SKIP" || verdict == "")
+   {
+      Print("AutoTrade пропущен: вердикт гейта ", (verdict == "" ? "отсутствует" : verdict));
+      return;
+   }
+   ExecuteTrade(action, tp, sl);
 }
 
 //+------------------------------------------------------------------+

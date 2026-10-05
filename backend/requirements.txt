@@ -42,6 +42,10 @@ python-multipart==0.0.18
 # System monitoring
 psutil==6.1.1
 
+# LangGraph (Phase 4 Step 4 — явный граф агентских состояний)
+langgraph==0.2.28
+langchain-core==0.3.15
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.25.0

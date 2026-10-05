@@ -51,12 +51,25 @@ export interface SignalList {
 // --- Rating ---
 export interface RatingFactor {
   score: number;
+  /** False when the input for this factor does not exist yet. The score field
+   *  stays numeric so a bar width never breaks, but it carries no meaning. */
+  available: boolean;
+  /** Nominal weight in the 9-factor model. */
   weight: number;
+  /** What this factor actually contributed after the weights were renormalized
+   *  over the measurable ones. Zero when unavailable. */
+  effective_weight: number;
   reason: string;
 }
 
 export interface RatingDetail {
   final_confidence: number;
+  /** Share of the model's weight that could actually be measured, 0..1. A
+   *  confidence of 0.9 at coverage 0.4 and one at coverage 0.95 are different
+   *  claims; without this the reader cannot tell them apart. */
+  coverage: number;
+  measured_factors: number;
+  total_factors: number;
   reasoning: string;
   factors: Record<string, RatingFactor>;
 }

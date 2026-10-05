@@ -119,9 +119,20 @@ export default function SignalDetailPage() {
       {rating && (
         <div className="mt-6 rounded-xl border border-border bg-surface-card p-6">
           <h2 className="mb-4 text-lg font-bold text-text-primary">{t("signals.aiRating")}</h2>
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
             <span className="text-3xl font-bold text-text-primary">{formatConfidence(rating.final_confidence)}</span>
             <span className={`text-sm ${confidenceColor(rating.final_confidence)}`}>{isRu ? "уверенность" : "confidence"}</span>
+            {/* Without this the reader cannot tell a score built on the full
+                model from one built on three factors — both render as a number
+                out of 100. Most signals today sit near 45% coverage because the
+                provider-level factors need closed trades that do not exist yet. */}
+            {typeof rating.coverage === "number" && rating.coverage < 1 && (
+              <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs text-amber-300">
+                {isRu
+                  ? `измерено ${Math.round(rating.coverage * 100)}% модели — ${rating.measured_factors} из ${rating.total_factors} факторов`
+                  : `${Math.round(rating.coverage * 100)}% of the model measured — ${rating.measured_factors} of ${rating.total_factors} factors`}
+              </span>
+            )}
           </div>
           <p className="mb-6 text-sm text-text-secondary">
             {isRu ? (rating.reasoning || "")
@@ -180,15 +191,32 @@ export default function SignalDetailPage() {
                 .replace("signals in last 24h", "сигналов за 24ч")
                 .replace("R:R ratio:", "Соотношение R:R:");
 
+              // An unmeasured factor has a numeric score of 0, which as a bar
+              // would read as "scored zero" — the opposite of "not known". It is
+              // dimmed and labelled instead, and its weight shown as 0 because
+              // that is what it contributed.
+              const measured = factor.available !== false;
+              const shownWeight = measured
+                ? (factor.effective_weight ?? factor.weight)
+                : 0;
+
               return (
-              <div key={key} className="rounded-lg bg-surface p-3">
+              <div key={key} className={`rounded-lg bg-surface p-3 ${measured ? "" : "opacity-50"}`}>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-text-primary">{factorName}</span>
-                  <span className="text-sm text-text-secondary">{(factor.weight * 100).toFixed(0)}%</span>
+                  <span className="text-sm text-text-secondary">
+                    {measured
+                      ? `${(shownWeight * 100).toFixed(0)}%`
+                      : (isRu ? "нет данных" : "no data")}
+                  </span>
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-hover">
-                  <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${factor.score * 100}%` }} />
-                </div>
+                {measured ? (
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-hover">
+                    <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${factor.score * 100}%` }} />
+                  </div>
+                ) : (
+                  <div className="mt-2 h-2 rounded-full border border-dashed border-border" />
+                )}
                 <p className="mt-1 text-xs text-text-muted">{isRu ? reasonRu(factor.reason) : factor.reason}</p>
               </div>
               );

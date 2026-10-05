@@ -12,10 +12,19 @@ PY=/opt/winextraflow/venv/bin/python
 LOG=/var/log/winextraflow
 
 # ── Signals: parse monitored channels -> evolution check -> VIP/free publish ──
+# Messages the regex parsers cannot read fall back to the LLM, capped by
+# LLM_PARSE_PER_RUN and tried once per message (see llm_parse_ledger.json).
+# With no OpenRouter credits the free tier allows 50 requests/day for the whole
+# platform — set LLM_PARSE_PER_RUN=0 to switch the fallback off entirely.
 */30 * * * *  cd $WEF && $PY scripts/tg_backfill.py 30 --vip   >> $LOG/poller.log 2>&1
 
 # ── Track open signals: TP/SL hit -> close in DB + post result ──
 17 * * * *    cd $WEF && $PY scripts/monitor_signals.py        >> $LOG/monitor.log 2>&1
+
+# ── Paper accounts: open new signals, settle what the monitor closed ──
+# Runs right after the monitor so a closed signal becomes a recorded trade with
+# money attached in the same hour. This is how the sample accumulates.
+25 * * * *    cd $WEF && $PY scripts/paper_sync.py                >> $LOG/paper.log 2>&1
 
 # ── Daily morning overview (BTC/ETH, Fear&Greed, MOEX, market regime) ──
 0 9 * * *     cd $WEF && $PY scripts/morning_overview.py       >> $LOG/content.log 2>&1
@@ -29,8 +38,26 @@ LOG=/var/log/winextraflow
 # ── Feature posts (Mon/Wed/Fri) — rotates through the 16-post library ──
 0 14 * * 1,3,5 cd $WEF && $PY scripts/feature_posts.py next    >> $LOG/content.log 2>&1
 
+# ── Educational teaser -> link to the full article (Tue/Thu) ──
+# Fills the gap between signals with material the platform can back: every lesson is
+# written from a mistake it made and measured. Rotation uses the whole library before
+# repeating. Do NOT enable before the frontend is served from this host — until then
+# every teaser links to a page Russian readers cannot open.
+0 15 * * 2,4  cd $WEF && $PY scripts/lesson_post.py            >> $LOG/content.log 2>&1
+
 # ── Nightly backup: DB + Telethon session (keeps 14 days) ──
 30 3 * * *    /opt/winextraflow/deploy/backup.sh               >> $LOG/backup.log 2>&1
 
 # ── Weekly: expire signals whose entry drifted far from the market ──
 0 4 * * 1     cd $WEF && $PY scripts/expire_stale.py           >> $LOG/monitor.log 2>&1
+
+# ── Watchdog: did everything above actually run? ──
+# Without this every job can fail silently — that is how the pipeline once
+# published wrong data for days with nothing reporting it. --quiet still sends one
+# report per day, so silence means the watchdog itself is gone, not that all is well.
+0 10 * * *    cd $WEF && $PY scripts/watchdog.py --quiet       >> $LOG/watchdog.log 2>&1
+
+# ── Monthly: is the WEF Score actually predicting outcomes? ──
+# Prints "недостаточно данных" until the sample supports a conclusion; that is the
+# point — the score must not be described as validated before it is.
+0 11 1 * *    cd $WEF && $PY scripts/wef_validation.py         >> $LOG/content.log 2>&1

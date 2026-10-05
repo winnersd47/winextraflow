@@ -54,15 +54,16 @@ async def process_and_broadcast(
     # 0. Stale-entry guard: reject signals whose entry is far from the live market
     #    (parsed from old channel history). Publishing these would show fake levels.
     try:
-        from app.services.live_price import get_live_price
+        from app.services.live_price import get_live_price, stale_tolerance
         live = await get_live_price(signal.ticker)
         lp = (live or {}).get("price") or 0
         if lp > 0 and signal.entry_price > 0:
             dev = abs(signal.entry_price - lp) / lp
-            if dev > 0.10:
+            tol = stale_tolerance(signal.ticker)
+            if dev > tol:
                 logger.info(
                     f"Stale signal rejected {signal.ticker}: entry {signal.entry_price} "
-                    f"vs live {lp} ({dev:.0%} off)"
+                    f"vs live {lp} ({dev:.0%} off, limit {tol:.0%})"
                 )
                 signal.ai_reasoning = (signal.ai_reasoning or "") + f" | Stale entry ({dev:.0%} off market)"
                 await db.commit()
@@ -152,15 +153,24 @@ async def process_and_broadcast(
         return result
 
     # 6. Broadcast to VIP with the evolutionary expert analysis
+    # EV / Profit Factor / Kelly come from a MEASURED win rate or not at all. The
+    # recommendation engine's own figures rest on an assumed rate, so they are not
+    # forwarded to the card — see services/measured_stats.py for why.
+    from app.services.measured_stats import expert_metrics
+    metrics = await expert_metrics(db, signal, provider)
+
     expert_for_vip = {
         "verdict": verdict or quality.tier.upper(),
-        "ev_per_trade_pct": expert.get("ev_per_trade_pct"),
-        "profit_factor": expert.get("profit_factor"),
-        "kelly_half_pct": expert.get("kelly_half_pct"),
         "regime_strategy": expert.get("regime_strategy"),
         "pyramid_levels": expert.get("pyramid_levels"),
-        "edge_pct": expert.get("edge_pct"),
+        "metrics_available": metrics.get("available", False),
+        "metrics_reason": metrics.get("reason"),
+        "ev_per_trade_pct": metrics.get("ev_per_trade_pct"),
+        "profit_factor": metrics.get("profit_factor"),
+        "kelly_half_pct": metrics.get("kelly_half_pct"),
+        "edge_pct": metrics.get("edge_pct"),
     }
+    result["metrics_measured"] = expert_for_vip["metrics_available"]
 
     if telegram_bot.enabled and settings.telegram_vip_channel_id:
         try:
@@ -183,10 +193,32 @@ async def process_and_broadcast(
                 from app.services.signal_chart import build_caption
                 from app.services.signal_clip import broadcast_clip
                 # Full rich description (same text as the old photo card) on the clip
+                # Random-entry baseline for this signal's own geometry — the
+                # number it has to beat. Cached per instrument per day, so a burst
+                # of signals on one ticker costs one candle fetch.
+                geometry = None
+                try:
+                    from app.services.signal_geometry import (
+                        breakeven_hit_rate, geometry_hit_rate_cached)
+                    tp_m = abs(corrected_tp - signal.entry_price)
+                    sl_m = abs(signal.entry_price - corrected_sl)
+                    if sl_m > 0:
+                        # Express the signal's own R:R in ATR multiples of the same
+                        # shape the baseline walks, so the two are comparable.
+                        ratio = tp_m / sl_m
+                        geometry = await geometry_hit_rate_cached(
+                            signal.ticker, signal.action.value,
+                            tp_mult=round(2.0 * ratio, 2), sl_mult=2.0)
+                        geometry["breakeven_pct"] = breakeven_hit_rate(
+                            geometry["tp_mult"], geometry["sl_mult"])
+                except Exception as e:
+                    logger.debug(f"geometry baseline skipped for {signal.ticker}: {e}")
+
                 full_caption = build_caption(
                     signal.ticker, signal.action.value, signal.entry_price,
                     corrected_tp, corrected_sl, result["wef"],
                     trend="unknown", recent_change=0.0, expert=expert_for_vip,
+                    geometry=geometry,
                 )
                 sent = await broadcast_clip(
                     signal.ticker, signal.action.value, signal.entry_price,
@@ -200,18 +232,32 @@ async def process_and_broadcast(
                 sent = await broadcast_card(
                     signal.ticker, signal.action.value, signal.entry_price,
                     corrected_tp, corrected_sl, result["wef"], expert=expert_for_vip,
+                    geometry=geometry,
                 )
-            result["broadcast"] = sent
+            result["broadcast"] = bool(sent)
+            # Remember where the signal was posted: the result is published as a
+            # reply to it when TP or SL is reached.
+            if isinstance(sent, int):
+                signal.tg_vip_message_id = sent
+                await db.commit()
 
             # ── Free channel: teaser ONLY here (never a second VIP post) ──
-            # Strong signals (WEF >= threshold) stay VIP-exclusive — no teaser at all.
+            # Strong signals stay VIP-exclusive — no teaser at all. Two rules, either
+            # is enough: the absolute cut-off, and the top quartile of recent scores.
+            # The absolute 70 alone marked only ~6% of signals exclusive, because the
+            # score's real range is ~43-71, which made "сильнейшие сигналы в VIP" a
+            # promise resting on a handful of signals.
+            from app.services.signal_quality import recent_wef_percentile
+            pctl = await recent_wef_percentile(db, q=settings.free_teaser_percentile / 100)
             vip_exclusive = result["wef"] >= settings.free_teaser_max_wef
+            reason = f"WEF {result['wef']}% >= {settings.free_teaser_max_wef}%"
+            if not vip_exclusive and pctl is not None and result["wef"] >= pctl:
+                vip_exclusive = True
+                reason = (f"WEF {result['wef']}% в топ-{100 - settings.free_teaser_percentile}% "
+                          f"недавних сигналов (порог {pctl}%)")
             if vip_exclusive:
                 result["free_teaser"] = False
-                logger.info(
-                    f"VIP-exclusive (WEF {result['wef']}% >= {settings.free_teaser_max_wef}%): "
-                    f"no free-channel teaser for {signal.ticker}"
-                )
+                logger.info(f"VIP-exclusive ({reason}): no free-channel teaser for {signal.ticker}")
             if settings.telegram_free_channel_id and not vip_exclusive:
                 try:
                     if clip:
@@ -224,12 +270,15 @@ async def process_and_broadcast(
                             verdict=verdict, strategy=expert.get("regime_strategy", ""),
                             hide_levels=True,
                         )
-                        await broadcast_clip(
+                        free_msg = await broadcast_clip(
                             signal.ticker, signal.action.value, signal.entry_price,
                             corrected_tp, corrected_sl, result["wef"],
                             clip_path=teaser_clip or clip,
                             chat_id=settings.telegram_free_channel_id, teaser=True,
                         )
+                        if isinstance(free_msg, int):
+                            signal.tg_free_message_id = free_msg
+                            await db.commit()
                     else:
                         await telegram_bot.broadcast_free_and_personal(
                             signal.ticker, signal.action.value, signal.entry_price,

@@ -1,8 +1,26 @@
-"""AI Rating service — enhanced signal scoring and provider statistics.
+"""AI Rating service — signal scoring and provider statistics.
 
-Evaluates trading signals based on 9 weighted factors including
-Sharpe Ratio, Profit Factor, Max Drawdown, and Time Decay.
-Maintains aggregate provider statistics for the leaderboard.
+Nine weighted factors. Three read the signal itself (risk management, R:R,
+completeness); six read aggregates of the provider that published it.
+
+Missing data does not become 0.5
+--------------------------------
+Every factor used to return a neutral 0.5 when its input was absent. Measured on
+the real database, that made the score almost constant: `win_rate`,
+`sharpe_ratio`, `profit_factor` and `max_drawdown` were NULL for all 15 real
+providers, so five factors returned exactly 0.5 for all 153 signals and 55% of the
+weight carried no information. Together with `signal_frequency` — which never left
+1.0 because the spam threshold is never reached — 63% of the score was a constant,
+and the whole score took only 7 distinct values in a 46-71 band.
+
+A neutral default is not neutral in effect: it drags every score toward the middle
+and makes a well-evidenced 68 indistinguishable from a 68 built on nothing. So a
+factor with no input now returns `None`, the weights are renormalized over the
+factors that could actually be measured, and `coverage` reports how much of the
+weight that was. A score of 68 at coverage 0.37 and a score of 68 at coverage 0.95
+are different claims, and the payload now says which one it is.
+
+`MIN_CLOSED_FOR_RATIOS` guards the ratios: a Sharpe over three trades is noise.
 """
 
 import logging
@@ -16,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.provider import Provider
 from app.models.signal import Signal, SignalAction, SignalStatus
+from app.services.signal_quality import not_excluded
 
 logger = logging.getLogger(__name__)
 
@@ -43,17 +62,38 @@ PROVIDER_WEIGHTS = {
 }
 
 SPAM_THRESHOLD_PER_HOUR = 10
-# Risk-free rate for Sharpe (annualized, e.g. 5%)
-RISK_FREE_RATE_DAILY = 0.05 / 365
+
+# Closed trades a provider needs before Sharpe / Profit Factor / Max Drawdown are
+# computed at all. The old floor was 3, which produced a Sharpe of -69.03 on four
+# losing trades — a number with no meaning that still fed 15% of the score.
+MIN_CLOSED_FOR_RATIOS = 10
+# Closed trades before a win rate is trusted. The old gate read `total_signals`
+# (every signal ever published) while the number it guarded came from closed ones,
+# so a provider with 50 open signals and one closed loss scored "Poor win rate: 0%"
+# on a sample of one.
+MIN_CLOSED_FOR_WIN_RATE = 5
+
+# Risk-free rate per trade. The previous code took a daily rate and annualized the
+# result with sqrt(252), which assumes one observation per trading day; these are
+# per-trade returns over holding periods from hours to weeks. Sharpe is therefore
+# reported per trade, unannualized, and the score bands below are set for that
+# scale — a per-trade Sharpe of 0.5 is strong.
+RISK_FREE_PER_TRADE_PCT = 0.0
 
 
 @dataclass
 class RatingBreakdown:
-    """Detailed breakdown of a signal's AI rating."""
+    """Detailed breakdown of a signal's AI rating.
 
-    scores: dict[str, float] = None
+    `scores` holds None for a factor whose input was unavailable. `coverage` is the
+    share of the total weight that could be measured, so the caller can tell a
+    well-evidenced score from a thin one.
+    """
+
+    scores: dict[str, float | None] = None
     reasons: dict[str, str] = None
     final_confidence: float = 0.0
+    coverage: float = 0.0
     reasoning: str = ""
 
     def __post_init__(self):
@@ -62,14 +102,30 @@ class RatingBreakdown:
         if self.reasons is None:
             self.reasons = {}
 
+    def available(self) -> dict[str, float]:
+        """Only the factors that were actually measured."""
+        return {k: v for k, v in self.scores.items()
+                if k in WEIGHTS and v is not None}
+
     def to_dict(self) -> dict:
+        avail = self.available()
+        total_w = sum(WEIGHTS[k] for k in avail) or 1.0
         return {
             "final_confidence": round(self.final_confidence, 3),
+            "coverage": round(self.coverage, 3),
+            "measured_factors": len(avail),
+            "total_factors": len(WEIGHTS),
             "reasoning": self.reasoning,
             "factors": {
                 key: {
-                    "score": round(self.scores.get(key, 0), 3),
+                    # Kept numeric even when unmeasured: the UI multiplies this by
+                    # 100 for a bar width. `available` is the flag to branch on.
+                    "score": round(self.scores.get(key) or 0.0, 3),
+                    "available": self.scores.get(key) is not None,
                     "weight": WEIGHTS.get(key, 0),
+                    # What this factor really contributed after renormalization.
+                    "effective_weight": (round(WEIGHTS[key] / total_w, 3)
+                                         if key in avail else 0.0),
                     "reason": self.reasons.get(key, ""),
                 }
                 for key in WEIGHTS
@@ -91,45 +147,94 @@ class AIRatingService:
             return 0.5, f"Only {'TP' if has_tp else 'SL'} defined — partial risk management"
         return 0.1, "No TP or SL — poor risk management"
 
-    def _score_risk_reward(self, signal: Signal) -> tuple[float, str]:
+    def _score_risk_reward(self, signal: Signal) -> tuple[float | None, str]:
         if signal.take_profit is None or signal.stop_loss is None:
-            return 0.5, "Cannot calculate R:R — missing TP or SL"
+            # Not a 0.5. Missing levels are already penalised by risk_management
+            # and completeness; scoring them again here as "average" both
+            # double-counted the defect and hid that nothing was measured.
+            return None, "R:R не рассчитан — нет TP или SL"
         entry = signal.entry_price
         if entry <= 0:
             return 0.0, "Invalid entry price"
 
+        # Direction first, and without abs(). Taking absolute values made an
+        # inverted pair invisible: a BUY with the target BELOW entry and the stop
+        # ABOVE it yielded reward == risk == 5000, an R:R of exactly 1.0, and was
+        # scored as an ordinary weak trade. It is not a weak trade — it is a
+        # misread direction, and it should not be rated as tradable at all.
         if signal.action == SignalAction.BUY:
-            reward = abs(signal.take_profit - entry)
-            risk = abs(entry - signal.stop_loss)
+            reward = signal.take_profit - entry
+            risk = entry - signal.stop_loss
         else:
-            reward = abs(entry - signal.take_profit)
-            risk = abs(signal.stop_loss - entry)
+            reward = entry - signal.take_profit
+            risk = signal.stop_loss - entry
 
+        if reward <= 0 and risk <= 0:
+            return 0.05, ("Оба уровня не с той стороны входа — направление "
+                          "разобрано неверно")
+        if reward <= 0:
+            return 0.05, (f"Тейк не с той стороны входа для "
+                          f"{signal.action.value} — не сделка")
         if risk <= 0:
-            return 0.1, "SL at or above entry — invalid risk"
+            return 0.05, (f"Стоп не с той стороны входа для "
+                          f"{signal.action.value} — риск не определён")
 
         rr = reward / risk
-        if rr >= 3.0:
-            return 1.0, f"Excellent R:R {rr:.1f}:1"
-        if rr >= 2.0:
-            return 0.8, f"Good R:R {rr:.1f}:1"
-        if rr >= 1.5:
-            return 0.6, f"Acceptable R:R {rr:.1f}:1"
-        if rr >= 1.0:
-            return 0.4, f"Low R:R {rr:.1f}:1"
-        return 0.15, f"Poor R:R {rr:.1f}:1 — risk exceeds reward"
+        # Not monotonic, and that is the correction. "More R:R is better" was the
+        # score's heaviest live factor and it made the score anti-predictive.
+        #
+        # Measured by scripts/eval_wef.py, replaying 80 stored signals against
+        # real candles (cohort with source-given targets, n=55):
+        #
+        #     WEF band   avg R:R   avg realised P&L
+        #     0-79           1.2      -0.41%
+        #     80-85          1.8      -2.77%
+        #     86-91          2.3      -2.66%
+        #     92-100         7.1      -7.04%
+        #
+        # R:R rose with the score and expectancy fell with it, monotonically —
+        # correlation of score with outcome was -0.35 there and -0.73 on the
+        # cohort where the source stated both levels.
+        #
+        # The reason is geometric, not statistical, so it does not depend on this
+        # sample: with a 2x ATR stop, an R:R of 7 puts the target 14 ATR away, and
+        # signal_geometry.py already measures how rarely that is reached before the
+        # stop. In this data a high ratio does not mark a good trade — it marks a
+        # distant analyst target paired with our own tight stop, which is the
+        # mismatch MAX_RR_RATIO was added to bound. Rewarding it was backwards.
+        #
+        # So the score now peaks where the geometry is actually attainable and
+        # falls off above it, instead of climbing all the way to the cap.
+        if rr < 1.0:
+            return 0.15, f"R:R {rr:.1f}:1 — риск превышает прибыль"
+        if rr < 1.5:
+            return 0.40, f"R:R {rr:.1f}:1 — низкое"
+        if rr < 2.0:
+            return 0.70, f"R:R {rr:.1f}:1 — приемлемое"
+        if rr <= 3.0:
+            return 1.00, f"R:R {rr:.1f}:1 — достижимая геометрия"
+        if rr <= 5.0:
+            return 0.55, (f"R:R {rr:.1f}:1 — цель далеко для такого стопа, "
+                          f"вероятность дойти падает")
+        return 0.20, (f"R:R {rr:.1f}:1 — цель и стоп не согласованы "
+                      f"(вероятно дальняя цель источника с нашим стопом)")
 
     async def _score_provider_history(
         self, db: AsyncSession, provider_id: uuid.UUID
-    ) -> tuple[float, str]:
+    ) -> tuple[float | None, str]:
         provider = await db.get(Provider, provider_id)
         if not provider:
-            return 0.5, "Provider not found"
-        if provider.total_signals < 5:
-            return 0.5, f"New provider — {provider.total_signals} signals"
+            return None, "Провайдер не найден"
         wr = provider.win_rate
         if wr is None:
-            return 0.5, "No closed signals yet"
+            return None, "Нет закрытых сделок — win rate не измерен"
+        # Gate on the sample the win rate is actually built from. The old gate
+        # read total_signals, so one closed loss out of 50 published signals
+        # became "Poor win rate: 0%" and cost the signal 15% of its score.
+        closed = await self._closed_count(db, provider_id)
+        if closed < MIN_CLOSED_FOR_WIN_RATE:
+            return None, (f"Win rate на выборке {closed} — нужно "
+                          f"{MIN_CLOSED_FOR_WIN_RATE}")
         if wr >= 0.7:
             return 1.0, f"Excellent win rate: {wr:.0%}"
         if wr >= 0.55:
@@ -140,29 +245,35 @@ class AIRatingService:
 
     async def _score_sharpe_ratio(
         self, db: AsyncSession, provider_id: uuid.UUID
-    ) -> tuple[float, str]:
-        """Score based on provider's Sharpe Ratio."""
+    ) -> tuple[float | None, str]:
+        """Score the provider's per-trade Sharpe.
+
+        Bands are for an unannualized per-trade figure — see
+        RISK_FREE_PER_TRADE_PCT for why the sqrt(252) annualization was removed.
+        """
         provider = await db.get(Provider, provider_id)
         if not provider or provider.sharpe_ratio is None:
-            return 0.5, "Sharpe ratio not available"
+            return None, (f"Шарп не рассчитан — нужно "
+                          f"{MIN_CLOSED_FOR_RATIOS} закрытых сделок")
         sr = provider.sharpe_ratio
-        if sr >= 2.0:
-            return 1.0, f"Excellent Sharpe ratio: {sr:.2f}"
-        if sr >= 1.0:
-            return 0.75, f"Good Sharpe ratio: {sr:.2f}"
         if sr >= 0.5:
-            return 0.5, f"Average Sharpe ratio: {sr:.2f}"
+            return 1.0, f"Отличный Шарп на сделку: {sr:.2f}"
+        if sr >= 0.3:
+            return 0.75, f"Хороший Шарп на сделку: {sr:.2f}"
+        if sr >= 0.15:
+            return 0.5, f"Средний Шарп на сделку: {sr:.2f}"
         if sr >= 0:
-            return 0.25, f"Low Sharpe ratio: {sr:.2f}"
-        return 0.1, f"Negative Sharpe ratio: {sr:.2f}"
+            return 0.25, f"Низкий Шарп на сделку: {sr:.2f}"
+        return 0.1, f"Отрицательный Шарп: {sr:.2f}"
 
     async def _score_profit_factor(
         self, db: AsyncSession, provider_id: uuid.UUID
-    ) -> tuple[float, str]:
+    ) -> tuple[float | None, str]:
         """Score based on provider's Profit Factor (gross profit / gross loss)."""
         provider = await db.get(Provider, provider_id)
         if not provider or provider.profit_factor is None:
-            return 0.5, "Profit factor not available"
+            return None, (f"Профит-фактор не рассчитан — нужно "
+                          f"{MIN_CLOSED_FOR_RATIOS} закрытых сделок")
         pf = provider.profit_factor
         if pf >= 3.0:
             return 1.0, f"Excellent profit factor: {pf:.2f}"
@@ -176,11 +287,12 @@ class AIRatingService:
 
     async def _score_max_drawdown(
         self, db: AsyncSession, provider_id: uuid.UUID
-    ) -> tuple[float, str]:
+    ) -> tuple[float | None, str]:
         """Score based on provider's maximum drawdown (lower is better)."""
         provider = await db.get(Provider, provider_id)
         if not provider or provider.max_drawdown is None:
-            return 0.5, "Max drawdown not available"
+            return None, (f"Просадка не рассчитана — нужно "
+                          f"{MIN_CLOSED_FOR_RATIOS} закрытых сделок")
         dd = abs(provider.max_drawdown)
         if dd <= 5:
             return 1.0, f"Minimal drawdown: {dd:.1f}%"
@@ -192,9 +304,19 @@ class AIRatingService:
             return 0.3, f"High drawdown: {dd:.1f}%"
         return 0.1, f"Severe drawdown: {dd:.1f}%"
 
+    async def _closed_count(self, db: AsyncSession, provider_id: uuid.UUID) -> int:
+        """Closed signals for this provider — the sample its win rate rests on."""
+        return (await db.execute(
+            select(func.count()).select_from(Signal).where(and_(
+                Signal.provider_id == provider_id,
+                Signal.status.in_([SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL]),
+                not_excluded(),
+            ))
+        )).scalar() or 0
+
     async def _score_time_decay(
         self, db: AsyncSession, provider_id: uuid.UUID
-    ) -> tuple[float, str]:
+    ) -> tuple[float | None, str]:
         """Score recent performance higher than old performance.
 
         Looks at the last 30 days of closed signals vs prior history.
@@ -203,12 +325,19 @@ class AIRatingService:
         thirty_days_ago = now - timedelta(days=30)
         closed_statuses = [SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL]
 
-        # Recent win rate (last 30 days)
+        # Recent win rate (last 30 days), by when the trade settled.
+        # This used to filter on `updated_at`, i.e. the last time any column was
+        # written. Editing an old row — a P&L backfill, a re-rating — moved it
+        # into the window, so the "last 30 days" cohort was really "rows touched
+        # in the last 30 days". Signals closed before `closed_at` existed have it
+        # NULL and are simply not counted.
         recent_tp = (await db.execute(
             select(func.count()).select_from(Signal).where(and_(
                 Signal.provider_id == provider_id,
                 Signal.status == SignalStatus.CLOSED_TP,
-                Signal.updated_at >= thirty_days_ago,
+                Signal.closed_at.isnot(None),
+                not_excluded(),
+                Signal.closed_at >= thirty_days_ago,
             ))
         )).scalar() or 0
 
@@ -216,25 +345,31 @@ class AIRatingService:
             select(func.count()).select_from(Signal).where(and_(
                 Signal.provider_id == provider_id,
                 Signal.status == SignalStatus.CLOSED_SL,
-                Signal.updated_at >= thirty_days_ago,
+                Signal.closed_at.isnot(None),
+                not_excluded(),
+                Signal.closed_at >= thirty_days_ago,
             ))
         )).scalar() or 0
 
         recent_total = recent_tp + recent_sl
         if recent_total < 3:
-            return 0.5, "Insufficient recent data (last 30 days)"
+            return None, f"За 30 дней закрыто {recent_total} — тренд не измерить"
 
         recent_wr = recent_tp / recent_total
 
-        # Compare with overall
+        # Needs a baseline to compare against, and the baseline must be measured
+        # too — comparing a recent rate to a hardcoded 0.5 reported a trend that
+        # was really just "the recent rate is above or below one half".
         provider = await db.get(Provider, provider_id)
-        overall_wr = provider.win_rate if provider and provider.win_rate else 0.5
+        overall_wr = provider.win_rate if provider else None
+        if overall_wr is None:
+            return None, "Нет общего win rate для сравнения"
 
         if recent_wr > overall_wr + 0.1:
-            return 0.9, f"Improving: recent WR {recent_wr:.0%} > overall {overall_wr:.0%}"
+            return 0.9, f"Рост: за 30 дней {recent_wr:.0%} > общий {overall_wr:.0%}"
         if recent_wr >= overall_wr - 0.05:
-            return 0.6, f"Stable: recent WR {recent_wr:.0%} ~ overall {overall_wr:.0%}"
-        return 0.2, f"Declining: recent WR {recent_wr:.0%} < overall {overall_wr:.0%}"
+            return 0.6, f"Стабильно: за 30 дней {recent_wr:.0%} ≈ общий {overall_wr:.0%}"
+        return 0.2, f"Спад: за 30 дней {recent_wr:.0%} < общий {overall_wr:.0%}"
 
     async def _score_signal_frequency(
         self, db: AsyncSession, provider_id: uuid.UUID
@@ -270,6 +405,20 @@ class AIRatingService:
     ) -> RatingBreakdown:
         breakdown = RatingBreakdown()
 
+        # A signal without a usable entry price cannot be evaluated at all: every
+        # level is relative to it, so R:R, position size and the geometry check
+        # are all undefined. Previously only `_score_risk_reward` noticed, and
+        # only when both levels were present — so a broken row with no stop
+        # skipped the check entirely and still came out mid-range.
+        if not signal.entry_price or signal.entry_price <= 0:
+            breakdown.scores = {k: None for k in WEIGHTS}
+            breakdown.reasons = {k: "Нет корректной цены входа" for k in WEIGHTS}
+            breakdown.coverage = 0.0
+            breakdown.final_confidence = 0.0
+            breakdown.reasoning = ("Сигнал не оценивается: цена входа "
+                                   "отсутствует или некорректна")
+            return breakdown
+
         # Evaluate all factors
         factor_funcs = {
             "risk_management": lambda: self._score_risk_management(signal),
@@ -297,22 +446,36 @@ class AIRatingService:
             breakdown.scores[key] = score
             breakdown.reasons[key] = reason
 
-        # Weighted sum
-        confidence = sum(
-            breakdown.scores.get(k, 0.5) * w for k, w in WEIGHTS.items()
-        )
-        breakdown.final_confidence = max(0.0, min(1.0, confidence))
+        # Weighted sum over the factors that were measurable, renormalized so the
+        # weights of the rest are not silently redistributed as a middling 0.5.
+        avail = breakdown.available()
+        total_w = sum(WEIGHTS[k] for k in avail)
+        breakdown.coverage = total_w / sum(WEIGHTS.values())
+
+        if total_w > 0:
+            confidence = sum(avail[k] * WEIGHTS[k] for k in avail) / total_w
+            breakdown.final_confidence = max(0.0, min(1.0, confidence))
+        else:
+            # Nothing at all was measurable. 0.0 would read as "terrible signal"
+            # rather than "no evidence", so the caller must branch on coverage.
+            breakdown.final_confidence = 0.0
 
         # Build reasoning
-        strong = [k.replace("_", " ") for k, s in breakdown.scores.items() if s >= 0.8]
-        weak = [k.replace("_", " ") for k, s in breakdown.scores.items() if s <= 0.3]
+        strong = [k.replace("_", " ") for k, s in avail.items() if s >= 0.8]
+        weak = [k.replace("_", " ") for k, s in avail.items() if s <= 0.3]
+        missing = [k for k in WEIGHTS if breakdown.scores.get(k) is None]
 
         parts = []
         if strong:
-            parts.append(f"Strong: {', '.join(strong)}")
+            parts.append(f"Сильные: {', '.join(strong)}")
         if weak:
-            parts.append(f"Weak: {', '.join(weak)}")
-        breakdown.reasoning = ". ".join(parts) if parts else "Average quality across all factors"
+            parts.append(f"Слабые: {', '.join(weak)}")
+        if missing:
+            parts.append(f"Не измерено ({len(missing)} из {len(WEIGHTS)}): "
+                         f"{', '.join(m.replace('_', ' ') for m in missing)}")
+        if not strong and not weak:
+            parts.insert(0, "Среднее качество по измеримым факторам")
+        breakdown.reasoning = ". ".join(parts)
 
         return breakdown
 
@@ -351,6 +514,7 @@ class AIRatingService:
             signal.status = SignalStatus.CLOSED_TP
         else:
             signal.status = SignalStatus.CLOSED_SL
+        signal.closed_at = datetime.now(timezone.utc)
 
         await db.commit()
         await db.refresh(signal)
@@ -359,7 +523,18 @@ class AIRatingService:
         logger.info(f"Closed signal {signal.id}: {signal.status.value}, profit={signal.profit_pct:.2f}%")
         return signal
 
-    async def expire_old_signals(self, db: AsyncSession, max_age_hours: int = 168):
+    async def expire_old_signals(self, db: AsyncSession,
+                                 max_age_hours: int | None = None):
+        """Write off signals that never reached a level.
+
+        `max_age_hours` defaults to `settings.signal_expiry_hours`. It used to
+        hardcode 168 and ignore the setting — which was moot, because nothing
+        called this function at all: signals only ever left ACTIVE by hitting a
+        stop or by being marked stale. The monitor calls it now.
+        """
+        from app.config import settings
+        if max_age_hours is None:
+            max_age_hours = settings.signal_expiry_hours
         cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
         result = await db.execute(
             select(Signal).where(and_(
@@ -395,6 +570,7 @@ class AIRatingService:
             select(func.count()).select_from(Signal).where(and_(
                 Signal.provider_id == provider_id,
                 Signal.status == SignalStatus.CLOSED_TP,
+                not_excluded(),
             ))
         )).scalar() or 0
 
@@ -402,6 +578,7 @@ class AIRatingService:
             select(func.count()).select_from(Signal).where(and_(
                 Signal.provider_id == provider_id,
                 Signal.status == SignalStatus.CLOSED_SL,
+                not_excluded(),
             ))
         )).scalar() or 0
 
@@ -414,6 +591,7 @@ class AIRatingService:
                 Signal.provider_id == provider_id,
                 Signal.status.in_(closed_statuses),
                 Signal.profit_pct.isnot(None),
+                not_excluded(),
             ))
         )).scalar()
 
@@ -423,20 +601,26 @@ class AIRatingService:
                 Signal.provider_id == provider_id,
                 Signal.status.in_(closed_statuses),
                 Signal.profit_pct.isnot(None),
+                not_excluded(),
             )).order_by(Signal.created_at)
         )
         profits = [row[0] for row in profits_result.all()]
 
-        if len(profits) >= 3:
-            # ── Sharpe Ratio ──
+        if len(profits) >= MIN_CLOSED_FOR_RATIOS:
+            # ── Sharpe Ratio, per trade ──
+            # The previous version multiplied by sqrt(252), which annualizes daily
+            # observations. These are per-trade returns over holding periods from
+            # hours to weeks, so the factor was meaningless: four losing trades
+            # produced -69.03, and that number fed 15% of every signal's score.
             mean_return = sum(profits) / len(profits)
             stddev = math.sqrt(sum((p - mean_return) ** 2 for p in profits) / len(profits))
             if stddev > 0:
                 provider.sharpe_ratio = round(
-                    (mean_return - RISK_FREE_RATE_DAILY * 100) / stddev * math.sqrt(252), 2
+                    (mean_return - RISK_FREE_PER_TRADE_PCT) / stddev, 2
                 )
             else:
-                provider.sharpe_ratio = 0.0 if mean_return <= 0 else 5.0  # Cap at 5
+                # Zero dispersion: every trade returned the same. Not skill.
+                provider.sharpe_ratio = 0.0
 
             # ── Profit Factor ──
             gross_profit = sum(p for p in profits if p > 0)
@@ -471,10 +655,13 @@ class AIRatingService:
         consistency_score = max(0.0, 1.0 - (stddev_val / 50.0))
 
         # ── Composite AI Score ──
-        if provider.win_rate is not None and len(profits) >= 3:
+        if provider.win_rate is not None and len(profits) >= MIN_CLOSED_FOR_RATIOS:
             avg_p = provider.avg_profit or 0.0
             profit_score = max(0.0, min(1.0, (avg_p + 10) / 20))
-            sharpe_score = max(0.0, min(1.0, (provider.sharpe_ratio or 0) / 3.0))
+            # Divisor matches the per-trade Sharpe scale: 0.5 per trade is strong,
+            # so it maps to a full score. The old /3.0 was for the annualized
+            # figure that no longer exists.
+            sharpe_score = max(0.0, min(1.0, (provider.sharpe_ratio or 0) / 0.5))
             pf_score = max(0.0, min(1.0, ((provider.profit_factor or 0) - 0.5) / 2.5))
             dd_score = max(0.0, min(1.0, 1.0 - abs(provider.max_drawdown or 0) / 40.0))
 

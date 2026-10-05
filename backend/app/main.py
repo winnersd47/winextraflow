@@ -34,6 +34,7 @@ from app.api.public import router as public_router
 from app.api.ai_chat import router as ai_chat_router
 from app.api.screener import router as screener_router
 from app.api.journal import router as journal_router
+from app.api.simulator import router as simulator_router
 from app.api.portfolio import router as portfolio_router
 from app.api.alerts import router as alerts_router
 from app.api.social import router as social_router
@@ -43,6 +44,9 @@ from app.api.content import router as content_router
 from app.api.calculator import router as calculator_router
 from app.api.channels import router as channels_router
 from app.api.track_record import router as track_record_router
+from app.api.paper import router as paper_router
+from app.api.ai_insights import router as ai_insights_router
+from app.api.lessons import router as lessons_router
 from app.api.deep_analysis import router as deep_analysis_router
 from app.services.achievements import achievement_service
 from app.database import async_session as get_async_session, create_tables
@@ -138,8 +142,13 @@ async def lifespan(app: FastAPI):
 
                 ev = expected_value(win_rate, avg_win, avg_loss)
                 kelly = kelly_position_size(win_rate, avg_win, avg_loss, 100000, signal.entry_price, signal.stop_loss or signal.entry_price * 0.97)
-                regime = regime_detector.detect_regime()
-                regime_name = regime.get("regime", "unknown")
+                # `detect_regime()` never existed: the AttributeError landed in the
+                # except below, so `expert` stayed None and VIP messages from this
+                # hook have never carried the expert block at all.
+                from app.database import async_session as _session
+                async with _session() as _db:
+                    _state = await regime_detector.detect(_db)
+                regime_name = _state.regime.value
                 vol = "medium"
                 strat = select_strategy(regime_name, vol, signal.ai_confidence or 0.5)
 
@@ -176,13 +185,34 @@ async def lifespan(app: FastAPI):
         signal_aggregator.on_new_signal(_max_signal_hook)
         logger.info("MAX bot signal broadcaster registered")
 
-    # Startup: launch Telegram channel worker if configured
-    if settings.telegram_api_id and settings.telegram_api_hash:
+    # Startup: launch the in-app Telegram channel worker.
+    #
+    # OFF by default, and that default matters. The worker and the cron job
+    # scripts/tg_backfill.py both authenticate with winextraflow_bot.session — the
+    # backfill works on a copy, but a copy carries the same auth key. Two live
+    # connections through a SOCKS5 proxy can exit from different IPs, and Telegram
+    # then revokes the key permanently:
+    #
+    #   AuthKeyDuplicatedError: the authorization key was used under two different
+    #   IP addresses simultaneously, and can no longer be used
+    #
+    # That happened on 2026-09-01 and stopped signal ingestion for a week; recovery
+    # needs a phone and an SMS code, so it is not something a restart fixes.
+    #
+    # The cron backfill is the path that actually runs in production, so the worker
+    # is redundant. Enable it only if the cron job is disabled.
+    if settings.telegram_worker_enabled and settings.telegram_api_id and settings.telegram_api_hash:
         try:
             await telegram_worker.start()
             logger.info("Telegram worker started")
         except Exception as e:
             logger.warning(f"Telegram worker failed to start: {e}")
+    elif settings.telegram_api_id:
+        logger.info(
+            "Telegram worker disabled (TELEGRAM_WORKER_ENABLED=false) — channel "
+            "parsing runs from cron via scripts/tg_backfill.py. Both at once "
+            "revokes the session key."
+        )
 
     # Startup: launch Telegram bot polling (only if enabled AND polling turned on;
     # sending to VIP works without polling, so polling stays off when the token is
@@ -268,6 +298,7 @@ app.include_router(public_router, prefix="/api/v1/public", tags=["public"])
 app.include_router(ai_chat_router, prefix="/api/v1/ai-chat", tags=["ai-chat"])
 app.include_router(screener_router, prefix="/api/v1/screener", tags=["screener"])
 app.include_router(journal_router, prefix="/api/v1/journal", tags=["journal"])
+app.include_router(simulator_router, prefix="/api/v1/simulator", tags=["simulator"])
 app.include_router(portfolio_router, prefix="/api/v1/portfolio", tags=["portfolio"])
 app.include_router(alerts_router, prefix="/api/v1/alerts", tags=["alerts"])
 app.include_router(social_router, prefix="/api/v1/social", tags=["social"])
@@ -278,6 +309,9 @@ app.include_router(calculator_router, prefix="/api/v1/calculator", tags=["calcul
 app.include_router(deep_analysis_router, prefix="/api/v1/deep-analysis", tags=["deep-analysis"])
 app.include_router(channels_router, prefix="/api/v1/channels", tags=["channel-discovery"])
 app.include_router(track_record_router, prefix="/api/v1/track-record", tags=["track-record"])
+app.include_router(paper_router, prefix="/api/v1/paper", tags=["paper-trading"])
+app.include_router(ai_insights_router, prefix="/api/v1/ai-insights", tags=["ai-insights"])
+app.include_router(lessons_router, prefix="/api/v1/lessons", tags=["lessons"])
 
 
 @app.get("/health")

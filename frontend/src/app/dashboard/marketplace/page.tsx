@@ -38,11 +38,14 @@ export default function MarketplacePage() {
 
 function StrategiesContent() {
   const [items, setItems] = useState<any[]>([]);
+  const [notice, setNotice] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
-  const [sort, setSort] = useState("rating");
+  // Default was "rating", which put MQL5 advisors first and buried every
+  // platform strategy, since only advisors carry a rating.
+  const [sort, setSort] = useState("signals");
   const [page, setPage] = useState(0);
   const [simulating, setSimulating] = useState<string | null>(null);
   const [simResult, setSimResult] = useState<string | null>(null);
@@ -56,7 +59,7 @@ function StrategiesContent() {
       try {
         const token = localStorage.getItem("token");
         const resp = await fetch("/api/v1/strategies/unified-marketplace", { headers: { Authorization: `Bearer ${token}` } });
-        if (resp.ok) { const d = await resp.json(); setItems(d.items || []); }
+        if (resp.ok) { const d = await resp.json(); setItems(d.items || []); setNotice(d.notice_ru || ""); }
       } catch {}
       finally { setLoading(false); }
     };
@@ -74,12 +77,25 @@ function StrategiesContent() {
     if (priceFilter === "paid") result = result.filter(i => i.price_usd && i.price_usd > 0);
 
     result.sort((a, b) => {
-      if (sort === "rating") return (b.rating || 0) - (a.rating || 0);
-      if (sort === "reviews") return (b.reviews || 0) - (a.reviews || 0);
+      // Only MQL5 advisors carry a rating; platform strategies have none, so these
+      // two sorts keep unrated items in place instead of dumping them at the end.
+      if (sort === "rating") {
+        if (a.rating == null && b.rating == null) return 0;
+        if (a.rating == null) return 1;
+        if (b.rating == null) return -1;
+        return b.rating - a.rating;
+      }
+      if (sort === "reviews") {
+        if (a.reviews == null && b.reviews == null) return 0;
+        if (a.reviews == null) return 1;
+        if (b.reviews == null) return -1;
+        return b.reviews - a.reviews;
+      }
+      if (sort === "signals") return (b.signals_count || 0) - (a.signals_count || 0);
       if (sort === "price_asc") return (a.price_usd || 0) - (b.price_usd || 0);
       if (sort === "price_desc") return (b.price_usd || 0) - (a.price_usd || 0);
       if (sort === "subscribers") return (b.subscriber_count || 0) - (a.subscriber_count || 0);
-      return (b.rating || 0) - (a.rating || 0);
+      return (b.signals_count || 0) - (a.signals_count || 0);
     });
     return result;
   }, [items, search, sourceFilter, priceFilter, sort]);
@@ -121,6 +137,13 @@ function StrategiesContent() {
         <div className="mb-4 rounded-lg bg-orange-500/10 p-3 text-sm text-orange-400">{simResult}</div>
       )}
 
+      {/* Where the numbers on these cards come from, and which are not measured. */}
+      {notice && (
+        <div className="mb-4 rounded-lg border border-border bg-surface p-3 text-xs text-text-secondary">
+          {notice}
+        </div>
+      )}
+
       {/* Search */}
       <div className="mb-4">
         <input type="text" value={search} onChange={e => setSearch(e.target.value)}
@@ -156,8 +179,9 @@ function StrategiesContent() {
           ))}
         </div>
         <select value={sort} onChange={e => setSort(e.target.value)} className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary">
-          <option value="rating">{isRu ? "По рейтингу" : "By rating"}</option>
-          <option value="reviews">{isRu ? "По отзывам" : "By reviews"}</option>
+          <option value="signals">{isRu ? "По числу сигналов" : "By signal count"}</option>
+          <option value="rating">{isRu ? "По рейтингу MQL5" : "By MQL5 rating"}</option>
+          <option value="reviews">{isRu ? "По отзывам MQL5" : "By MQL5 reviews"}</option>
           <option value="subscribers">{isRu ? "По подписчикам" : "By subscribers"}</option>
           <option value="price_asc">{isRu ? "Дешёвые" : "Price: low"}</option>
           <option value="price_desc">{isRu ? "Дорогие" : "Price: high"}</option>
@@ -182,9 +206,28 @@ function StrategiesContent() {
                     {isRu ? `Риск: ${item.risk_ru}` : `Risk: ${item.risk}`}
                   </span>
                   {item.moex_compatible && <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-xs text-blue-400">MOEX</span>}
-                  <span className="text-xs text-yellow-400">{item.rating?.toFixed(1)}/5</span>
-                  <span className="text-xs text-text-muted">{item.reviews} {isRu ? "отзывов" : "reviews"}</span>
-                  {item.subscriber_count > 0 && <span className="text-xs text-brand-500">{item.subscriber_count} {isRu ? "подп." : "subs"}</span>}
+                  {/* Rating only where one exists (MQL5 snapshot), dated so it is
+                      not read as current. Platform strategies have no reviews, so
+                      they show a signal count instead of invented stars. */}
+                  {item.rating != null && (
+                    <span className="text-xs text-yellow-400" title={item.stats_as_of ? `MQL5, ${item.stats_as_of}` : undefined}>
+                      {item.rating.toFixed(1)}/5
+                      {item.stats_as_of && <span className="ml-1 text-text-muted">({item.stats_as_of})</span>}
+                    </span>
+                  )}
+                  {item.reviews != null && (
+                    <span className="text-xs text-text-muted">{item.reviews} {isRu ? "отзывов на MQL5" : "MQL5 reviews"}</span>
+                  )}
+                  {item.signals_count != null && item.signals_count > 0 && (
+                    <span className="text-xs text-text-muted">{item.signals_count} {isRu ? "сигналов" : "signals"}</span>
+                  )}
+                  {item.is_demo && (
+                    <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-400"
+                      title={item.demo_notice_ru || ""}>
+                      {isRu ? "демо-данные" : "demo data"}
+                    </span>
+                  )}
+                  {item.subscriber_count != null && item.subscriber_count > 0 && <span className="text-xs text-brand-500">{item.subscriber_count} {isRu ? "подп." : "subs"}</span>}
                 </div>
                 <p className="text-sm text-text-secondary line-clamp-2">{item.description}</p>
                 {item.tickers?.length > 0 && (

@@ -274,3 +274,20 @@ body {
 .pro-mode td, .pro-mode th {
   padding: 3px 8px;
 }
+
+/* Ticker tape marquee — the row is rendered twice, so translating by half its
+   width loops seamlessly. Own implementation: the TradingView widget it replaced
+   required an attribution badge that overlapped the prices. */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-ticker {
+  animation: ticker 60s linear infinite;
+}
+.animate-ticker:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-ticker { animation: none; }
+}

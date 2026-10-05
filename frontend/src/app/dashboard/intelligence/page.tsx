@@ -47,10 +47,13 @@ const REC_COLORS: Record<string, string> = {
   strong_avoid: "text-red-400 bg-red-500/10",
 };
 
-const TVMarketOverviewWidget = dynamic(() => import("@/components/tv-widgets").then(m => ({ default: m.TVMarketOverview })), { ssr: false });
-const TVEconomicCalendarWidget = dynamic(() => import("@/components/tv-widgets").then(m => ({ default: m.TVEconomicCalendar })), { ssr: false });
+// Own components instead of the TradingView widgets: their terms require a visible
+// attribution link, and every figure here already comes from a source we call
+// ourselves (MOEX ISS, Binance, Yahoo, ЦБ РФ, FRED).
+const LiveQuotesGrid = dynamic(() => import("@/components/live-quotes").then(m => ({ default: m.LiveQuotesGrid })), { ssr: false });
+const EconCalendar = dynamic(() => import("@/components/econ-calendar").then(m => ({ default: m.EconCalendar })), { ssr: false });
 
-type IntelTab = "market" | "heatmap" | "tv-overview" | "calendar" | "ai-chat" | "screener";
+type IntelTab = "market" | "heatmap" | "quotes" | "calendar" | "ai-chat" | "screener";
 
 export default function IntelligencePage() {
   const [intelTab, setIntelTab] = useState<IntelTab>("market");
@@ -60,7 +63,7 @@ export default function IntelligencePage() {
   const TABS: { key: IntelTab; ru: string; en: string }[] = [
     { key: "market", ru: "Обзор рынка", en: "Market Overview" },
     { key: "heatmap", ru: "Тепловая карта", en: "Heatmap" },
-    { key: "tv-overview", ru: "TV Обзор", en: "TV Overview" },
+    { key: "quotes", ru: "Котировки", en: "Quotes" },
     { key: "calendar", ru: "Календарь", en: "Calendar" },
     { key: "ai-chat", ru: "AI Чат", en: "AI Chat" },
     { key: "screener", ru: "Скринер", en: "Screener" },
@@ -80,17 +83,17 @@ export default function IntelligencePage() {
 
       {intelTab === "market" && <MarketOverview />}
       {intelTab === "heatmap" && <HeatmapTab />}
-      {intelTab === "tv-overview" && (
+      {intelTab === "quotes" && (
         <div className="fade-in-up">
-          <h2 className="mb-4 text-xl font-bold text-text-primary">{isRu ? "TradingView Обзор рынков" : "TradingView Market Overview"}</h2>
-          <TVMarketOverviewWidget height={500} />
+          <h2 className="mb-4 text-xl font-bold text-text-primary">{isRu ? "Котировки" : "Live Quotes"}</h2>
+          <LiveQuotesGrid isRu={isRu} />
         </div>
       )}
       {intelTab === "calendar" && (
         <div className="fade-in-up">
           <h2 className="mb-4 text-xl font-bold text-text-primary">{isRu ? "Экономический календарь" : "Economic Calendar"}</h2>
           <p className="mb-3 text-sm text-text-muted">{isRu ? "NFP, CPI, ставки ЦБ, ВВП — события влияющие на рынок" : "NFP, CPI, central bank rates, GDP — market-moving events"}</p>
-          <TVEconomicCalendarWidget height={500} />
+          <EconCalendar isRu={isRu} />
         </div>
       )}
       {intelTab === "ai-chat" && <AIChatPage />}

@@ -26,8 +26,15 @@ class StrategyResponse(BaseModel):
     is_published: bool
     price_type: PriceType
     price_monthly: float
-    subscriber_count: int
+    # None for demo rows: the seeded counts (38-134) were fabricated social proof
+    # on a platform with twelve users.
+    subscriber_count: int | None = None
     created_at: datetime
+
+    # Demo fixture from seed_data rather than a real strategy. The UI must badge
+    # these — their metrics are generated, so they are withheld above.
+    is_demo: bool = False
+    demo_notice_ru: str | None = None
 
     # Provider stats (joined)
     win_rate: float | None = None

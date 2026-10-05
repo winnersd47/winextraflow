@@ -10,12 +10,15 @@ Checks:
   3. Errors — tracebacks / failures in logs
   4. External sources — reuses health_monitor (MOEX, Binance, Yahoo, ...)
 
-Report goes to ADMIN_TELEGRAM_CHAT_ID if set, otherwise printed (and logged).
-Get your chat id: message @userinfobot in Telegram, then put it in .env.
+Delivery: bot DM to ADMIN_TELEGRAM_CHAT_ID if set, otherwise the operator's own
+Telegram Saved Messages via the authorized user session. --quiet still sends one
+report every 20h, because a watchdog that is silent when healthy looks exactly
+like a watchdog that died. Exits 1 when problems are found so the scheduler
+records a failed run.
 
 Usage:
-  python scripts/watchdog.py            # report
-  python scripts/watchdog.py --quiet    # only report if there are problems
+  python scripts/watchdog.py            # full report
+  python scripts/watchdog.py --quiet    # problems only, plus a daily heartbeat
 """
 import asyncio, json, os, re, sys
 sys.stdout.reconfigure(encoding="utf-8")
@@ -57,11 +60,34 @@ def _tail(fname: str, n: int = 400) -> list[str]:
         return []
 
 
+# A completed run writes this line. Everything after the last one belongs to the
+# newest run, which is the only thing worth alarming about.
+RUN_END = re.compile(r"Backfill complete:|=== (?:Done|Finished)", re.IGNORECASE)
+
+
+def _last_run(lines: list[str]) -> list[str]:
+    """Only the lines written after the most recent completed run.
+
+    Without this the counter read a 400-line tail regardless of age, so errors
+    stayed "current" long after they were fixed. That matters more than it
+    sounds: this watchdog reported `poller.log: 25 ошибок` from a revoked auth
+    key for as long as those lines sat in the tail, including after the key was
+    replaced and the pipeline was healthy again. An alarm that stays red once
+    the fault is gone teaches its reader to ignore it — which is how a 37-day
+    outage went unnoticed in the first place.
+    """
+    for i in range(len(lines) - 1, -1, -1):
+        if RUN_END.search(lines[i]):
+            return lines[i + 1:]
+    return lines
+
+
 def _count_errors(fname: str) -> tuple[int, str]:
-    """Count error markers in the recent tail; return (count, last error line)."""
+    """Errors in the newest run only; returns (count, last error line)."""
     pat = re.compile(r"traceback|error|failed|exception", re.IGNORECASE)
     skip = re.compile(r"Live price fetch failed|fetch failed —|regime skipped", re.IGNORECASE)
-    hits = [l.strip() for l in _tail(fname) if pat.search(l) and not skip.search(l)]
+    recent = _last_run(_tail(fname))
+    hits = [l.strip() for l in recent if pat.search(l) and not skip.search(l)]
     return len(hits), (hits[-1][:160] if hits else "")
 
 
@@ -148,24 +174,118 @@ async def main():
 
     text = "\n".join(lines)
 
-    if quiet and not problems:
-        print("OK — no problems, quiet mode, nothing sent")
+    # Quiet mode still sends one report a day. A watchdog that only speaks up on
+    # failure is indistinguishable from a watchdog that stopped running, so the
+    # daily "всё работает" is what makes silence meaningful.
+    if quiet and not problems and not _heartbeat_due():
+        print("OK — no problems, heartbeat already sent today, nothing to send")
         return
 
+    # Always print first so the report survives even if delivery fails.
+    print(re.sub(r"</?(b|code)>", "", text))
+
+    if await _deliver(text):
+        _mark_heartbeat()
+    else:
+        print("!! Отчёт НЕ доставлен — ни бот, ни аккаунт Telegram недоступны")
+        # Name the actual cause. Both delivery paths failing looks like one
+        # outage, but they fail for unrelated reasons and only one of them is
+        # fixable in thirty seconds. Worse, the account path uses the same
+        # Telethon session as the signal poller — so the watchdog goes mute in
+        # exactly the situation it exists to report, which is how a dead
+        # pipeline stayed unnoticed for a month.
+        chat = (getattr(settings, "admin_telegram_chat_id", "")
+                or os.getenv("ADMIN_TELEGRAM_CHAT_ID", ""))
+        if not chat:
+            print("   Причина: ADMIN_TELEGRAM_CHAT_ID не задан, поэтому бот не "
+                  "знает, куда писать.")
+            print("   Бот при этом рабочий — путь через аккаунт не нужен, если "
+                  "задать chat id:")
+            print("       python scripts/tg_find_admin_chat.py")
+            print("   Пока он пуст, единственный канал доставки — Telethon-"
+                  "сессия, та же самая,")
+            print("   которой читаются каналы. Ломается она — сторож замолкает "
+                  "вместе с конвейером.")
+
+    # Non-zero exit so Task Scheduler / cron records the run as failed.
+    if problems:
+        sys.exit(1)
+
+
+HEARTBEAT_FILE = os.path.join(SCRIPTS, "watchdog_heartbeat.txt")
+
+
+def _heartbeat_due() -> bool:
+    try:
+        with open(HEARTBEAT_FILE) as f:
+            last = datetime.fromisoformat(f.read().strip())
+    except Exception:
+        return True
+    return (datetime.now(timezone.utc) - last) >= timedelta(hours=20)
+
+
+def _mark_heartbeat() -> None:
+    try:
+        with open(HEARTBEAT_FILE, "w") as f:
+            f.write(datetime.now(timezone.utc).isoformat())
+    except OSError:
+        pass
+
+
+async def _deliver(text: str) -> bool:
+    """Send the report to the operator. Bot DM first, then own Telegram account.
+
+    The bot can only DM a chat id we already know, and it was never set, so every
+    report used to end up in a log file nobody reads. The authorized user session
+    can always write to Saved Messages, which needs no chat id at all.
+    """
     chat = getattr(settings, "admin_telegram_chat_id", "") or os.getenv("ADMIN_TELEGRAM_CHAT_ID", "")
     token = settings.telegram_bot_token
     if chat and token:
-        body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML",
-                           "disable_web_page_preview": True}).encode("utf-8")
-        async with httpx.AsyncClient(timeout=20) as c:
-            r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                             content=body, headers={"Content-Type": "application/json; charset=utf-8"})
-        print("Sent to admin" if r.json().get("ok") else f"Send failed: {r.text[:160]}")
-    else:
-        print("(ADMIN_TELEGRAM_CHAT_ID не задан — отчёт только в консоль/лог)\n")
+        try:
+            body = json.dumps({"chat_id": chat, "text": text, "parse_mode": "HTML",
+                               "disable_web_page_preview": True}).encode("utf-8")
+            async with httpx.AsyncClient(timeout=20) as c:
+                r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
+                                 content=body, headers={"Content-Type": "application/json; charset=utf-8"})
+            if r.json().get("ok"):
+                print("Отчёт отправлен админу (бот)")
+                return True
+            print(f"Бот не смог отправить: {r.text[:160]}")
+        except Exception as e:
+            print(f"Бот не смог отправить: {e}")
 
-    # Always print so it lands in the log file
-    print(re.sub(r"</?(b|code)>", "", text))
+    return await _deliver_via_account(text)
+
+
+async def _deliver_via_account(text: str) -> bool:
+    """Write the report into the operator's own Saved Messages via Telethon."""
+    if not settings.telegram_api_id or not settings.telegram_api_hash:
+        return False
+    try:
+        # The session is NOT copied any more. Copying a .session file copies the
+        # auth key, and Telegram revokes a key it sees connect from two places:
+        # that is how this watchdog helped kill the pipeline it was watching.
+        # Every session file on disk held the identical key afterwards, and the
+        # outage ran 37 days unnoticed because the alarm had silenced itself.
+        #
+        # The lock makes this wait for the poller instead of cloning around it.
+        from app.services.telethon_lock import telethon_session
+
+        async with telethon_session("wef_backfill", timeout=60) as client:
+            if client is None:
+                print("Telethon занят поллером — отчёт через аккаунт пропущен")
+                return False
+            if not await client.is_user_authorized():
+                print("Telegram-аккаунт не авторизован — отчёт не отправлен")
+                return False
+            await client.send_message("me", text, parse_mode="html",
+                                      link_preview=False)
+            print("Отчёт отправлен в Saved Messages (аккаунт)")
+            return True
+    except Exception as e:
+        print(f"Отправка через аккаунт не удалась: {e}")
+        return False
 
 
 asyncio.run(main())

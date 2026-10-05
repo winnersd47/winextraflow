@@ -336,6 +336,125 @@ class ApiClient {
   async getPaymentHistory(): Promise<{ total: number; items: any[] }> {
     return this.request("/payments/history");
   }
+
+  // --- Simulator ---
+  // A practice terminal on the platform's own price feed. There is deliberately
+  // no method here that sends a real order: the backend has no such endpoint.
+  async getSimAccounts(): Promise<{
+    accounts: SimAccount[]; max_accounts: number; disclosure_ru: string;
+  }> {
+    return this.request("/simulator/accounts");
+  }
+
+  async createSimAccount(data: {
+    name: string; starting_balance?: number; risk_per_trade_pct?: number; currency?: string;
+  }): Promise<SimAccount> {
+    return this.request("/simulator/accounts", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSimQuote(ticker: string): Promise<{
+    ticker: string; price: number; source: string; asset_class: string;
+    commission_pct: number; delayed: boolean;
+  }> {
+    return this.request(`/simulator/quote/${encodeURIComponent(ticker)}`);
+  }
+
+  async getSimCandles(ticker: string, days = 120): Promise<{
+    ticker: string; source: string;
+    candles: { date?: string; time?: string; open: number; high: number; low: number; close: number; volume?: number }[];
+  }> {
+    return this.request(`/simulator/candles/${encodeURIComponent(ticker)}?days=${days}`);
+  }
+
+  async getSimPortfolio(accountId?: string): Promise<SimPortfolio> {
+    const q = accountId ? `?account_id=${accountId}` : "";
+    return this.request(`/simulator/portfolio${q}`);
+  }
+
+  async openSimPosition(data: {
+    ticker: string; action: "buy" | "sell"; units?: number;
+    take_profit?: number; stop_loss?: number; signal_id?: string; account_id?: string;
+  }): Promise<{
+    trade: SimTrade; fill_price: number; price_source: string;
+    commission: number; balance: number; disclosure_ru: string;
+  }> {
+    return this.request("/simulator/positions", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async closeSimPosition(tradeId: string): Promise<{
+    trade: SimTrade; close_price: number; gross_pnl: number;
+    commission: number; net_pnl: number; balance: number;
+  }> {
+    return this.request(`/simulator/positions/${tradeId}/close`, { method: "POST" });
+  }
+
+  async getSimHistory(accountId?: string, limit = 50): Promise<{ trades: SimTrade[] }> {
+    const q = new URLSearchParams({ limit: String(limit) });
+    if (accountId) q.set("account_id", accountId);
+    return this.request(`/simulator/history?${q}`);
+  }
+
+  async resetSimAccount(accountId?: string): Promise<{ deleted_trades: number; balance: number }> {
+    const q = accountId ? `?account_id=${accountId}` : "";
+    return this.request(`/simulator/reset${q}`, { method: "POST" });
+  }
+}
+
+export interface SimAccount {
+  id: string;
+  name: string;
+  currency: string;
+  starting_balance: number;
+  balance: number;
+  equity?: number;
+  risk_per_trade_pct: number;
+}
+
+export interface SimTrade {
+  id: string;
+  ticker: string;
+  action: "buy" | "sell";
+  entry_price: number;
+  take_profit: number | null;
+  stop_loss: number | null;
+  units: number;
+  position_value: number;
+  risk_money: number;
+  status: "open" | "closed_tp" | "closed_sl" | "cancelled";
+  close_price: number | null;
+  result_pct: number | null;
+  result_money: number | null;
+  signal_id: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  current_price?: number | null;
+  unrealised_pnl?: number | null;
+  unrealised_pct?: number | null;
+  price_source?: string | null;
+  price_unavailable?: boolean;
+}
+
+export interface SimPortfolio {
+  account: SimAccount & { equity: number };
+  positions: SimTrade[];
+  open_count: number;
+  max_open: number;
+  unrealised_pnl: number;
+  realised_pnl: number;
+  closed_count: number;
+  wins: number;
+  min_sample: number;
+  enough_data: boolean;
+  win_rate_pct: number | null;
+  notice_ru?: string;
+  disclosure_ru: string;
+  commission_note_ru: string;
 }
 
 export const api = new ApiClient();

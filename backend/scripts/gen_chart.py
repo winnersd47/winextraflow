@@ -185,8 +185,12 @@ async def send_to_telegram(chart_path: str, ticker: str, action: str, entry: flo
     """Send chart + text to VIP channel."""
     import httpx
 
-    token = os.getenv("BOT_TOKEN", "8942312432:AAH2veIFPzRiJIavz9VuG2ILgk3AUY7HaHU")
-    chat_id = os.getenv("VIP_CHANNEL_ID", "-1003914705738")
+    from app.config import settings
+    token = os.getenv("BOT_TOKEN", "") or settings.telegram_bot_token
+    chat_id = os.getenv("VIP_CHANNEL_ID", "") or settings.telegram_vip_channel_id
+    if not token or not chat_id:
+        print("BOT_TOKEN / VIP_CHANNEL_ID не заданы — отправка пропущена")
+        return
 
     arrow = "\U0001f7e2" if action.lower() == "buy" else "\U0001f534"
     rr = abs(tp - entry) / abs(entry - sl) if abs(entry - sl) > 0 else 0

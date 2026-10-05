@@ -40,6 +40,11 @@ class ExchangeAccount(Base):
     api_secret_encrypted: Mapped[str] = mapped_column(Text)
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Route this account at the exchange's testnet: real order book, virtual funds.
+    # Defaults to True so a newly connected account cannot place a real order before
+    # someone deliberately turns it off — the platform has 11 measured trades and
+    # none profitable, which is not a record to trade real money against.
+    is_testnet: Mapped[bool] = mapped_column(Boolean, default=True)
 
     # Auto-execution settings per account
     auto_execute: Mapped[bool] = mapped_column(Boolean, default=False)

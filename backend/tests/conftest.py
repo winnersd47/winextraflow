@@ -126,3 +126,17 @@ async def premium_auth_headers(client: AsyncClient, auth_headers: dict, register
     user.role = UserRole.ADMIN  # Admin bypasses KYC check
     await db.commit()
     return auth_headers
+
+
+@pytest.fixture
+def paid_subscriptions_on(monkeypatch):
+    """Enable paid subscriptions for tests that exercise the checkout machinery.
+
+    Checkout is switched off in production until the platform has a profitable
+    measured record (config.paid_subscriptions_enabled). The machinery must still
+    be tested, so these tests turn the flag on explicitly rather than the flag
+    being loosened to keep them green.
+    """
+    from app.config import settings
+    monkeypatch.setattr(settings, "paid_subscriptions_enabled", True)
+    return True

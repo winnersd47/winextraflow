@@ -65,3 +65,27 @@ backend/scripts/watchdog.log
 backend/onboarding_state.json
 frontend/.env.production.local
 frontend/out/
+
+# Watchdog runtime state
+backend/scripts/watchdog_heartbeat.txt
+backend/wef_watchdog.session*
+frontend/tsconfig.tsbuildinfo
+backend/llm_parse_ledger.json
+
+# Secrets in backups and renamed copies. The patterns above only match a name
+# ENDING in .env / .session / .db, so a timestamped backup slipped through —
+# and a .session file is an auth key, a .env.bak holds the bot token.
+.env.bak*
+backend/.env.bak*
+backend/*.session.*
+backend/*.session.lock
+*.db.bak*
+backend/*.db.bak*
+
+# Phone number + phone_code_hash written by scripts/tg_send_code.py
+backend/.tg_auth_state.json
+
+# Runtime ledgers, not source
+backend/llm_metrics.jsonl
+backend/llm_metrics.jsonl.1
+frontend/next.config.js.standalone.bak2

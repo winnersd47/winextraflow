@@ -24,6 +24,10 @@ class ParsedSignal:
     take_profit: float | None = None
     stop_loss: float | None = None
     timeframe: str | None = None
+    # True when the source gave only a direction + target, so entry and stop were
+    # computed rather than published. signal_levels.resolve_levels() replaces them
+    # with a live entry and an ATR-based stop before the signal is stored.
+    derived_levels: bool = False
 
 
 # --- Signal parsing patterns ---
@@ -76,6 +80,40 @@ NON_TICKER_WORDS = {
 
 # Leverage patterns wrongly captured as ticker: "5X", "2-5X", "10-20X", "5-10x"
 _LEVERAGE_RE = re.compile(r"^\d+([-–]\d+)?X$", re.IGNORECASE)
+
+
+# The LLM returns whatever the message called the instrument, which for RU channels
+# is often the company name: "Лукойл" -> LUKOIL rather than LKOH. An unrecognised
+# ticker silently yields no candles — no chart, no ATR, no TP/SL monitoring — so the
+# name has to be mapped back to the exchange symbol before the signal is stored.
+_LATIN_ALIASES = {
+    "LUKOIL": "LKOH", "SBERBANK": "SBER", "GAZPROM": "GAZP", "ROSNEFT": "ROSN",
+    "NORNICKEL": "GMKN", "NORILSK": "GMKN", "NOVATEK": "NVTK", "YANDEX": "YDEX",
+    "MAGNIT": "MGNT", "SEVERSTAL": "CHMF", "ALROSA": "ALRS", "POLYUS": "PLZL",
+    "TATNEFT": "TATN", "AEROFLOT": "AFLT", "SURGUT": "SNGS", "SURGUTNEFTEGAS": "SNGS",
+    "BITCOIN": "BTCUSDT", "ETHEREUM": "ETHUSDT", "SOLANA": "SOLUSDT",
+}
+
+
+def _resolve_ticker(raw: str) -> str:
+    """Map a company name or alias to the exchange symbol the platform can price.
+
+    Built by inverting signal_chart.NAME_MAP (ticker -> Russian name) so the two
+    cannot drift apart, plus the Latin transliterations the model tends to emit.
+    """
+    t = (raw or "").strip().upper().lstrip("#")
+    if not t:
+        return t
+    if t in _LATIN_ALIASES:
+        return _LATIN_ALIASES[t]
+    try:
+        from app.services.signal_chart import NAME_MAP
+        for ticker, name in NAME_MAP.items():
+            if name.upper() == t:
+                return ticker
+    except Exception:          # never let a lookup failure drop a signal
+        pass
+    return t
 
 
 def _is_valid_ticker(ticker: str) -> bool:
@@ -302,6 +340,7 @@ class TelegramParser:
             entry_price=entry,
             take_profit=round(target, 4),
             stop_loss=sl,
+            derived_levels=True,   # entry and stop are ours, not the analyst's
         )
 
     @staticmethod
@@ -394,128 +433,203 @@ class TelegramParser:
 
 
     @staticmethod
-    async def parse_with_llm(text: str) -> ParsedSignal | None:
+    async def parse_with_llm(text: str, max_attempts: int = 2) -> ParsedSignal | None:
         """Fallback: use an LLM to parse non-standard / Russian signal formats.
 
-        Uses OpenRouter (OpenAI-compatible) with a free model by default.
-        Requires OPENROUTER_API_KEY in environment. Returns None if unavailable.
-        Falls back to ANTHROPIC_API_KEY (direct Claude) for backward compat.
+        Every outcome is recorded to the metrics ledger with its reason. Before,
+        all of these collapsed into a bare `return None`: no key, HTTP error,
+        timeout, unparseable response, schema violation, unrecognised ticker, and
+        "this is correctly not a signal" were indistinguishable in the log.
+
+        `max_attempts` retries only a *validation* failure — a response that came
+        back but did not satisfy `LLMSignal`. HTTP and timeout failures are not
+        retried here: the caller's ledger (llm_parse_ledger) grants one attempt
+        per message for the whole run, and burning it on a provider outage means
+        the message can never be reparsed once the provider recovers.
         """
         import os
+
         # settings first (.env is loaded there), env var as an override
         from app.config import settings as _s
+        from app.services import llm_metrics as _m
+        from app.services.llm_signal_schema import JSON_SCHEMA, PROMPT, LLMSignal
+
         or_key = os.environ.get("OPENROUTER_API_KEY", "") or _s.openrouter_api_key
         model = os.environ.get("LLM_MODEL", "") or _s.llm_model
+        prompt = PROMPT.format(text=text)
 
-        prompt = f"""Extract a trading signal from this message (may be Russian or English).
-Return JSON only, no explanation. If this is NOT an actionable trading signal
-(news, analytics, opinion), return {{"error": "not a signal"}}.
+        if not or_key and not os.environ.get("ANTHROPIC_API_KEY", ""):
+            _m.record("parse_with_llm", model or "none", False, "no_api_key", 0)
+            return None
 
-Rules:
-- action: "buy" for покупка/лонг/buy/long, "sell" for продажа/шорт/sell/short
-- ticker: the instrument symbol (e.g. SBER, BTCUSDT, EURUSD, XAUUSD). Not an order type like "LIMIT".
-- entry_price: entry/цена входа as a number
-- take_profit: TP/цель/тейк (number or null)
-- stop_loss: SL/стоп (number or null)
+        last_note = ""
+        for attempt in range(1, max_attempts + 1):
+            outcome, parsed, note, ptok, ctok, ms = await TelegramParser._llm_attempt(
+                prompt, or_key, model, attempt
+            )
+            _m.record("parse_with_llm", model, outcome == "parsed", outcome, ms,
+                      ptok, ctok, attempt=attempt, note=note)
+            if outcome == "parsed":
+                return parsed
+            last_note = note
+            # Only a malformed or invalid answer is worth asking again for.
+            if outcome not in ("invalid_json", "schema_invalid", "empty_response"):
+                return None
 
-Required: ticker, action, entry_price. Optional: take_profit, stop_loss.
+        logger.debug(f"LLM parser gave up after {max_attempts} attempts: {last_note}")
+        return None
 
-Message:
-{text}
+    @staticmethod
+    async def _llm_attempt(prompt: str, or_key: str, model: str, attempt: int):
+        """One request. Returns (outcome, ParsedSignal|None, note, ptok, ctok, ms)."""
+        import os
 
-JSON:"""
+        from app.services import llm_metrics as _m
+        from app.services.llm_signal_schema import JSON_SCHEMA, LLMSignal
 
-        try:
-            if or_key:
-                # OpenRouter (OpenAI-compatible)
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.post(
-                        "https://openrouter.ai/api/v1/chat/completions",
-                        headers={
-                            "Authorization": f"Bearer {or_key}",
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": "https://winextraflow.com",
-                            "X-Title": "WinExtraFlow",
-                        },
-                        json={
-                            "model": model,
-                            # Reasoning models (e.g. gpt-oss) spend tokens on a
-                            # thinking pass first — a small budget truncates them
-                            # before any answer is produced.
-                            "max_tokens": 900,
-                            "temperature": 0.1,
-                            "messages": [{"role": "user", "content": prompt}],
-                        },
-                    )
+        from pydantic import ValidationError
+
+        ptok = ctok = 0
+        with _m.timed() as t:
+            try:
+                if or_key:
+                    async with httpx.AsyncClient(timeout=15) as client:
+                        resp = await client.post(
+                            "https://openrouter.ai/api/v1/chat/completions",
+                            headers={
+                                "Authorization": f"Bearer {or_key}",
+                                "Content-Type": "application/json",
+                                "HTTP-Referer": "https://winextraflow.com",
+                                "X-Title": "WinExtraFlow",
+                            },
+                            json={
+                                "model": model,
+                                # Reasoning models (e.g. gpt-oss) spend tokens on a
+                                # thinking pass first — a small budget truncates
+                                # them before any answer is produced.
+                                "max_tokens": 900,
+                                "temperature": 0.1,
+                                # Constrains generation where the provider supports
+                                # it. Support varies per model on OpenRouter and a
+                                # schema cannot express the cross-field rules, so
+                                # LLMSignal still validates the result.
+                                "response_format": JSON_SCHEMA,
+                                "messages": [{"role": "user", "content": prompt}],
+                            },
+                        )
+                    body = {}
+                    try:
+                        body = resp.json()
+                    except ValueError:
+                        pass
+                    ptok, ctok = _m.usage_from_response(body)
                     if resp.status_code != 200:
-                        logger.debug(f"LLM parser HTTP error: {resp.status_code} {resp.text[:200]}")
-                        return None
-                    msg = (resp.json().get("choices") or [{}])[0].get("message", {}) or {}
+                        return ("http_error", None,
+                                f"{resp.status_code} {resp.text[:120]}",
+                                ptok, ctok, t["elapsed_ms"]())
+                    msg = (body.get("choices") or [{}])[0].get("message", {}) or {}
                     # Reasoning models may leave `content` empty and put the answer
                     # in `reasoning`; accept either.
                     content = (msg.get("content") or msg.get("reasoning") or "").strip()
-                    if not content:
-                        logger.debug("LLM parser: empty content and reasoning")
-                        return None
-            else:
-                # Backward-compat: direct Anthropic
-                api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-                if not api_key:
-                    return None
-                async with httpx.AsyncClient(timeout=15) as client:
-                    resp = await client.post(
-                        "https://api.anthropic.com/v1/messages",
-                        headers={
-                            "x-api-key": api_key,
-                            "anthropic-version": "2023-06-01",
-                            "content-type": "application/json",
-                        },
-                        json={
-                            "model": "claude-sonnet-4-20250514",
-                            "max_tokens": 200,
-                            "messages": [{"role": "user", "content": prompt}],
-                        },
-                    )
-                    if resp.status_code != 200:
-                        logger.debug(f"LLM parser HTTP error: {resp.status_code}")
-                        return None
-                    content = resp.json()["content"][0]["text"].strip()
-
-            # Extract JSON. Reasoning models wrap the answer in prose (and may show
-            # several draft objects), so try every {...} block, last one first.
-            data = None
-            if content.startswith("{"):
-                try:
-                    data = json.loads(content)
-                except json.JSONDecodeError:
-                    data = None
-            if data is None:
-                blocks = re.findall(r"\{[^{}]*\}", content, re.DOTALL)
-                for block in reversed(blocks):
+                else:
+                    # Backward-compat: direct Anthropic.
+                    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+                    async with httpx.AsyncClient(timeout=15) as client:
+                        resp = await client.post(
+                            "https://api.anthropic.com/v1/messages",
+                            headers={
+                                "x-api-key": api_key,
+                                "anthropic-version": "2023-06-01",
+                                "content-type": "application/json",
+                            },
+                            json={
+                                "model": "claude-sonnet-4-20250514",
+                                # Was 200, which truncated the answer on any long
+                                # message while the OpenRouter path allowed 900.
+                                "max_tokens": 900,
+                                "messages": [{"role": "user", "content": prompt}],
+                            },
+                        )
+                    body = {}
                     try:
-                        cand = json.loads(block)
-                    except json.JSONDecodeError:
-                        continue
-                    if isinstance(cand, dict) and ("ticker" in cand or "error" in cand):
-                        data = cand
-                        break
-            if data is None:
-                logger.debug(f"LLM parser: no JSON in response: {content[:120]}")
-                return None
+                        body = resp.json()
+                    except ValueError:
+                        pass
+                    ptok, ctok = _m.usage_from_response(body)
+                    if resp.status_code != 200:
+                        return ("http_error", None, str(resp.status_code),
+                                ptok, ctok, t["elapsed_ms"]())
+                    content = (body.get("content") or [{}])[0].get("text", "").strip()
 
-            if "error" in data or not data.get("ticker") or data.get("entry_price") is None:
-                return None
+                if not content:
+                    return ("empty_response", None, "no content and no reasoning",
+                            ptok, ctok, t["elapsed_ms"]())
 
-            return ParsedSignal(
-                ticker=str(data["ticker"]).upper(),
-                action=_normalize_action(data["action"]),
-                entry_price=float(data["entry_price"]),
-                take_profit=float(data["take_profit"]) if data.get("take_profit") else None,
-                stop_loss=float(data["stop_loss"]) if data.get("stop_loss") else None,
-            )
-        except Exception as e:
-            logger.debug(f"LLM parser error: {e}")
-            return None
+                data = _extract_json(content)
+                if data is None:
+                    return ("invalid_json", None, content[:120],
+                            ptok, ctok, t["elapsed_ms"]())
+
+                # The model declining is a correct outcome, not a failure. It is
+                # counted separately so "the parser is broken" and "these messages
+                # were not signals" stop looking the same in the log.
+                if data.get("not_a_signal") is True or "error" in data:
+                    return ("not_a_signal", None, "", ptok, ctok, t["elapsed_ms"]())
+
+                try:
+                    sig = LLMSignal(**{k: data.get(k) for k in
+                                       ("ticker", "action", "entry_price",
+                                        "take_profit", "stop_loss")})
+                except ValidationError as e:
+                    first = e.errors()[0]
+                    return ("schema_invalid", None,
+                            f"{'.'.join(str(x) for x in first['loc'])}: "
+                            f"{first['msg']}",
+                            ptok, ctok, t["elapsed_ms"]())
+
+                ticker = _resolve_ticker(sig.ticker)
+                if not _is_valid_ticker(ticker):
+                    return ("rejected_ticker", None, sig.ticker,
+                            ptok, ctok, t["elapsed_ms"]())
+
+                return ("parsed", ParsedSignal(
+                    ticker=ticker,
+                    action=_normalize_action(sig.action),
+                    entry_price=sig.entry_price,
+                    take_profit=sig.take_profit,
+                    stop_loss=sig.stop_loss,
+                ), "", ptok, ctok, t["elapsed_ms"]())
+
+            except httpx.TimeoutException:
+                return ("timeout", None, "15s", ptok, ctok, t["elapsed_ms"]())
+            except Exception as e:
+                return ("exception", None, f"{type(e).__name__}: {e}",
+                        ptok, ctok, t["elapsed_ms"]())
+
+
+def _extract_json(content: str) -> dict | None:
+    """Pull the answer object out of a response that may be wrapped in prose.
+
+    Needed because `response_format` is honoured by only some OpenRouter models;
+    the rest still return a JSON object inside an explanation, and reasoning
+    models may show several draft objects before the final one. The last block
+    that looks like an answer wins.
+    """
+    if content.startswith("{"):
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+    for block in reversed(re.findall(r"\{[^{}]*\}", content, re.DOTALL)):
+        try:
+            cand = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(cand, dict) and (
+            "ticker" in cand or "error" in cand or "not_a_signal" in cand
+        ):
+            return cand
+    return None
 
 
 telegram_parser = TelegramParser()

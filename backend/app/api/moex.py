@@ -64,7 +64,7 @@ async def moex_heatmap(user: User = Depends(get_current_user)):
         ticker = q.get("ticker", "")
         result.append({
             "ticker": ticker,
-            "price": q.get("last_price", 0),
+            "price": q.get("price") or 0,   # service key is "price", not "last_price"
             "change_pct": q.get("change_pct", 0) or 0,
             "volume": q.get("volume", 0),
             "sector": MOEX_SECTORS.get(ticker, "Other"),

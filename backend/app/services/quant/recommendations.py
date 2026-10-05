@@ -122,8 +122,26 @@ class RecommendationEngine:
         is_buy = signal.action == SignalAction.BUY
         ai_conf = signal.ai_confidence or 0.5
 
-        # 1. Get volatility estimate
-        base_vol = VOLATILITY_MAP.get(ticker, 2.5)
+        # 1. Volatility — measured, with the table only as a fallback.
+        #
+        # VOLATILITY_MAP is a hand-written estimate per ticker, and every stop and
+        # target below is derived from it. Checked against live ATR the table is in
+        # the right ballpark but off by up to a third (SBER: 2.5% assumed vs 1.65%
+        # actual), and a stop sized from a number that is 34% wrong is wrong by the
+        # same margin. atr_pct() reads the same candles the trade will execute
+        # against, so it is preferred whenever the data source answers.
+        base_vol = None
+        try:
+            from app.services.signal_levels import atr_pct
+            measured = await atr_pct(ticker)
+            if measured:
+                base_vol = round(measured * 100, 2)
+                vol_source = "ATR по свечам"
+        except Exception as e:
+            logger.debug(f"ATR unavailable for {ticker}, using table: {e}")
+        if base_vol is None:
+            base_vol = VOLATILITY_MAP.get(ticker, 2.5)
+            vol_source = "таблица (ATR недоступен)"
 
         # 2. Detect market regime for this ticker
         state = await regime_detector.detect(db, ticker=ticker)
@@ -231,7 +249,7 @@ class RecommendationEngine:
 
         # 11. Reasoning
         reasoning_ru = [
-            f"Волатильность {ticker}: {base_vol}% (базовая дневная)",
+            f"Волатильность {ticker}: {base_vol}% в день ({vol_source})",
             f"Риск на сделку: {base_risk_pct:.1f}% от депозита ({risk_amount:.0f} {('₽' if ticker in ['SBER','GAZP','LKOH','YNDX','GMKN'] else '$')})",
             f"Стоп-лосс включает буфер {sl_buffer_pct:.2f}% против выноса стопов",
             f"Частичное закрытие: TP1 (40%), TP2 (30%), TP3 (30%)",
@@ -239,7 +257,7 @@ class RecommendationEngine:
             f"Перевод в безубыток после достижения {tp1_pct*0.6:.1f}% прибыли",
         ]
         reasoning_en = [
-            f"Volatility {ticker}: {base_vol}% (base daily)",
+            f"Volatility {ticker}: {base_vol}% daily ({vol_source})",
             f"Risk per trade: {base_risk_pct:.1f}% of account ({risk_amount:.0f} $)",
             f"Stop loss includes {sl_buffer_pct:.2f}% anti-hunt buffer",
             f"Partial close: TP1 (40%), TP2 (30%), TP3 (30%)",

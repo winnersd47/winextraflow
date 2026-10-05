@@ -7,11 +7,17 @@ Used for:
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Which crypto exchange to try first. Bybit is the practical choice on Russian
+# infrastructure: Binance withdrew from that market, and the fallback means either
+# one being unreachable is a slowdown rather than an outage.
+CRYPTO_PRIMARY = os.getenv("CRYPTO_PRIMARY", "binance").lower()
 
 MOEX_TICKERS = {
     "SBER", "GAZP", "LKOH", "YNDX", "ROSN", "GMKN", "NVTK", "MGNT",
@@ -26,6 +32,46 @@ def _is_forex(ticker: str) -> bool:
     return len(t) == 6 and t[:3] in FOREX_CURRENCIES and t[3:] in FOREX_CURRENCIES
 
 
+# How far a signal's stored entry may sit from the live price before we treat the
+# signal as stale (parsed from old channel history) rather than tradable.
+#
+# One number cannot serve every market: a 10% daily move is unremarkable for an
+# altcoin and near-unheard-of for a major FX pair, so a single 10% threshold let
+# week-old crypto signals through while it would have taken a market crash to trip
+# on EURUSD. These are roughly 2-3x the typical daily range per class.
+STALE_TOLERANCE = {
+    "forex": 0.02,      # majors move well under 1% on a normal day
+    "moex": 0.06,       # RU blue chips
+    "stocks": 0.07,     # US/EU single names
+    "futures": 0.08,    # FORTS, incl. commodity contracts
+    "crypto": 0.15,     # altcoins routinely swing double digits
+}
+DEFAULT_STALE_TOLERANCE = 0.07
+
+
+def asset_class(ticker: str) -> str:
+    """Coarse market bucket for a ticker: forex | crypto | moex | futures | stocks."""
+    t = (ticker or "").upper()
+    if _is_forex(t):
+        return "forex"
+    if t.endswith("USDT") or t.endswith("BUSD") or t.endswith("BTC"):
+        return "crypto"
+    try:
+        from app.services.signal_chart import is_moex_futures
+        if is_moex_futures(t):
+            return "futures"
+    except Exception:
+        pass
+    from app.services.backtesting_real import detect_source
+    src = detect_source(t)
+    return "moex" if src == "moex" else "stocks"
+
+
+def stale_tolerance(ticker: str) -> float:
+    """Max acceptable |entry - live| / live for this ticker's market."""
+    return STALE_TOLERANCE.get(asset_class(ticker), DEFAULT_STALE_TOLERANCE)
+
+
 async def get_live_price(ticker: str) -> dict | None:
     """Get current price for any ticker. Returns dict with price, source, timestamp."""
     t = ticker.upper()
@@ -34,7 +80,7 @@ async def get_live_price(ticker: str) -> dict | None:
         if t in MOEX_TICKERS:
             return await _moex_price(t)
         elif t.endswith("USDT") or t.endswith("BTC"):
-            return await _binance_price(t)
+            return await _crypto_price(t)
         else:
             return await _yahoo_price(t)
     except Exception as e:
@@ -65,21 +111,91 @@ async def _moex_price(ticker: str) -> dict | None:
 
 
 async def _binance_price(ticker: str) -> dict | None:
-    """Binance API — free, real-time."""
+    """Binance API — free, real-time. Returns None on anything unusable."""
     async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.get(f"https://api.binance.com/api/v3/ticker/24hr", params={"symbol": ticker})
+        resp = await client.get("https://api.binance.com/api/v3/ticker/24hr",
+                                params={"symbol": ticker})
+        if resp.status_code != 200:
+            logger.info(f"Binance {ticker}: HTTP {resp.status_code}")
+            return None
         data = resp.json()
+        price = float(data.get("lastPrice", 0) or 0)
+        if price <= 0:
+            return None
         return {
             "ticker": ticker,
-            "price": float(data.get("lastPrice", 0)),
-            "high": float(data.get("highPrice", 0)),
-            "low": float(data.get("lowPrice", 0)),
-            "open": float(data.get("openPrice", 0)),
-            "volume": float(data.get("volume", 0)),
-            "change_pct": float(data.get("priceChangePercent", 0)),
+            "price": price,
+            "high": float(data.get("highPrice", 0) or 0),
+            "low": float(data.get("lowPrice", 0) or 0),
+            "open": float(data.get("openPrice", 0) or 0),
+            "volume": float(data.get("volume", 0) or 0),
+            "change_pct": float(data.get("priceChangePercent", 0) or 0),
             "source": "Binance",
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
+
+
+async def _bybit_price(ticker: str) -> dict | None:
+    """Bybit v5 spot ticker — the second crypto source.
+
+    Crypto used to hang entirely off Binance. One block or outage there and every
+    crypto signal loses its price: no monitoring, no ATR, no chart. Bybit is a
+    separate operator on separate infrastructure and uses the same symbol format
+    (BTCUSDT), so it substitutes without a mapping table.
+
+    price24hPcnt is a fraction (0.0145), not a percentage — a detail worth getting
+    right, since 0.0145 rendered as a percent would understate a 1.45% move by 100x.
+    """
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get("https://api.bybit.com/v5/market/tickers",
+                                params={"category": "spot", "symbol": ticker})
+        if resp.status_code != 200:
+            logger.info(f"Bybit {ticker}: HTTP {resp.status_code}")
+            return None
+        body = resp.json()
+        if body.get("retCode") != 0:
+            logger.info(f"Bybit {ticker}: {body.get('retMsg')}")
+            return None
+        rows = (body.get("result") or {}).get("list") or []
+        if not rows:
+            return None
+        d = rows[0]
+        price = float(d.get("lastPrice", 0) or 0)
+        if price <= 0:
+            return None
+        prev = float(d.get("prevPrice24h", 0) or 0)
+        return {
+            "ticker": ticker,
+            "price": price,
+            "high": float(d.get("highPrice24h", 0) or 0),
+            "low": float(d.get("lowPrice24h", 0) or 0),
+            "open": prev,
+            "volume": float(d.get("volume24h", 0) or 0),
+            "change_pct": float(d.get("price24hPcnt", 0) or 0) * 100,
+            "source": "Bybit",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+async def _crypto_price(ticker: str) -> dict | None:
+    """Crypto quote with a fallback, so one exchange failing is not an outage.
+
+    Order comes from CRYPTO_PRIMARY: set it to "bybit" where Binance is unreachable
+    (it withdrew from the Russian market, and the RU VPS this deploys to may see
+    restrictions the developer's network does not).
+    """
+    order = ([_bybit_price, _binance_price] if CRYPTO_PRIMARY == "bybit"
+             else [_binance_price, _bybit_price])
+    for fetch in order:
+        try:
+            got = await fetch(ticker)
+        except Exception as e:
+            logger.info(f"{fetch.__name__} failed for {ticker}: {e}")
+            continue
+        if got:
+            return got
+    logger.warning(f"No crypto source could price {ticker} (tried Binance and Bybit)")
+    return None
 
 
 async def _yahoo_price(ticker: str) -> dict | None:
@@ -94,12 +210,22 @@ async def _yahoo_price(ticker: str) -> dict | None:
         data = resp.json()
         result = data.get("chart", {}).get("result", [{}])[0]
         meta = result.get("meta", {})
+        price = meta.get("regularMarketPrice", 0)
+        # regularMarketOpen is empty while the market is closed, which left every US
+        # ticker with no change figure at all. previousClose is the standard daily
+        # reference for equities and is present outside session hours too.
+        prev = meta.get("chartPreviousClose") or meta.get("previousClose") or 0
+        change_pct = None
+        if price and prev:
+            change_pct = (price - prev) / prev * 100
         return {
             "ticker": ticker,
-            "price": meta.get("regularMarketPrice", 0),
+            "price": price,
             "high": meta.get("regularMarketDayHigh", 0),
             "low": meta.get("regularMarketDayLow", 0),
             "open": meta.get("regularMarketOpen", 0),
+            "previous_close": prev,
+            "change_pct": round(change_pct, 4) if change_pct is not None else None,
             "volume": meta.get("regularMarketVolume", 0),
             "source": "Yahoo Finance",
             "timestamp": datetime.now(timezone.utc).isoformat(),

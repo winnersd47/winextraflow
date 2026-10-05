@@ -24,6 +24,17 @@ router = APIRouter()
 
 
 # ─── Advisor Catalog (curated from MQL5 Market) ─────────
+#
+# `rating` and `reviews` below are a hand-copied snapshot from mql5.com, not live
+# data. They were taken once, on the date in STATS_AS_OF, and never refreshed —
+# meanwhile the marketplace page sorts by them by default, so a stale number decides
+# what a user sees first. Every response now carries STATS_AS_OF and a notice so the
+# UI can date them; an undated rating presented as current is the same defect as the
+# fabricated subscriber counts removed from api/strategies.py.
+#
+# To refresh: update the numbers and move STATS_AS_OF. Do not leave one without the
+# other.
+STATS_AS_OF = "2026-05-19"
 
 ADVISORS_CATALOG = [
     {
@@ -428,20 +439,48 @@ STRATEGY_NAMES_EN = {1: "Trend Following", 2: "Mean Reversion", 3: "Range", 4: "
 RISK_RU = {"low": "Низкий", "medium": "Средний", "high": "Высокий"}
 
 
+def _stats_notice() -> dict:
+    """Provenance of the rating/reviews numbers, attached to every response."""
+    from datetime import date
+    try:
+        age = (date.today() - date.fromisoformat(STATS_AS_OF)).days
+    except ValueError:
+        age = None
+    return {
+        "stats_as_of": STATS_AS_OF,
+        "stats_age_days": age,
+        "stats_are_live": False,
+        "stats_notice_ru": (
+            f"Рейтинг и число отзывов — снимок с MQL5 Market на {STATS_AS_OF}"
+            + (f" ({age} дн. назад)" if age else "")
+            + ". Это не живые данные: актуальные смотрите по ссылке на MQL5."
+        ),
+        "stats_notice_en": (
+            f"Rating and review count are a snapshot from MQL5 Market taken on "
+            f"{STATS_AS_OF}. Not live data — follow the MQL5 link for current values."
+        ),
+    }
+
+
+def _enrich(ea: dict) -> dict:
+    return {
+        **ea,
+        "strategy_name_ru": STRATEGY_NAMES_RU.get(ea["strategy_id"], "?"),
+        "strategy_name_en": STRATEGY_NAMES_EN.get(ea["strategy_id"], "?"),
+        "risk_ru": RISK_RU.get(ea["risk"], ea["risk"]),
+        # Per-item too: a card rendered on its own must still carry the date.
+        "stats_as_of": STATS_AS_OF,
+        "stats_are_live": False,
+    }
+
+
 @router.get("")
 async def list_advisors(user: User = Depends(get_current_user)):
     """List all MT5 advisors in catalog with strategy classification."""
     return {
-        "advisors": [
-            {
-                **ea,
-                "strategy_name_ru": STRATEGY_NAMES_RU.get(ea["strategy_id"], "?"),
-                "strategy_name_en": STRATEGY_NAMES_EN.get(ea["strategy_id"], "?"),
-                "risk_ru": RISK_RU.get(ea["risk"], ea["risk"]),
-            }
-            for ea in ADVISORS_CATALOG
-        ],
+        "advisors": [_enrich(ea) for ea in ADVISORS_CATALOG],
         "total": len(ADVISORS_CATALOG),
+        **_stats_notice(),
     }
 
 
@@ -452,21 +491,32 @@ async def get_advisor(advisor_id: str, user: User = Depends(get_current_user)):
     if not ea:
         raise HTTPException(404, "Advisor not found")
     return {
-        **ea,
-        "strategy_name_ru": STRATEGY_NAMES_RU.get(ea["strategy_id"], "?"),
-        "strategy_name_en": STRATEGY_NAMES_EN.get(ea["strategy_id"], "?"),
-        "risk_ru": RISK_RU.get(ea["risk"], ea["risk"]),
+        **_enrich(ea),
+        **_stats_notice(),
+        # The bridge in mt5/WEF_Bridge.mq5 is what actually delivers signals to the
+        # platform; the previous text pointed at MetaApi, which is a different path
+        # and is not what the project runs.
         "connect_instructions_ru": (
-            "1. Скачайте советник на MQL5 Market (бесплатно)\n"
-            "2. Установите в MetaTrader 5\n"
-            "3. Подключите MT5 счёт к WinExtraFlow через MetaApi\n"
-            "4. Сигналы от советника будут автоматически появляться на платформе"
+            "1. Скачайте советник на MQL5 Market и установите в MetaTrader 5\n"
+            "2. Отдельно поставьте на график WEF_Bridge.mq5 из этого проекта\n"
+            "3. В настройках моста: ServerHost/ServerPort и BridgeToken "
+            "(= MT5_BRIDGE_TOKEN в .env), PublishToPlatform = true\n"
+            "4. Запустите мост: python scripts/mt5_server.py\n"
+            "5. Сигналы пройдут гейт качества и появятся на платформе\n\n"
+            "Важно: рейтинг и отзывы ниже — снимок с MQL5, а не проверенная "
+            "статистика доходности. Результаты советника на вашем счёте "
+            "измеряются только после подключения к мосту."
         ),
         "connect_instructions_en": (
-            "1. Download advisor from MQL5 Market (free)\n"
-            "2. Install in MetaTrader 5\n"
-            "3. Connect MT5 account to WinExtraFlow via MetaApi\n"
-            "4. Advisor signals will automatically appear on the platform"
+            "1. Download the advisor from MQL5 Market and install it in MetaTrader 5\n"
+            "2. Separately attach WEF_Bridge.mq5 from this project to a chart\n"
+            "3. In the bridge inputs: ServerHost/ServerPort and BridgeToken "
+            "(= MT5_BRIDGE_TOKEN in .env), PublishToPlatform = true\n"
+            "4. Start the bridge: python scripts/mt5_server.py\n"
+            "5. Signals pass the quality gate and appear on the platform\n\n"
+            "Note: the rating and review count are an MQL5 snapshot, not verified "
+            "performance. This advisor's results on your account are only measured "
+            "once it is connected through the bridge."
         ),
     }
 

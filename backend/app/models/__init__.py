@@ -18,6 +18,8 @@ from app.models.journal import JournalEntry
 from app.models.alert import PriceAlert
 from app.models.social import SignalComment, StrategyLike
 from app.models.feedback import Feedback
+from app.models.paper import PaperAccount, PaperTrade, PaperTradeStatus
+from app.models.lesson import Lesson, LessonTopic
 
 __all__ = [
     "User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order",
@@ -25,4 +27,6 @@ __all__ = [
     "Notification", "Payment", "KYCVerification", "ComplianceDocument",
     "BacktestReport", "CourseAccess", "JournalEntry", "PriceAlert",
     "SignalComment", "StrategyLike", "Feedback",
+    "PaperAccount", "PaperTrade", "PaperTradeStatus",
+    "Lesson", "LessonTopic",
 ]

@@ -20,19 +20,28 @@ if not "%~1"=="" (
 )
 
 echo.
-echo [1/4] switching to static-export config
+echo [1/5] exporting lessons into the build
+REM There is no backend behind the static export, so /learn must not depend on the
+REM API: without this file the page loads and reports "материал не найден", which
+REM reads as broken content rather than absent content.
+pushd ..\backend
+set PYTHONPATH=.
+"C:\Users\v.serdyuk\AppData\Local\Programs\Python\Python313\python.exe" -X utf8 scripts\export_lessons.py
+popd
+
+echo [2/5] switching to static-export config
 if exist next.config.js copy /Y next.config.js next.config.js.standalone.bak >nul
 copy /Y next.config.pages.js next.config.js >nul
 
-echo [2/4] moving dynamic routes aside
+echo [3/5] moving dynamic routes aside
 if exist "src\app\dashboard\signals\[id]" move "src\app\dashboard\signals\[id]" "src\app\dashboard\signals\_id_bak" >nul
 if exist "src\app\dashboard\marketplace\[id]" move "src\app\dashboard\marketplace\[id]" "src\app\dashboard\marketplace\_id_bak" >nul
 
-echo [3/4] building
+echo [4/5] building
 set NODE_OPTIONS=--max-old-space-size=4096
 call npx next build
 
-echo [4/4] restoring project state
+echo [5/5] restoring project state
 if exist "src\app\dashboard\signals\_id_bak" move "src\app\dashboard\signals\_id_bak" "src\app\dashboard\signals\[id]" >nul
 if exist "src\app\dashboard\marketplace\_id_bak" move "src\app\dashboard\marketplace\_id_bak" "src\app\dashboard\marketplace\[id]" >nul
 if exist next.config.js.standalone.bak copy /Y next.config.js.standalone.bak next.config.js >nul

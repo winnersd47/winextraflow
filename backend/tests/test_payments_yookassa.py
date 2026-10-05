@@ -17,7 +17,7 @@ async def test_get_plans(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
-async def test_demo_checkout(client: AsyncClient, auth_headers: dict):
+async def test_demo_checkout(client: AsyncClient, auth_headers: dict, paid_subscriptions_on):
     resp = await client.post("/api/v1/payments/checkout", json={
         "plan": "monthly", "return_url": "http://test.com/store",
     }, headers=auth_headers)
@@ -30,7 +30,7 @@ async def test_demo_checkout(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
-async def test_demo_complete(client: AsyncClient, auth_headers: dict):
+async def test_demo_complete(client: AsyncClient, auth_headers: dict, paid_subscriptions_on):
     # Create demo payment
     r1 = await client.post("/api/v1/payments/checkout", json={
         "plan": "monthly", "return_url": "http://test.com",
@@ -43,13 +43,13 @@ async def test_demo_complete(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
-async def test_complete_nonexistent_fails(client: AsyncClient, auth_headers: dict):
+async def test_complete_nonexistent_fails(client: AsyncClient, auth_headers: dict, paid_subscriptions_on):
     resp = await client.post("/api/v1/payments/complete-demo?payment_id=fake_id", headers=auth_headers)
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_payment_history(client: AsyncClient, auth_headers: dict):
+async def test_payment_history(client: AsyncClient, auth_headers: dict, paid_subscriptions_on):
     # Create a payment first
     await client.post("/api/v1/payments/checkout", json={"plan": "monthly", "return_url": "http://test.com"}, headers=auth_headers)
     resp = await client.get("/api/v1/payments/history", headers=auth_headers)
@@ -58,7 +58,7 @@ async def test_payment_history(client: AsyncClient, auth_headers: dict):
 
 
 @pytest.mark.asyncio
-async def test_crypto_checkout_demo(client: AsyncClient, auth_headers: dict):
+async def test_crypto_checkout_demo(client: AsyncClient, auth_headers: dict, paid_subscriptions_on):
     resp = await client.post("/api/v1/payments/checkout/crypto", json={
         "plan": "monthly", "return_url": "http://test.com",
     }, headers=auth_headers)

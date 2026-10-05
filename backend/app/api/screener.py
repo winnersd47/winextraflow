@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.track_record import MIN_SAMPLE
 from app.database import get_db
 from app.models.signal import Signal, SignalAction, SignalStatus
 from app.models.user import User
@@ -86,10 +87,13 @@ async def scan_tickers(
 
     month_ago = datetime.now(timezone.utc) - timedelta(days=30)
 
-    # Fetch all signals for these tickers in last 30 days
+    # Fetch all signals for these tickers in last 30 days.
+    # Seed rows must be excluded: the TICKERS list above is the same set seed_data
+    # generates from, so unfiltered the screener ranked demo data almost exclusively.
+    from app.api.ai_insights import not_seed
     stmt = (
         select(Signal)
-        .where(Signal.ticker.in_(tickers), Signal.created_at >= month_ago)
+        .where(Signal.ticker.in_(tickers), Signal.created_at >= month_ago, not_seed())
     )
     all_signals = (await db.execute(stmt)).scalars().all()
 
@@ -121,11 +125,14 @@ async def scan_tickers(
         if action == "sell" and sells == 0:
             continue
 
-        # Closed signals stats
+        # Closed signals stats. A per-ticker win rate over a handful of trades is
+        # noise — one closed trade returned 1.0 and sorted that ticker to the top.
+        # Reported only from MIN_SAMPLE closed trades, like everywhere else.
         closed = [s for s in signals if s.profit_pct is not None]
+        enough = len(closed) >= MIN_SAMPLE
         wins = sum(1 for s in closed if s.profit_pct > 0)
-        win_rate = wins / len(closed) if closed else None
-        avg_profit = sum(s.profit_pct for s in closed) / len(closed) if closed else None
+        win_rate = wins / len(closed) if enough else None
+        avg_profit = sum(s.profit_pct for s in closed) / len(closed) if enough else None
 
         # Latest signal
         latest = max(signals, key=lambda s: s.created_at)
@@ -156,6 +163,8 @@ async def scan_tickers(
             "avg_wef_score": round(avg_wef, 3),
             "win_rate": round(win_rate, 3) if win_rate is not None else None,
             "avg_profit": round(avg_profit, 2) if avg_profit is not None else None,
+            "closed_trades": len(closed),
+            "enough_data": enough,
             "latest_action": latest_action,
             "latest_price": latest.entry_price,
             "latest_tp": latest.take_profit,

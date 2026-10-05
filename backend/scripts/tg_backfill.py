@@ -20,6 +20,8 @@ from app.models.provider import Provider, ProviderSource
 from app.models.signal import Signal, SignalAction
 from app.services.telegram import telegram_parser
 from app.services.ai_rating import ai_rating_service
+from app.services.signal_levels import resolve_levels
+from app.services.llm_parse_ledger import ParseLedger
 
 # Channels to scan are loaded per-run from the UI-managed monitored list
 # (monitored_channels.json, seeded from .env). See load_monitored().
@@ -28,6 +30,14 @@ from app.services.channel_discovery import load_monitored
 # Ignore channel posts older than this — prevents ancient history being ingested
 # as fresh signals (stale entry prices produce absurd P&L).
 MAX_MESSAGE_AGE_HOURS = 48
+
+# LLM fallback budget for one run. The job runs every 30 minutes (48 runs/day), so
+# this is the daily ceiling divided by the number of runs, with headroom for the
+# insight endpoints that share the same OpenRouter key.
+#   free tier without credits: 50 requests/day in total  -> keep this at 1
+#   free tier with $10 credit: 1000 requests/day         -> 10 is comfortable
+# Override per environment with LLM_PARSE_PER_RUN.
+MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN", "10"))
 
 
 def _proxy():
@@ -85,6 +95,10 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
 
     from app.services.signal_pipeline import process_and_broadcast
     saved = 0
+    llm_parsed = 0
+    # One attempt per message, ever: the same post is re-read ~48 times before
+    # it ages out of the window, and each re-read would otherwise be an LLM call.
+    ledger = ParseLedger(max_per_run=MAX_LLM_PARSE_PER_RUN)
     async with async_session() as db:
         for ch, channel_id, title, msgs in fetched:
             # Find or create provider for this channel
@@ -107,6 +121,22 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                     continue
                 parsed = telegram_parser.parse_message(m.text)
                 if not parsed:
+                    # The regex parsers cover four channels with a recognisable
+                    # format. Everything else — most RU channels write the signal as
+                    # prose — was silently dropped here, which is why the LLM parser
+                    # existed but never ran on the path that actually runs on cron.
+                    if ledger.should_try(ch, m.id):
+                        ledger.mark(ch, m.id)
+                        try:
+                            parsed = await telegram_parser.parse_with_llm(m.text)
+                        except Exception as e:
+                            print(f"  [{ch}] LLM-парсер упал: {e}")
+                            parsed = None
+                        if parsed:
+                            llm_parsed += 1
+                            print(f"  [{ch}] LLM разобрал: {parsed.action.upper()} "
+                                  f"{parsed.ticker} @ {parsed.entry_price}")
+                if not parsed:
                     continue
 
                 # Dedup: same ticker+action from this provider
@@ -120,10 +150,23 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                 if dup:
                     continue
 
+                # Analyst formats give only direction + target: anchor the entry to
+                # the live market and size the stop by ATR before storing.
+                lv = await resolve_levels(
+                    parsed.ticker, parsed.action, parsed.entry_price,
+                    parsed.take_profit, parsed.stop_loss,
+                    derived=getattr(parsed, "derived_levels", False),
+                )
+                if not lv["usable"]:
+                    continue
+                if lv["notes"]:
+                    print(f"  [{ch}] {parsed.ticker}: " + "; ".join(lv["notes"]))
+
                 signal = Signal(
                     provider_id=provider.id, ticker=parsed.ticker,
-                    action=SignalAction(parsed.action), entry_price=parsed.entry_price,
-                    take_profit=parsed.take_profit, stop_loss=parsed.stop_loss,
+                    action=SignalAction(parsed.action), entry_price=lv["entry"],
+                    take_profit=lv["take_profit"], stop_loss=lv["stop_loss"],
+                    long_target=lv["long_target"],
                     raw_message=m.text[:500],
                 )
                 db.add(signal)

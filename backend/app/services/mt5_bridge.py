@@ -40,7 +40,21 @@ MAX_BATCH_SIZE = 10
 BATCH_TIMEOUT = 2.0  # seconds to wait for batch to fill
 RATE_LIMIT_DELAY = 0.5  # seconds between LLM calls
 
+# Every LLM command is billed to the platform's own OpenRouter key, so an
+# unauthenticated listener is an open LLM proxy. Loopback-only is safe; any other
+# bind address requires a shared secret that the MQL5 side sends in `auth`.
+BRIDGE_TOKEN = settings.mt5_bridge_token
+LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+# Per-connection budget: an EA on a 15-minute chart needs a handful of calls, not
+# hundreds. Stops one misbehaving or hijacked client draining the key.
+MAX_LLM_CALLS_PER_CONN = 120
+MAX_LLM_CALLS_WINDOW_SEC = 3600
+
 executor = ThreadPoolExecutor(max_workers=4)
+
+
+class BridgeAuthError(Exception):
+    """Raised when a client fails the shared-secret check."""
 
 
 # ═══ INDICATORS (NumPy-based, fast) ═══
@@ -264,6 +278,8 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
     """Handle TCP connection from MT5."""
     addr = writer.get_extra_info("peername")
     logger.info(f"MT5 connected: {addr}")
+    llm_calls = 0
+    window_start = time.monotonic()
 
     try:
         while True:
@@ -280,6 +296,28 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
 
             cmd = msg.get("cmd", "")
 
+            # Shared secret, checked per message so a reconnect cannot skip it.
+            if BRIDGE_TOKEN and not _token_ok(msg.get("auth", "")):
+                logger.warning(f"MT5 auth failed from {addr}")
+                writer.write(json.dumps({"error": "Unauthorized"}).encode() + b"\n")
+                await writer.drain()
+                break
+
+            # Budget only the commands that cost money; ping/indicators are free.
+            if cmd in ("analyze", "batch", "signal"):
+                if time.monotonic() - window_start > MAX_LLM_CALLS_WINDOW_SEC:
+                    llm_calls, window_start = 0, time.monotonic()
+                cost = len(msg.get("items", [])[:MAX_BATCH_SIZE]) if cmd == "batch" else 1
+                if llm_calls + cost > MAX_LLM_CALLS_PER_CONN:
+                    writer.write(json.dumps({
+                        "error": "Rate limit: LLM budget for this connection exhausted",
+                        "retry_after_sec": int(MAX_LLM_CALLS_WINDOW_SEC -
+                                               (time.monotonic() - window_start)),
+                    }).encode() + b"\n")
+                    await writer.drain()
+                    continue
+                llm_calls += cost
+
             if cmd == "analyze":
                 # Single ticker analysis
                 candles = msg.get("candles", [])
@@ -293,6 +331,12 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                     response = await llm_analyze(ticker, indicators, tf)
                     response["ticker"] = ticker
                     response["indicators"] = indicators
+
+            elif cmd == "signal":
+                # Same analysis as "analyze", but the decision is stored as a
+                # platform Signal and run through the standard pipeline (rating,
+                # quality gate, publication) instead of ending at a terminal Alert.
+                response = await _handle_signal(msg)
 
             elif cmd == "batch":
                 # Batch analysis (multiple tickers)
@@ -323,9 +367,68 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
         logger.info(f"MT5 disconnected: {addr}")
 
 
+async def _handle_signal(msg: dict) -> dict:
+    """Analyse, then store the decision as a platform Signal.
+
+    "hold" is not stored: a decision not to trade is not a signal, and recording it
+    would put rows with no levels into the same table the track record counts.
+    """
+    candles = msg.get("candles", [])
+    symbol = msg.get("ticker") or msg.get("symbol") or "UNKNOWN"
+    tf = msg.get("timeframe", "H1")
+
+    indicators = calc_indicators(candles)
+    if "error" in indicators:
+        return {"error": indicators["error"]}
+
+    decision = await llm_analyze(symbol, indicators, tf)
+    action = (decision.get("action") or "").lower()
+    if action not in ("buy", "sell"):
+        return {"stored": False, "action": action or "hold",
+                "reason": "hold — не сделка, не сохраняем",
+                "confidence": decision.get("confidence"),
+                "indicators": indicators}
+
+    # The terminal's own last close is the entry reference: it is the price the
+    # trade would actually be opened at, unlike a quote from another feed.
+    price = indicators.get("price") or 0
+
+    from app.database import async_session
+    from app.services.mt5_signals import ingest
+    async with async_session() as db:
+        out = await ingest(
+            db, symbol=symbol, action=action, price=price,
+            tp=decision.get("tp"), sl=decision.get("sl"),
+            confidence=float(decision.get("confidence") or 0),
+            reasoning=decision.get("reasoning", ""),
+            indicators=indicators, timeframe=tf,
+        )
+    out["indicators"] = indicators
+    out["model_confidence"] = decision.get("confidence")
+    return out
+
+
+def _token_ok(supplied: str) -> bool:
+    """Constant-time comparison of the shared secret."""
+    import hmac
+    return hmac.compare_digest(str(supplied), BRIDGE_TOKEN)
+
+
 async def start_mt5_server(host: str = WS_HOST, port: int = WS_PORT):
-    """Start TCP server for MT5 connections."""
+    """Start TCP server for MT5 connections.
+
+    Refuses to listen on anything but loopback without a token: the bridge spends
+    the platform's LLM key on every `analyze` command, so an open port is an open
+    wallet. Set MT5_BRIDGE_TOKEN and put the same value in the EA's inputs.
+    """
+    if host not in LOOPBACK and not BRIDGE_TOKEN:
+        raise BridgeAuthError(
+            f"Refusing to bind {host}:{port} without MT5_BRIDGE_TOKEN — the bridge "
+            f"spends the OpenRouter key on every request and has no other access "
+            f"control. Set MT5_BRIDGE_TOKEN in .env (and in the EA), or bind 127.0.0.1."
+        )
     server = await asyncio.start_server(handle_client, host, port)
-    logger.info(f"MT5 Bridge started on {host}:{port}")
+    auth = "token required" if BRIDGE_TOKEN else "loopback only, no token"
+    logger.info(f"MT5 Bridge started on {host}:{port} ({auth})")
     async with server:
         await server.serve_forever()

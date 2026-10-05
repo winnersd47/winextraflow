@@ -31,6 +31,63 @@ MAX_TP_PCT = 60.0
 MIN_PROVIDER_WIN_RATE = 0.55
 MIN_PROVIDER_SIGNALS = 5  # need at least N closed signals to judge
 
+# Seed/demo rows share the tables with real signals. Anything customer-facing —
+# the public track record, the TP/SL monitor that posts results to VIP — must
+# exclude them, or generated numbers get published as trading history.
+SEED_MARKERS = ("auto-generated", "demo signal", "test signal")
+
+
+# Tickers used by load/stress tests. 32 STRESST rows reached the paper accounts
+# because they look like ordinary signals — the marker check only reads the message.
+TEST_TICKERS = {"TESTTICK", "STRESST", "TESTBTC", "FAKETICK"}
+
+
+def is_seed_signal(signal: Signal) -> bool:
+    """True if this row came from seed_data, a demo fixture or a test, not a source."""
+    if (signal.ticker or "").upper() in TEST_TICKERS:
+        return True
+    raw = (signal.raw_message or "").lower()
+    return any(raw.startswith(m) or m in raw[:40] for m in SEED_MARKERS)
+
+
+def not_excluded():
+    """SQL condition: rows that may count toward the measured record.
+
+    Pair it with the seed filter. `is_seed_signal` catches fixtures and test
+    tickers by inspecting the row; this catches rows a human ruled out after the
+    fact — currently only exact duplicates of another closed signal, which
+    double-counted one outcome in the win rate.
+    """
+    return Signal.excluded_reason.is_(None)
+
+
+def is_countable(signal: Signal) -> bool:
+    """In-Python equivalent of `not_excluded()` plus the seed check."""
+    return signal.excluded_reason is None and not is_seed_signal(signal)
+
+
+async def recent_wef_percentile(db: AsyncSession, q: float = 0.75, limit: int = 200) -> int | None:
+    """The q-th percentile WEF score over the last `limit` real scored signals.
+
+    The score's usable range turned out to be narrow — real signals sit between
+    roughly 43 and 71 — so a fixed "strong signal" cut-off is arbitrary: at 70 only
+    6% of signals ever qualified. A percentile keeps the VIP-exclusive share at the
+    intended fraction as the scoring distribution shifts.
+    """
+    rows = (await db.execute(
+        select(Signal.ai_confidence, Signal.raw_message)
+        .where(Signal.ai_confidence.isnot(None))
+        .order_by(Signal.created_at.desc())
+        .limit(limit * 3)          # room to drop seed rows and still fill the window
+    )).all()
+    scores = sorted(
+        round(conf * 100) for conf, raw in rows
+        if conf and not any((raw or "").lower().startswith(m) for m in SEED_MARKERS)
+    )[-limit:] if rows else []
+    if len(scores) < 20:           # too few to speak of a distribution
+        return None
+    return scores[min(len(scores) - 1, int(len(scores) * q))]
+
 
 class QualityResult:
     def __init__(self):

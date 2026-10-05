@@ -23,6 +23,7 @@ const navItems = [
   { href: "/dashboard/alerts", labelKey: "nav.alerts", Icon: IconBolt, adminOnly: false },
   // ─── Trading ───
   { href: "/dashboard/portfolio", labelKey: "nav.portfolio", Icon: IconHelm, adminOnly: false },
+  { href: "/dashboard/simulator", labelKey: "nav.simulator", Icon: IconCompass, adminOnly: false },
   // ─── Social ───
   { href: "/dashboard/telegram", labelKey: "nav.messengers", Icon: IconSail, adminOnly: false, analystOnly: false },
   { href: "/dashboard/channels", labelKey: "nav.channels", Icon: IconRadar, adminOnly: true },

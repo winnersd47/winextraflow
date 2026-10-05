@@ -1,9 +1,23 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo } from "react";
+import ReactECharts from "echarts-for-react";
+
+/**
+ * Candlestick chart on Apache ECharts.
+ *
+ * Migrated off lightweight-charts. That library is Apache-2.0, but its terms
+ * additionally require a visible link to tradingview.com on a user-facing page, and
+ * it satisfies that by drawing a TradingView logo on every chart (`attributionLogo`,
+ * on by default). ECharts' Apache-2.0 has no such user-facing requirement — the
+ * NOTICE obligation is satisfied in the project's licence notices, not by a badge
+ * over the price.
+ *
+ * Same public props as before, so call sites did not change.
+ */
 
 interface CandleData {
-  time: string; // "2024-01-15"
+  time: string; // "2026-01-15"
   open: number;
   high: number;
   low: number;
@@ -29,148 +43,131 @@ interface Props {
   ticker?: string;
 }
 
+const UP = "#10b981";
+const DOWN = "#ef4444";
+const GRID = "rgba(255,255,255,0.04)";
+const AXIS = "rgba(255,255,255,0.1)";
+
 export default function CandlestickChart({
   data, markers, entryPrice, takeProfit, stopLoss, height = 400, ticker,
 }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
+  const option = useMemo(() => {
+    const dates = data.map(d => d.time);
+    // ECharts candlestick order is [open, close, low, high] — not OHLC.
+    const ohlc = data.map(d => [d.open, d.close, d.low, d.high]);
+    const hasVolume = data.some(d => d.volume);
+    const volume = data.map(d => ({
+      value: d.volume ?? 0,
+      itemStyle: { color: d.close >= d.open ? `${UP}30` : `${DOWN}30` },
+    }));
 
-  useEffect(() => {
-    if (!containerRef.current || data.length === 0) return;
+    const priceLines = [
+      entryPrice ? { y: entryPrice, color: "#3b82f6", label: "Вход", dash: [6, 4] } : null,
+      takeProfit ? { y: takeProfit, color: UP, label: "Цель", dash: [2, 4] } : null,
+      stopLoss ? { y: stopLoss, color: DOWN, label: "Стоп", dash: [2, 4] } : null,
+    ].filter(Boolean) as { y: number; color: string; label: string; dash: number[] }[];
 
-    let disposed = false;
-
-    import("lightweight-charts").then(({ createChart, CrosshairMode, LineStyle, CandlestickSeries, HistogramSeries, createSeriesMarkers }) => {
-      if (disposed || !containerRef.current) return;
-
-      // Clean previous
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
-
-      const chart = createChart(containerRef.current, {
-        width: containerRef.current.clientWidth,
-        height,
-        layout: {
-          background: { color: "transparent" } as any,
-          textColor: "#9ca3af",
-        },
-        grid: {
-          vertLines: { color: "rgba(255,255,255,0.04)" },
-          horzLines: { color: "rgba(255,255,255,0.04)" },
-        },
-        crosshair: { mode: CrosshairMode.Normal },
-        rightPriceScale: { borderColor: "rgba(255,255,255,0.1)" },
-        timeScale: {
-          borderColor: "rgba(255,255,255,0.1)",
-          timeVisible: true,
-        },
-      });
-
-      chartRef.current = chart;
-
-      // Candlestick series
-      const candleSeries = chart.addSeries(CandlestickSeries, {
-        upColor: "#10b981",
-        downColor: "#ef4444",
-        borderUpColor: "#10b981",
-        borderDownColor: "#ef4444",
-        wickUpColor: "#10b981",
-        wickDownColor: "#ef4444",
-      });
-
-      candleSeries.setData(data as any);
-
-      // Entry/TP/SL price lines
-      if (entryPrice) {
-        candleSeries.createPriceLine({
-          price: entryPrice,
-          color: "#3b82f6",
-          lineWidth: 2,
-          lineStyle: LineStyle.Dashed,
-          axisLabelVisible: true,
-          title: "Entry",
-        });
-      }
-      if (takeProfit) {
-        candleSeries.createPriceLine({
-          price: takeProfit,
-          color: "#10b981",
-          lineWidth: 1,
-          lineStyle: LineStyle.Dotted,
-          axisLabelVisible: true,
-          title: "TP",
-        });
-      }
-      if (stopLoss) {
-        candleSeries.createPriceLine({
-          price: stopLoss,
-          color: "#ef4444",
-          lineWidth: 1,
-          lineStyle: LineStyle.Dotted,
-          axisLabelVisible: true,
-          title: "SL",
-        });
-      }
-
-      // Markers (buy/sell signals) — v5 uses createSeriesMarkers
-      if (markers && markers.length > 0) {
-        createSeriesMarkers(candleSeries, markers as any);
-      }
-
-      // Volume
-      if (data.some(d => d.volume)) {
-        const volumeSeries = chart.addSeries(HistogramSeries, {
-          color: "#10b98140",
-          priceFormat: { type: "volume" },
-          priceScaleId: "",
-        } as any);
-        volumeSeries.priceScale().applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
-        });
-        volumeSeries.setData(
-          data.filter(d => d.volume).map(d => ({
-            time: d.time,
-            value: d.volume!,
-            color: d.close >= d.open ? "#10b98130" : "#ef444430",
-          })) as any
-        );
-      }
-
-      chart.timeScale().fitContent();
-
-      // Resize observer
-      const resizeObserver = new ResizeObserver(() => {
-        if (containerRef.current && chartRef.current) {
-          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-        }
-      });
-      resizeObserver.observe(containerRef.current);
-
-      return () => {
-        resizeObserver.disconnect();
+    const markPoints = (markers || []).map(m => {
+      const i = dates.indexOf(m.time);
+      const bar = data[i];
+      if (i < 0 || !bar) return null;
+      const above = m.position === "aboveBar";
+      return {
+        name: m.text,
+        coord: [i, above ? bar.high : bar.low],
+        symbol: m.shape === "arrowDown" ? "arrow" : "pin",
+        symbolRotate: m.shape === "arrowDown" ? 180 : 0,
+        symbolSize: 18,
+        itemStyle: { color: m.color },
+        label: { show: !!m.text, formatter: m.text, fontSize: 10, color: "#e2e8f0",
+                 position: above ? "top" : "bottom" },
       };
-    });
+    }).filter(Boolean);
 
-    return () => {
-      disposed = true;
-      if (chartRef.current) {
-        chartRef.current.remove();
-        chartRef.current = null;
-      }
+    return {
+      animation: false,
+      backgroundColor: "transparent",
+      textStyle: { color: "#9ca3af" },
+      grid: hasVolume
+        ? [{ left: 52, right: 16, top: 16, height: "62%" },
+           { left: 52, right: 16, top: "76%", height: "16%" }]
+        : [{ left: 52, right: 16, top: 16, bottom: 48 }],
+      tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "cross" },
+        backgroundColor: "rgba(10,22,40,0.95)",
+        borderColor: AXIS,
+        textStyle: { color: "#e2e8f0", fontSize: 11 },
+      },
+      xAxis: hasVolume
+        ? [{ type: "category", data: dates, gridIndex: 0, axisLine: { lineStyle: { color: AXIS } },
+             axisLabel: { show: false }, splitLine: { show: false } },
+           { type: "category", data: dates, gridIndex: 1, axisLine: { lineStyle: { color: AXIS } },
+             axisLabel: { fontSize: 10 }, splitLine: { show: false } }]
+        : [{ type: "category", data: dates, axisLine: { lineStyle: { color: AXIS } },
+             axisLabel: { fontSize: 10 }, splitLine: { show: false } }],
+      yAxis: hasVolume
+        ? [{ scale: true, gridIndex: 0, position: "right",
+             axisLine: { lineStyle: { color: AXIS } }, axisLabel: { fontSize: 10 },
+             splitLine: { lineStyle: { color: GRID } } },
+           { gridIndex: 1, position: "right", axisLabel: { show: false },
+             axisLine: { show: false }, splitLine: { show: false } }]
+        : [{ scale: true, position: "right", axisLine: { lineStyle: { color: AXIS } },
+             axisLabel: { fontSize: 10 }, splitLine: { lineStyle: { color: GRID } } }],
+      dataZoom: [
+        { type: "inside", xAxisIndex: hasVolume ? [0, 1] : [0] },
+      ],
+      series: [
+        {
+          type: "candlestick",
+          data: ohlc,
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+          itemStyle: { color: UP, color0: DOWN, borderColor: UP, borderColor0: DOWN },
+          markPoint: markPoints.length ? { data: markPoints } : undefined,
+          markLine: priceLines.length
+            ? {
+                symbol: "none",
+                label: { formatter: (p: any) => p.name, position: "insideEndTop",
+                         fontSize: 10, color: "#e2e8f0" },
+                data: priceLines.map(l => ({
+                  name: `${l.label} ${l.y}`,
+                  yAxis: l.y,
+                  lineStyle: { color: l.color, width: 1.5, type: l.dash },
+                })),
+              }
+            : undefined,
+        },
+        ...(hasVolume
+          ? [{ type: "bar", data: volume, xAxisIndex: 1, yAxisIndex: 1, barWidth: "60%" }]
+          : []),
+      ],
     };
-  }, [data, markers, entryPrice, takeProfit, stopLoss, height]);
+  }, [data, markers, entryPrice, takeProfit, stopLoss]);
+
+  if (!data.length) {
+    return (
+      <div className="rounded-xl border border-border bg-surface-card p-8 text-center text-sm text-text-muted">
+        Нет данных для графика
+      </div>
+    );
+  }
 
   return (
-    <div className="rounded-xl border border-border bg-surface-card overflow-hidden">
+    <div className="overflow-hidden rounded-xl border border-border bg-surface-card">
       {ticker && (
-        <div className="px-4 py-2 border-b border-border">
+        <div className="border-b border-border px-4 py-2">
           <span className="text-sm font-bold text-text-primary">{ticker}</span>
-          <span className="ml-2 text-xs text-text-muted">{data.length} candles</span>
+          <span className="ml-2 text-xs text-text-muted">{data.length} свечей</span>
         </div>
       )}
-      <div ref={containerRef} style={{ height }} />
+      <ReactECharts
+        option={option}
+        style={{ height }}
+        notMerge
+        lazyUpdate
+        opts={{ renderer: "canvas" }}
+      />
     </div>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 
 interface Props {
   market: "moex" | "crypto" | "us" | "world";
@@ -12,73 +11,10 @@ interface Props {
  * TradingView Stock/Crypto Heatmap Widget (free, no API key).
  * Embeds official TradingView widget via iframe script.
  */
-export function TradingViewHeatmap({ market, height = 500, colorTheme = "dark" }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+// TradingViewHeatmap removed: the widget's terms require a visible attribution
+// link, and all three markets are now served by /api/v1/public/heatmap from
+// sources the platform already calls (MOEX ISS, CoinGecko, Yahoo).
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
-
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-stock-heatmap.js";
-    script.async = true;
-    script.type = "text/javascript";
-
-    const config: Record<string, any> = {
-      colorTheme,
-      hasTopBar: true,
-      isDataSetEnabled: true,
-      isZoomEnabled: true,
-      hasSymbolTooltip: true,
-      width: "100%",
-      height,
-      locale: "ru",
-    };
-
-    if (market === "moex") {
-      config.exchanges = [];
-      config.dataSource = "MOEX";
-      config.grouping = "sector";
-      config.blockSize = "market_cap_basic";
-      config.blockColor = "change";
-    } else if (market === "crypto") {
-      config.dataSource = "Crypto";
-      config.blockSize = "market_cap_calc";
-      config.blockColor = "change";
-      config.grouping = "no_group";
-    } else if (market === "us") {
-      config.exchanges = [];
-      config.dataSource = "SPX500";
-      config.grouping = "sector";
-      config.blockSize = "market_cap_basic";
-      config.blockColor = "change";
-    } else {
-      config.exchanges = [];
-      config.dataSource = "AllUSA";
-      config.grouping = "sector";
-      config.blockSize = "market_cap_basic";
-      config.blockColor = "change";
-    }
-
-    script.innerHTML = JSON.stringify(config);
-
-    const wrapper = document.createElement("div");
-    wrapper.className = "tradingview-widget-container";
-    wrapper.appendChild(script);
-    containerRef.current.appendChild(wrapper);
-
-    return () => {
-      if (containerRef.current) containerRef.current.innerHTML = "";
-    };
-  }, [market, height, colorTheme]);
-
-  return <div ref={containerRef} className="rounded-xl overflow-hidden border border-border" />;
-}
-
-/**
- * Custom MOEX Heatmap — built from our own MOEX API data.
- * Shows sectors with color-coded performance boxes.
- */
 interface HeatmapTicker {
   ticker: string;
   price: number;
@@ -103,6 +39,7 @@ function changeTextColor(pct: number): string {
   if (pct <= -0.5) return "text-red-100";
   return "text-gray-200";
 }
+
 
 export function CustomHeatmap({ data, isRu }: { data: HeatmapTicker[]; isRu: boolean }) {
   if (!data || data.length === 0) {

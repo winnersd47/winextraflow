@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     telegram_api_hash: str = ""
     telegram_phone: str = ""
     telegram_parse_channels: str = ""  # comma-separated: beststocksru,channel2
+    # In-app Telethon worker. OFF by default: it shares the auth key with the
+    # cron job scripts/tg_backfill.py, and two live connections from different
+    # proxy exit IPs make Telegram revoke the key for good (AuthKeyDuplicated).
+    # Recovery needs a phone and an SMS code. Turn this on only if the cron
+    # backfill is disabled.
+    telegram_worker_enabled: bool = False
 
     # MTProxy for Telegram (bypass blocking without VPN)
     # Get free servers from: https://t.me/ProxyMTProto or https://mtprotoproxy.app
@@ -79,7 +85,24 @@ class Settings(BaseSettings):
 
     # AI Rating
     ai_rating_enabled: bool = True
-    signal_expiry_hours: int = 168  # 7 days
+    # How long a signal stays ACTIVE before it is written off unresolved.
+    #
+    # Was 168 (7 days ≈ 5 trading days) and, separately, was never actually read —
+    # `expire_old_signals` hardcoded its own 168 and nothing called it.
+    #
+    # Measured by replaying 150 stored signals against real candles: the median
+    # resolution takes 6 bars, just past a 5-day window. The share of signals that
+    # reach a level at all, by holding period:
+    #
+    #      5 trading days   26%
+    #     10 trading days   38%
+    #     15 trading days   49%
+    #     20 trading days   52%
+    #     30 trading days   53%
+    #
+    # 15 trading days is where the curve flattens — roughly 21 calendar days.
+    # Holding longer buys almost nothing and ties up the record.
+    signal_expiry_hours: int = 504  # 21 days ≈ 15 trading days
 
     # YooKassa (primary payment system for RU)
     yookassa_shop_id: str = ""
@@ -127,7 +150,28 @@ class Settings(BaseSettings):
 
     # Free channel: only tease signals BELOW this WEF score.
     # Strong signals (WEF >= threshold) stay VIP-exclusive — not even a teaser.
-    free_teaser_max_wef: int = 70
+    #
+    # RECALIBRATED when ai_rating stopped substituting 0.5 for unmeasurable
+    # factors. Dropping those factors and renormalizing moved the score's median
+    # from 65 to 86, so the old 70 went from catching 7% of signals to catching
+    # 95% — it would have made almost everything VIP-exclusive and drowned out the
+    # percentile rule below.
+    #
+    # 90 rather than the nominal p75, because the score currently takes only four
+    # distinct values — 76 (13% of signals), 83 (26%), 89 (31%), 96 (24%) — so no
+    # percentile lands on a clean quartile. 90 sits in the gap between 89 and 96
+    # and yields 24% VIP-exclusive, which is the intent, and it will not flip on a
+    # small shift in the distribution the way 89 would.
+    #
+    # That coarseness is not arbitrary: average coverage is 0.45, and only
+    # risk_management, risk_reward and completeness vary at all. It will improve
+    # on its own as providers accumulate closed trades and the six provider-level
+    # factors start reporting.
+    #
+    # These two numbers are a function of the score distribution, not constants:
+    # re-derive them from `python scripts/wef_validation.py` after any scoring
+    # change. It prints the percentile cut-offs for exactly this purpose.
+    free_teaser_max_wef: int = 90
     # ...and additionally the top (100 - N)% of recent scores. The absolute cut-off
     # alone caught ~6% of signals, because the score's real range is only ~43-71.
     free_teaser_percentile: int = 75
@@ -136,7 +180,10 @@ class Settings(BaseSettings):
     # (owner's rule). The setup stays VIP-only; only the outcome is shown. Filtering
     # by rating is safe because the rating is fixed before the outcome is known —
     # filtering by outcome would be cherry-picking.
-    free_result_min_wef: int = 60
+    # Recalibrated with free_teaser_max_wef above: 60 used to admit 88% of signals
+    # and would now admit 98%. 80 is the current p25, which keeps the same
+    # intent — the results of all but the weakest quarter reach the main channel.
+    free_result_min_wef: int = 80
 
     # Where the watchdog sends operational reports (your own chat id, not a channel).
     # Get it by messaging @userinfobot. Empty = report only to the log.

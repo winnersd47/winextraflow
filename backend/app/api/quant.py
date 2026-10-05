@@ -270,3 +270,47 @@ async def processed_articles(user: User = Depends(get_current_user)):
         "articles": article_log.get_all(),
         "stats": article_log.get_stats(),
     }
+
+
+@router.post("/langgraph/{signal_id}")
+async def langgraph_evaluate(
+    signal_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """LangGraph-агент: полная оценка сигнала через явный граф состояний.
+
+    Phase 4 Step 4 — демонстрирует преимущества LangGraph перед imperative pipeline:
+    - Каждый узел возвращает частичное состояние → audit trail в поле 'trace'
+    - Условные переходы явные (approve/reject), не спрятаны в if-else
+    - Новый узел llm_reasoning синтезирует человеко-читаемый вердикт на основе
+      всего контекста (regime + WEF factors + meta_score) — чего нет в /evaluate
+
+    Узлы: load_context → detect_regime → compute_wef → meta_evaluate
+          → llm_reasoning → quality_gate → [approve | reject]
+
+    Ответ содержит полный breakdown: wef_factors, meta_score, llm_analysis,
+    quality_passed, rejection_reasons, trace всех шагов.
+    """
+    from app.services.quant.langgraph_signal_agent import run_signal_analysis
+
+    state = await run_signal_analysis(db, signal_id)
+
+    return {
+        "signal_id": signal_id,
+        "verdict": "approve" if state.get("quality_passed") else "reject",
+        "regime": state.get("regime"),
+        "regime_confidence": state.get("regime_confidence"),
+        "wef_score": state.get("wef_score"),
+        "wef_coverage": state.get("wef_coverage"),
+        "wef_factors": state.get("wef_factors"),
+        "meta_score": state.get("meta_score"),
+        "meta_recommendation": state.get("meta_recommendation"),
+        "meta_recommendation_ru": state.get("meta_recommendation_ru"),
+        "strategy_name": state.get("strategy_name"),
+        "regime_compatible": state.get("regime_compatible"),
+        "llm_analysis": state.get("llm_analysis"),
+        "quality_passed": state.get("quality_passed"),
+        "rejection_reasons": state.get("rejection_reasons", []),
+        "trace": state.get("trace", []),
+    }

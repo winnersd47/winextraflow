@@ -1,7 +1,14 @@
-"""AI Chat — intelligent assistant for signal analysis.
+"""AI Chat — assistant for signal analysis.
 
-Answers questions about tickers, signals, market regime using platform data.
-Does NOT use external LLM — uses rule-based analysis from evolutionary components.
+Retrieval-grounded: this module pulls the facts out of the database, then
+services/ai_assistant.py has the LLM turn them into an answer. When the LLM is
+unavailable the templated answer built here is returned instead, so the endpoint
+degrades rather than fails.
+
+The facts are subject to the same discipline as the public track record: seed and
+test rows are excluded, and no win rate or average return is reported below
+MIN_SAMPLE closed trades. Before that rule was applied here, a single closed trade
+on a ticker made this endpoint answer "Win Rate: 100%".
 """
 
 import logging
@@ -13,13 +20,29 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.track_record import MIN_SAMPLE
 from app.database import get_db
 from app.models.signal import Signal, SignalAction, SignalStatus
 from app.models.provider import Provider
 from app.models.user import User
+from app.services.ai_assistant import compose
+from app.services.signal_quality import is_seed_signal
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+DISCLAIMER = ("\n\n⚠️ Не является инвестиционной рекомендацией. "
+              "Все решения принимаются пользователем самостоятельно.")
+
+REGIME_RU = {
+    "trending_up": "Тренд вверх",
+    "trending_down": "Тренд вниз",
+    "ranging": "Боковик",
+    "high_volatility": "Высокая волатильность",
+    "low_volatility": "Низкая волатильность",
+    "breakout": "Пробой",
+    "unknown": "Не определён",
+}
 
 
 class ChatRequest(BaseModel):
@@ -30,6 +53,30 @@ class ChatResponse(BaseModel):
     answer: str
     signals_referenced: int = 0
     disclaimer: bool = True
+    # True when the LLM composed the answer, False when the template did. Exposed
+    # so the UI can label it and so a silent LLM outage is visible in logs.
+    llm: bool = False
+
+
+def _not_seed_sql():
+    """SQL-level exclusion of seed/test rows, for use before a LIMIT."""
+    from sqlalchemy import and_, or_
+    from app.services.signal_quality import SEED_MARKERS, TEST_TICKERS
+    return and_(
+        Signal.ticker.notin_(TEST_TICKERS),
+        or_(Signal.raw_message.is_(None),
+            and_(*[Signal.raw_message.notlike(f"{m}%") for m in SEED_MARKERS])),
+    )
+
+
+async def _answer(question: str, facts: dict, fallback: str, referenced: int) -> ChatResponse:
+    """Compose with the LLM, fall back to the template, always disclaim."""
+    text = await compose(question, facts)
+    return ChatResponse(
+        answer=(text or fallback).rstrip() + DISCLAIMER,
+        signals_referenced=referenced,
+        llm=bool(text),
+    )
 
 
 @router.post("/ask", response_model=ChatResponse)
@@ -49,13 +96,15 @@ async def ai_chat_ask(
     ticker = _extract_ticker(msg)
 
     if ticker:
-        return await _analyze_ticker(ticker, msg, db)
-    elif any(w in msg for w in ["режим", "regime", "рынок", "market"]):
-        return await _market_overview(db)
-    elif any(w in msg for w in ["лучш", "best", "топ", "top", "рекоменд"]):
-        return await _best_signals(db)
+        return await _analyze_ticker(ticker, req.message, db)
+    # Providers before signals: "лучшие провайдеры" matches both, and the signals
+    # branch used to win, so the provider question was never actually answered.
     elif any(w in msg for w in ["провайдер", "provider", "лидер", "leader"]):
-        return await _best_providers(db)
+        return await _best_providers(req.message, db)
+    elif any(w in msg for w in ["режим", "regime", "рынок", "market"]):
+        return await _market_overview(req.message, db)
+    elif any(w in msg for w in ["лучш", "best", "топ", "top", "рекоменд"]):
+        return await _best_signals(req.message, db)
     else:
         return await _general_help(msg, db)
 
@@ -84,7 +133,7 @@ def _extract_ticker(msg: str) -> str | None:
     return None
 
 
-async def _analyze_ticker(ticker: str, msg: str, db: AsyncSession) -> ChatResponse:
+async def _analyze_ticker(ticker: str, question: str, db: AsyncSession) -> ChatResponse:
     """Analyze a specific ticker based on platform signals."""
     # Get recent signals for this ticker
     week_ago = datetime.now(timezone.utc) - timedelta(days=30)
@@ -95,12 +144,16 @@ async def _analyze_ticker(ticker: str, msg: str, db: AsyncSession) -> ChatRespon
         .limit(20)
     )
     signals = (await db.execute(stmt)).scalars().all()
+    # Seed and stress-test rows outnumber real signals in this table; counted here
+    # they would be presented to the user as this ticker's real history.
+    signals = [s for s in signals if not is_seed_signal(s)]
 
     if not signals:
         return ChatResponse(
             answer=f"По тикеру {ticker} нет сигналов за последние 30 дней. "
                    f"Следите за обновлениями — новые сигналы появляются ежедневно.\n\n"
-                   f"Попробуйте добавить провайдера, который работает с {ticker}.",
+                   f"Попробуйте добавить провайдера, который работает с {ticker}."
+                   + DISCLAIMER,
             signals_referenced=0,
         )
 
@@ -111,11 +164,14 @@ async def _analyze_ticker(ticker: str, msg: str, db: AsyncSession) -> ChatRespon
     avg_confidence = sum(s.ai_confidence or 0 for s in signals) / total if total else 0
     active = sum(1 for s in signals if s.status == SignalStatus.ACTIVE)
 
-    # Closed signals stats
+    # Closed signals stats. A ratio over a handful of trades is noise, so it is not
+    # reported at all below MIN_SAMPLE — the same threshold the public track record
+    # uses. One closed trade used to produce "Win Rate: 100%" here.
     closed = [s for s in signals if s.profit_pct is not None]
+    enough = len(closed) >= MIN_SAMPLE
     wins = sum(1 for s in closed if s.profit_pct > 0)
-    win_rate = wins / len(closed) * 100 if closed else 0
-    avg_profit = sum(s.profit_pct for s in closed) / len(closed) if closed else 0
+    win_rate = wins / len(closed) * 100 if enough else None
+    avg_profit = sum(s.profit_pct for s in closed) / len(closed) if enough else None
 
     # Latest signal
     latest = signals[0]
@@ -150,10 +206,15 @@ async def _analyze_ticker(ticker: str, msg: str, db: AsyncSession) -> ChatRespon
         f"Активных: {active}\n"
     )
 
-    if closed:
+    if enough:
         answer += (
             f"\nЗакрытых: {len(closed)} | Win Rate: {win_rate:.0f}% | "
             f"Средняя прибыль: {avg_profit:+.1f}%\n"
+        )
+    elif closed:
+        answer += (
+            f"\nЗакрытых сделок: {len(closed)} — этого мало для статистики. "
+            f"Win rate и доходность показываем от {MIN_SAMPLE} сделок.\n"
         )
 
     answer += (
@@ -163,64 +224,100 @@ async def _analyze_ticker(ticker: str, msg: str, db: AsyncSession) -> ChatRespon
         answer += f" | TP: {latest.take_profit}"
     if latest.stop_loss:
         answer += f" | SL: {latest.stop_loss}"
+    if latest.long_target:
+        answer += f"\nДолгосрочный ориентир источника: {latest.long_target:g}"
 
     if latest.ai_reasoning:
         answer += f"\nAI: {latest.ai_reasoning}"
 
-    answer += (
-        "\n\n⚠️ Не является инвестиционной рекомендацией. "
-        "Все решения принимаются пользователем самостоятельно."
-    )
+    facts = {
+        "тикер": ticker,
+        "период": "последние 30 дней",
+        "сигналов_всего": total, "buy": buys, "sell": sells, "уклон": bias,
+        "средний_wef_score_pct": round(avg_confidence * 100),
+        "интерпретация_wef": score_text,
+        "активных_сигналов": active,
+        "закрытых_сделок": len(closed),
+        "enough_data": enough,
+        "статистика_достоверна": ("да" if enough else
+                                  f"НЕТ — закрытых сделок {len(closed)}, "
+                                  f"нужно минимум {MIN_SAMPLE}"),
+        "min_sample": MIN_SAMPLE,
+        "win_rate_pct": round(win_rate, 1) if win_rate is not None else None,
+        "средний_результат_pct": round(avg_profit, 2) if avg_profit is not None else None,
+        "последний_сигнал": {
+            "действие": latest_action,
+            "вход": latest.entry_price,
+            "цель": latest.take_profit,
+            "стоп": latest.stop_loss,
+            "долгосрочный_ориентир": latest.long_target,
+            "wef_score_pct": round((latest.ai_confidence or 0) * 100) or None,
+            "обоснование": latest.ai_reasoning,
+        },
+    }
+    return await _answer(question, facts, answer, total)
 
-    return ChatResponse(answer=answer, signals_referenced=total)
 
-
-async def _market_overview(db: AsyncSession) -> ChatResponse:
+async def _market_overview(question: str, db: AsyncSession) -> ChatResponse:
     """General market overview."""
     from app.services.quant.regime import regime_detector
 
-    regime = regime_detector.detect_regime()
+    # RegimeDetector exposes `detect(db)` and returns a MarketStateVector. The old
+    # call here was `detect_regime()` — a method that does not exist — so every
+    # "режим рынка" question answered with a 500.
+    state = await regime_detector.detect(db)
 
     # Count signals by action in last 7 days
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
     stmt = select(Signal).where(Signal.created_at >= week_ago)
-    signals = (await db.execute(stmt)).scalars().all()
+    signals = [s for s in (await db.execute(stmt)).scalars().all()
+               if not is_seed_signal(s)]
 
     buys = sum(1 for s in signals if s.action == SignalAction.BUY)
     sells = len(signals) - buys
 
-    regime_ru = {
-        "trending_up": "Тренд вверх",
-        "trending_down": "Тренд вниз",
-        "ranging": "Боковик",
-        "high_volatility": "Высокая волатильность",
-        "breakout": "Пробой",
-    }.get(regime.get("regime", ""), regime.get("regime", "unknown"))
-
+    regime_ru = REGIME_RU.get(state.regime.value, state.regime.value)
+    balance = ("бычий перевес" if buys > sells
+               else "медвежий перевес" if sells > buys else "баланс")
     answer = (
         f"**Обзор рынка**\n\n"
         f"Текущий режим: {regime_ru}\n"
-        f"Уверенность режима: {regime.get('confidence', 0):.0%}\n\n"
+        f"Уверенность режима: {state.confidence:.0%}\n\n"
         f"За последние 7 дней: {len(signals)} сигналов (BUY: {buys}, SELL: {sells})\n"
-        f"Соотношение: {'бычий перевес' if buys > sells else 'медвежий перевес' if sells > buys else 'баланс'}\n\n"
-        f"⚠️ Не является инвестиционной рекомендацией."
+        f"Соотношение: {balance}"
     )
 
-    return ChatResponse(answer=answer, signals_referenced=len(signals))
+    facts = {
+        "режим_рынка": regime_ru,
+        "уверенность_режима_pct": round(state.confidence * 100),
+        "доля_buy_pct": round(state.buy_ratio * 100),
+        "период": "последние 7 дней",
+        "сигналов": len(signals), "buy": buys, "sell": sells, "перевес": balance,
+        "примечание": "Режим определяется по потоку сигналов платформы, "
+                      "а не по внешним рыночным данным.",
+    }
+    return await _answer(question, facts, answer, len(signals))
 
 
-async def _best_signals(db: AsyncSession) -> ChatResponse:
+async def _best_signals(question: str, db: AsyncSession) -> ChatResponse:
     """Top signals by WEF Score."""
+    # Seed rows must be excluded in SQL, not after the LIMIT: they outnumber real
+    # signals and carry high scores, so an ordered top-15 was entirely demo data and
+    # the filter left nothing — the endpoint answered "нет сигналов" with 5 live.
     stmt = (
         select(Signal)
-        .where(Signal.status == SignalStatus.ACTIVE, Signal.ai_confidence.isnot(None))
+        .where(Signal.status == SignalStatus.ACTIVE,
+               Signal.ai_confidence.isnot(None),
+               _not_seed_sql())
         .order_by(Signal.ai_confidence.desc())
-        .limit(5)
+        .limit(15)
     )
-    signals = (await db.execute(stmt)).scalars().all()
+    rows = [s for s in (await db.execute(stmt)).scalars().all() if not is_seed_signal(s)]
+    signals = rows[:5]
 
     if not signals:
-        return ChatResponse(answer="Нет активных сигналов с AI-оценкой.", signals_referenced=0)
+        return ChatResponse(answer="Нет активных сигналов с AI-оценкой." + DISCLAIMER,
+                            signals_referenced=0)
 
     lines = ["**Топ-5 активных сигналов по WEF Score**\n"]
     for i, s in enumerate(signals, 1):
@@ -230,24 +327,51 @@ async def _best_signals(db: AsyncSession) -> ChatResponse:
             f"Entry: {s.entry_price}"
         )
 
-    lines.append("\n⚠️ Не является инвестиционной рекомендацией.")
-    return ChatResponse(answer="\n".join(lines), signals_referenced=len(signals))
+    facts = {
+        "сортировка": "по WEF Score, убывание",
+        "сигналы": [
+            {"тикер": s.ticker,
+             "действие": "BUY" if s.action == SignalAction.BUY else "SELL",
+             "wef_score_pct": round((s.ai_confidence or 0) * 100),
+             "вход": s.entry_price, "цель": s.take_profit, "стоп": s.stop_loss}
+            for s in signals
+        ],
+        "примечание": "WEF Score оценивает качество входных данных сигнала; "
+                      "он ещё не подтверждён статистикой исходов.",
+    }
+    return await _answer(question, facts, "\n".join(lines), len(signals))
 
 
-async def _best_providers(db: AsyncSession) -> ChatResponse:
-    """Top providers by performance."""
+async def _best_providers(question: str, db: AsyncSession) -> ChatResponse:
+    """Top providers by performance.
+
+    Requires a real sample: ordering by win_rate alone put a provider with two
+    lucky trades above one with a hundred measured ones.
+    """
     stmt = (
         select(Provider)
-        .where(Provider.win_rate.isnot(None))
+        .where(Provider.is_seed.is_(False),
+               Provider.win_rate.isnot(None),
+               Provider.total_signals >= MIN_SAMPLE)
         .order_by(Provider.win_rate.desc())
         .limit(5)
     )
     providers = (await db.execute(stmt)).scalars().all()
 
     if not providers:
-        return ChatResponse(answer="Нет провайдеров с историей.", signals_referenced=0)
+        total = (await db.execute(select(func.count(Provider.id)).where(
+            Provider.is_seed.is_(False)))).scalar() or 0
+        answer = (
+            f"Ни у одного провайдера пока нет измеренной статистики: нужно минимум "
+            f"{MIN_SAMPLE} закрытых сделок, прежде чем показывать win rate. "
+            f"Реальных провайдеров на платформе: {total}."
+        )
+        facts = {"провайдеров_всего": total, "min_sample": MIN_SAMPLE,
+                 "enough_data": False,
+                 "статистика_достоверна": f"НЕТ — ни у кого нет {MIN_SAMPLE} сделок"}
+        return await _answer(question, facts, answer, 0)
 
-    lines = ["**Топ-5 провайдеров по Win Rate**\n"]
+    lines = [f"**Топ-5 провайдеров по Win Rate** (от {MIN_SAMPLE} сигналов)\n"]
     for i, p in enumerate(providers, 1):
         wr = f"{p.win_rate * 100:.0f}%" if p.win_rate else "N/A"
         sharpe = f"{p.sharpe_ratio:.1f}" if p.sharpe_ratio else "N/A"
@@ -256,8 +380,18 @@ async def _best_providers(db: AsyncSession) -> ChatResponse:
             f"Сигналов: {p.total_signals}"
         )
 
-    lines.append("\n⚠️ Рейтинги основаны на исторических данных.")
-    return ChatResponse(answer="\n".join(lines), signals_referenced=0)
+    facts = {
+        "min_sample": MIN_SAMPLE, "enough_data": True,
+        "статистика_достоверна": "да",
+        "провайдеры": [
+            {"название": p.name,
+             "win_rate_pct": round((p.win_rate or 0) * 100),
+             "sharpe": round(p.sharpe_ratio, 2) if p.sharpe_ratio else None,
+             "сигналов": p.total_signals}
+            for p in providers
+        ],
+    }
+    return await _answer(question, facts, "\n".join(lines), 0)
 
 
 async def _general_help(msg: str, db: AsyncSession) -> ChatResponse:
@@ -277,8 +411,8 @@ async def _general_help(msg: str, db: AsyncSession) -> ChatResponse:
         "• 'Стоит ли покупать SBER?'\n"
         "• 'Анализ BTCUSDT'\n"
         "• 'Какой сейчас режим рынка?'\n"
-        "• 'Покажи лучшие сигналы'\n\n"
-        "⚠️ Не является инвестиционной рекомендацией."
+        "• 'Покажи лучшие сигналы'"
+        + DISCLAIMER
     )
 
     return ChatResponse(answer=answer, signals_referenced=0)

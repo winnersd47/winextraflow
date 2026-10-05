@@ -274,7 +274,7 @@ async def test_demo_execution_20_orders(db: AsyncSession, premium_auth_headers: 
 # ═══════════════════════════════════════════════════════════
 
 @pytest.mark.asyncio
-async def test_payment_flow_demo(client: AsyncClient, seed_referrer: str):
+async def test_payment_flow_demo(client: AsyncClient, seed_referrer: str, paid_subscriptions_on):
     """Emulate: user registers → buys premium → verifies status."""
     # Register
     reg = await client.post("/api/v1/auth/register", json={

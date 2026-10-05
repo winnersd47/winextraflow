@@ -1,5 +1,6 @@
 {
   "version": "0.0.1",
+  "//": "`cwd` must stay relative — the launcher rejects paths outside the project root — so these entries only serve the project whose directory the session is in. Two copies exist on disk: this one, which is current, and C:\\Users\\v.serdyuk\\Desktop\\Code_Project, which is stale. Preview from the stale one and files added today return 404 while routes present in both serve fine, which reads as a build-cache problem. Check the dev server's cwd before debugging a 404 on a new route.",
   "configurations": [
     {
       "name": "backend",

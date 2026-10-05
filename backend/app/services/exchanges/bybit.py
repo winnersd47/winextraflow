@@ -16,14 +16,26 @@ from app.services.exchanges.base import BaseExchangeAdapter, OrderResult
 logger = logging.getLogger(__name__)
 
 BYBIT_BASE_URL = "https://api.bybit.com"
+BYBIT_TESTNET_URL = "https://api-testnet.bybit.com"
 
 
 class BybitAdapter(BaseExchangeAdapter):
-    """Bybit V5 Unified API adapter."""
+    """Bybit V5 Unified API adapter.
 
-    def __init__(self, api_key: str, api_secret: str):
+    `testnet=True` points every request at api-testnet.bybit.com, where orders are
+    filled against the real book with virtual funds. That is the only way to measure
+    this platform's signals with actual fills before any real money is involved —
+    the same reason DEMO_ACCOUNTS.md exists. Testnet keys are issued separately and
+    do not work against production, so the two cannot be confused by accident.
+    """
+
+    def __init__(self, api_key: str, api_secret: str, testnet: bool = False):
         super().__init__(api_key, api_secret)
-        self.client = httpx.AsyncClient(base_url=BYBIT_BASE_URL, timeout=30.0)
+        self.testnet = testnet
+        base = BYBIT_TESTNET_URL if testnet else BYBIT_BASE_URL
+        self.client = httpx.AsyncClient(base_url=base, timeout=30.0)
+        if testnet:
+            logger.info("Bybit adapter in TESTNET mode — virtual funds")
 
     def _sign(self, params: str, timestamp: str) -> dict:
         """Generate Bybit V5 HMAC-SHA256 signature."""

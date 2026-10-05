@@ -23,13 +23,28 @@ router = APIRouter()
 
 
 def _enrich_strategy(strategy: Strategy, provider: Provider | None) -> dict:
-    """Add provider stats to strategy response."""
+    """Add provider stats to strategy response.
+
+    All ten published strategies belong to seed providers, so their win rate,
+    Sharpe and ai_score are generated numbers — and `subscriber_count` claimed
+    38-134 subscribers each on a platform with twelve registered users. Fabricated
+    subscriber counts are social proof, which is exactly what a buyer weighs, so
+    they are not passed through: `is_demo` marks the row and the count is dropped
+    rather than invented.
+    """
     data = {c.name: getattr(strategy, c.name) for c in strategy.__table__.columns}
+    is_demo = bool(provider and provider.is_seed)
+    data["is_demo"] = is_demo
+    if is_demo:
+        data["subscriber_count"] = None
+        data["demo_notice_ru"] = ("Демонстрационная стратегия. Показатели "
+                                  "сгенерированы для примера и не являются "
+                                  "результатами реальной торговли.")
     if provider:
-        data["win_rate"] = provider.win_rate
-        data["avg_profit"] = provider.avg_profit
-        data["ai_score"] = provider.ai_score
-        data["sharpe_ratio"] = provider.sharpe_ratio
+        data["win_rate"] = None if is_demo else provider.win_rate
+        data["avg_profit"] = None if is_demo else provider.avg_profit
+        data["ai_score"] = None if is_demo else provider.ai_score
+        data["sharpe_ratio"] = None if is_demo else provider.sharpe_ratio
         data["total_signals"] = provider.total_signals
     return data
 
@@ -256,7 +271,8 @@ async def unsubscribe(
 # ─── Unified Marketplace (implementation) ────────
 
 async def _build_unified_marketplace(db: AsyncSession) -> dict:
-    from app.api.advisors import ADVISORS_CATALOG, STRATEGY_NAMES_RU, STRATEGY_NAMES_EN, RISK_RU
+    from app.api.advisors import (ADVISORS_CATALOG, STATS_AS_OF, STRATEGY_NAMES_RU,
+                              STRATEGY_NAMES_EN, RISK_RU)
     from app.api.tv_strategies import TV_STRATEGIES
     from app.api.tv_strategies import STRATEGY_NAMES_RU as TV_NAMES_RU, STRATEGY_NAMES_EN as TV_NAMES_EN, RISK_RU as TV_RISK_RU
 
@@ -270,6 +286,14 @@ async def _build_unified_marketplace(db: AsyncSession) -> dict:
     for s, p in result.all():
         data = {c.name: getattr(s, c.name) for c in s.__table__.columns}
         name = data["name"].replace("[TEST] ", "")
+        # This endpoint builds its own dicts and therefore bypassed the fix in
+        # _enrich_strategy — and it is the one the marketplace page actually calls.
+        # Two separate inventions were reaching the UI from here:
+        #   rating  = ai_score x 5, where ai_score is a seeded provider's generated
+        #             number, rendered as a 4.3/5 star rating
+        #   reviews = total_signals, i.e. a count of signals relabelled as reviews.
+        #             Nobody reviewed anything.
+        is_demo = bool(p.is_seed)
         items.append({
             "id": str(data["id"]),
             "source": "provider",
@@ -279,16 +303,23 @@ async def _build_unified_marketplace(db: AsyncSession) -> dict:
             "strategy_type_en": _classify_tags_en(data.get("tags")),
             "risk": _calc_risk(p.win_rate, p.sharpe_ratio),
             "risk_ru": RISK_RU.get(_calc_risk(p.win_rate, p.sharpe_ratio), "Средний"),
-            "rating": round((p.ai_score or 0) * 5, 1),
-            "reviews": p.total_signals or 0,
+            # No star rating: the platform has no reviews, so there is nothing to
+            # average. Sorting falls back to WEF, which at least means something.
+            "rating": None,
+            "reviews": None,
+            "signals_count": p.total_signals or 0,
             "price_usd": data.get("price_monthly") or 0,
             "price_type": data.get("price_type", "free"),
             "tickers": (data.get("tags") or "").split(",")[:3],
-            "subscriber_count": data.get("subscriber_count", 0),
-            "win_rate": p.win_rate,
-            "sharpe_ratio": p.sharpe_ratio,
-            "ai_score": p.ai_score,
-            "avg_profit": p.avg_profit,
+            "subscriber_count": None if is_demo else data.get("subscriber_count", 0),
+            "win_rate": None if is_demo else p.win_rate,
+            "sharpe_ratio": None if is_demo else p.sharpe_ratio,
+            "ai_score": None if is_demo else p.ai_score,
+            "avg_profit": None if is_demo else p.avg_profit,
+            "is_demo": is_demo,
+            "demo_notice_ru": ("Демонстрационная стратегия. Показатели сгенерированы "
+                               "для примера и не являются результатами торговли."
+                               if is_demo else None),
             "url": None,
             "can_simulate": True,
             "provider_id": str(p.id),
@@ -305,12 +336,17 @@ async def _build_unified_marketplace(db: AsyncSession) -> dict:
             "strategy_type_en": STRATEGY_NAMES_EN.get(ea["strategy_id"], "?"),
             "risk": ea.get("risk", "medium"),
             "risk_ru": RISK_RU.get(ea.get("risk", "medium"), "Средний"),
+            # A real MQL5 rating, but a hand-copied snapshot — dated so the UI can
+            # say so instead of implying it is current.
             "rating": ea.get("rating", 0),
             "reviews": ea.get("reviews", 0),
+            "stats_as_of": STATS_AS_OF,
+            "stats_are_live": False,
+            "signals_count": None,
             "price_usd": ea.get("price_usd", 0),
             "price_type": "paid" if ea.get("price_usd") else "free",
             "tickers": ea.get("tickers", []),
-            "subscriber_count": 0,
+            "subscriber_count": None,
             "win_rate": None,
             "sharpe_ratio": None,
             "ai_score": None,
@@ -348,7 +384,24 @@ async def _build_unified_marketplace(db: AsyncSession) -> dict:
             "moex_compatible": tv.get("moex_compatible", False),
         })
 
-    return {"items": items, "total": len(items)}
+    demo_count = sum(1 for i in items if i.get("is_demo"))
+    return {
+        "items": items,
+        "total": len(items),
+        "demo_count": demo_count,
+        # Provenance for the whole list, so the UI never has to guess which numbers
+        # are measured. Ratings come only from the MQL5 snapshot; the platform has
+        # no reviews of its own and therefore shows no stars for its strategies.
+        "stats_as_of": STATS_AS_OF,
+        "ratings_source": "MQL5 Market snapshot",
+        "notice_ru": (
+            f"Рейтинг и отзывы есть только у советников MQL5 — это снимок на "
+            f"{STATS_AS_OF}, не живые данные. У стратегий платформы отзывов нет, "
+            f"поэтому звёзды не показываются."
+            + (f" Демонстрационных стратегий в списке: {demo_count} — их показатели "
+               f"сгенерированы." if demo_count else "")
+        ),
+    }
 
 
 def _classify_tags_ru(tags: str | None) -> str:

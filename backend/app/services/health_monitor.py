@@ -57,6 +57,15 @@ class HealthMonitor:
                 name="Binance API",
                 url="https://api.binance.com/api/v3/ping",
             ),
+            # Second crypto source. Both are monitored on purpose: crypto prices,
+            # ATR and candles now fall back between them, so knowing WHICH one is
+            # down is the difference between a slowdown and an outage. Binance
+            # withdrew from the Russian market, so on the RU VPS this deploys to,
+            # Bybit may be the one that answers.
+            "bybit": SourceHealth(
+                name="Bybit API",
+                url="https://api.bybit.com/v5/market/time",
+            ),
             "yahoo_finance": SourceHealth(
                 name="Yahoo Finance",
                 url="https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=1d",
@@ -122,13 +131,48 @@ class HealthMonitor:
                         source.last_error = "Demo mode (no credentials)"
                         return source
                 elif key == "telegram":
-                    if not settings.telegram_api_id:
-                        source.status = "ok"
-                        source.latency_ms = 0
-                        source.last_error = "Not configured"
+                    # Probe the Bot API — that is what the platform actually posts
+                    # through. The previous code replaced the URL with a raw
+                    # datacenter IP (https://149.154.167.50:443), which can only
+                    # fail: a DC speaks MTProto, not HTTP, and presents no
+                    # certificate for that address. So this source reported
+                    # "degraded" with CERTIFICATE_VERIFY_FAILED at all times, while
+                    # posting to both channels worked fine — a permanent false alarm
+                    # that also dragged `overall` down and taught the operator to
+                    # ignore the status page.
+                    #
+                    # With a real token, getMe both proves reachability and validates
+                    # the token; the two failures need different actions, so they are
+                    # reported separately.
+                    token = settings.telegram_bot_token
+                    if token:
+                        source.url = f"https://api.telegram.org/bot{token}/getMe"
+                        resp = await client.get(source.url, headers=headers)
+                        elapsed = int((time.monotonic() - start) * 1000)
+                        source.latency_ms = elapsed
+                        # Never store the token in a field the API exposes.
+                        source.url = "https://api.telegram.org/bot<token>/getMe"
+                        if resp.status_code == 200:
+                            source.status = "ok" if elapsed < 3000 else "degraded"
+                            source.consecutive_failures = 0
+                            source.last_ok = now
+                            source.last_error = ""
+                        elif resp.status_code in (401, 403):
+                            # Reachable but the token is rejected — posting will fail.
+                            source.consecutive_failures += 1
+                            source.total_failures += 1
+                            source.status = "degraded"
+                            source.last_error = ("Bot token rejected "
+                                                 f"(HTTP {resp.status_code}) — reissue it")
+                        else:
+                            source.consecutive_failures += 1
+                            source.total_failures += 1
+                            source.status = ("degraded" if source.consecutive_failures < 3
+                                             else "down")
+                            source.last_error = f"HTTP {resp.status_code}"
                         return source
-                    # Check Telegram DC connectivity
-                    source.url = "https://149.154.167.50:443"
+                    # No bot token: a fake one still proves the API answers (401).
+                    source.url = "https://api.telegram.org/bot000000:fake/getMe"
 
                 resp = await client.get(source.url, headers=headers)
                 elapsed = int((time.monotonic() - start) * 1000)

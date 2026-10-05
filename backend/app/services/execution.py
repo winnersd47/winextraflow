@@ -70,7 +70,21 @@ def _get_adapter(account: ExchangeAccount) -> BaseExchangeAdapter:
         ExchangeName.EXANTE: ExanteAdapter,
     }
     adapter_cls = adapters.get(account.exchange, DemoAdapter)
-    return adapter_cls(api_key, api_secret)
+    # Adapters that have a testnet take the account's flag; the rest ignore it.
+    # getattr, not account.is_testnet, so a row predating the column still works.
+    testnet = bool(getattr(account, "is_testnet", True))
+    try:
+        return adapter_cls(api_key, api_secret, testnet=testnet)
+    except TypeError:
+        if testnet:
+            # Refusing is the safe direction: an adapter with no testnet would
+            # otherwise be handed live keys by an account marked as virtual.
+            logger.warning(
+                f"{account.exchange.value} has no testnet mode but account "
+                f"'{account.label}' is marked testnet — using demo adapter instead"
+            )
+            return DemoAdapter(api_key, api_secret)
+        return adapter_cls(api_key, api_secret)
 
 
 class ExecutionService:

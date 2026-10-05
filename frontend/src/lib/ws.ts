@@ -2,17 +2,40 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { WSMessage, WSNewSignal } from "@/types";
+import { API_ORIGIN } from "@/lib/api-origin";
 
+/**
+ * WebSocket origin.
+ *
+ * Next.js rewrites don't proxy WebSocket, so this always points straight at the
+ * backend. On a static export (Cloudflare Pages) window.location is the CDN, not
+ * the API — falling back to it produced wss://<site>/api/v1/ws/signals, which can
+ * never connect and left the client reconnecting forever. NEXT_PUBLIC_API_URL is
+ * the same variable api-origin.ts uses for fetch, so both stay in sync.
+ */
 function getWsUrl(): string {
   if (typeof window === "undefined") return "ws://localhost:8000/api/v1/ws/signals";
-  // Next.js rewrites don't proxy WebSocket — connect directly to backend
-  const backendHost = process.env.NEXT_PUBLIC_WS_URL
-    || (window.location.hostname === "localhost"
-      ? "ws://localhost:8000"
-      : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`);
-  return `${backendHost}/api/v1/ws/signals`;
+
+  const explicit = process.env.NEXT_PUBLIC_WS_URL;
+  let origin: string;
+
+  if (explicit) {
+    origin = explicit;
+  } else if (API_ORIGIN) {
+    origin = API_ORIGIN.replace(/^http/, "ws");
+  } else if (window.location.hostname === "localhost") {
+    origin = "ws://localhost:8000";
+  } else {
+    // Same-origin backend (nginx in front of both) — the only case where the
+    // page host is also the API host.
+    origin = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}`;
+  }
+  return `${origin.replace(/\/$/, "")}/api/v1/ws/signals`;
 }
 const WS_URL = getWsUrl();
+
+const RECONNECT_BASE_MS = 3000;
+const RECONNECT_MAX_MS = 60000;
 
 // ─── Sound + Badge notifications ───
 let _unreadCount = 0;
@@ -67,6 +90,7 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
   const wsRef = useRef<WebSocket | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectTimeout = useRef<NodeJS.Timeout>();
+  const attempts = useRef(0);
   const onSignalRef = useRef(onSignal);
   onSignalRef.current = onSignal;
 
@@ -77,6 +101,7 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
     wsRef.current = ws;
 
     ws.onopen = () => {
+      attempts.current = 0;
       setConnected(true);
     };
 
@@ -101,7 +126,10 @@ export function useWebSocket(onSignal?: (msg: WSNewSignal) => void) {
 
     ws.onclose = () => {
       setConnected(false);
-      reconnectTimeout.current = setTimeout(connect, 3000);
+      // Backoff, so an unreachable backend doesn't turn into a reconnect storm.
+      const delay = Math.min(RECONNECT_BASE_MS * 2 ** attempts.current, RECONNECT_MAX_MS);
+      attempts.current += 1;
+      reconnectTimeout.current = setTimeout(connect, delay);
     };
 
     ws.onerror = () => {

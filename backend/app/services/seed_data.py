@@ -250,6 +250,9 @@ async def seed_test_data(db: AsyncSession):
             source=p_data["source"],
             description=p_data["description"],
             is_active=True,
+            # Marked so rankings can exclude them: their win rate and Sharpe are
+            # generated, and unmarked they were shown to users as the top providers.
+            is_seed=True,
             telegram_channel_id=p_data.get("telegram_channel_id"),
             tradingview_webhook_id=p_data.get("tradingview_webhook_id"),
         )

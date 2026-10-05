@@ -14,6 +14,7 @@ Data sources:
 
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 
@@ -24,9 +25,58 @@ logger = logging.getLogger(__name__)
 
 # ═══ CANDLE DATA PROVIDERS ═══
 
-async def fetch_moex_candles(ticker: str, date_from: str, date_to: str) -> list[dict]:
-    """Fetch daily candles from MOEX ISS API. Free, no auth."""
-    url = f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{ticker}/candles.json"
+# MOEX FORTS contract codes: BR-9.26, GAZR-12.26, RTS-9.26, Si-3.27
+_MOEX_FUTURES_RE = re.compile(r"^[A-Z]{2,4}-\d{1,2}\.\d{2}$")
+
+# ISS addresses futures by SECID ("BRU6"), while channels and traders write the
+# SHORTNAME ("BR-9.26"). Passing the shortname returns an empty candle set with a
+# 200, which is why futures signals silently had no data at all.
+_FORTS_SECIDS: dict[str, str] | None = None
+
+
+async def _forts_secid(ticker: str) -> str | None:
+    """Map a FORTS shortname to its SECID. Cached for the process lifetime."""
+    global _FORTS_SECIDS
+    t = ticker.upper()
+    if _FORTS_SECIDS is None:
+        _FORTS_SECIDS = {}
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.get(
+                    "https://iss.moex.com/iss/engines/futures/markets/forts/securities.json",
+                    params={"iss.meta": "off", "securities.columns": "SECID,SHORTNAME"},
+                )
+                block = resp.json().get("securities", {})
+                cols, rows = block.get("columns", []), block.get("data", [])
+                for row in rows:
+                    m = dict(zip(cols, row))
+                    if m.get("SHORTNAME") and m.get("SECID"):
+                        _FORTS_SECIDS[m["SHORTNAME"].upper()] = m["SECID"]
+            logger.info(f"MOEX FORTS: {len(_FORTS_SECIDS)} contracts indexed")
+        except Exception as e:
+            logger.error(f"FORTS securities index failed: {e}")
+    # Absent means the contract has expired — an expired contract has no live
+    # candles, and a signal on it is no longer tradable.
+    return _FORTS_SECIDS.get(t)
+
+
+async def fetch_moex_candles(ticker: str, date_from: str, date_to: str,
+                             market: str = "shares") -> list[dict]:
+    """Fetch daily candles from MOEX ISS API. Free, no auth.
+
+    market="forts" switches to the derivatives engine for FORTS futures
+    (BR-9.26, GAZR-9.26, RTS-9.26) — they do not exist on the shares board.
+    """
+    if market == "forts":
+        secid = await _forts_secid(ticker)
+        if not secid:
+            logger.info(f"MOEX FORTS: {ticker} not among live contracts (expired?)")
+            return []
+        url = ("https://iss.moex.com/iss/engines/futures/markets/forts/securities/"
+               f"{secid}/candles.json")
+    else:
+        url = ("https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/"
+               f"securities/{ticker}/candles.json")
     params = {
         "iss.meta": "off",
         "interval": 24,  # daily
@@ -57,7 +107,10 @@ async def fetch_binance_candles(ticker: str, date_from: str, date_to: str, inter
     end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
 
     params = {
-        "symbol": ticker,
+        # Binance symbols carry no separator: "ZIL/BTC" is rejected, and the error
+        # body was then iterated as if it were candle rows, which is where
+        # "could not convert string to float: 'o'" came from.
+        "symbol": ticker.upper().replace("/", "").replace("-", "").replace("_", ""),
         "interval": interval,
         "startTime": start_ts,
         "endTime": end_ts,
@@ -67,6 +120,11 @@ async def fetch_binance_candles(ticker: str, date_from: str, date_to: str, inter
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.get(url, params=params)
             raw = resp.json()
+            # An error response is a dict ({"code": -1121, "msg": "Invalid symbol"}),
+            # not a list of klines. Bail out instead of parsing its keys as prices.
+            if not isinstance(raw, list):
+                logger.info(f"Binance: {params['symbol']} rejected — {str(raw)[:120]}")
+                return []
             candles = [
                 {
                     "open": float(k[1]),
@@ -83,6 +141,78 @@ async def fetch_binance_candles(ticker: str, date_from: str, date_to: str, inter
     except Exception as e:
         logger.error(f"Binance candle fetch error for {ticker}: {e}")
         return []
+
+
+# Bybit intervals are minute counts ("D" for daily), not Binance's "1d"/"1h" strings.
+_BYBIT_INTERVAL = {"1m": "1", "5m": "5", "15m": "15", "30m": "30",
+                   "1h": "60", "4h": "240", "1d": "D", "1w": "W"}
+
+
+async def fetch_bybit_candles(ticker: str, date_from: str, date_to: str,
+                              interval: str = "1d") -> list[dict]:
+    """Fetch candles from Bybit v5. Free, no auth. Second crypto source.
+
+    Bybit returns newest-first and each row is a list of strings
+    [start, open, high, low, close, volume, turnover] — the opposite order to
+    Binance and one element shorter, so the mapping cannot be shared.
+    """
+    symbol = ticker.upper().replace("/", "").replace("-", "").replace("_", "")
+    start_ts = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+    end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://api.bybit.com/v5/market/kline",
+                params={"category": "spot", "symbol": symbol,
+                        "interval": _BYBIT_INTERVAL.get(interval, "D"),
+                        "start": start_ts, "end": end_ts, "limit": 1000},
+            )
+            body = resp.json()
+            if body.get("retCode") != 0:
+                logger.info(f"Bybit: {symbol} rejected — {body.get('retMsg')}")
+                return []
+            rows = (body.get("result") or {}).get("list") or []
+            candles = [
+                {
+                    "open": float(k[1]),
+                    "high": float(k[2]),
+                    "low": float(k[3]),
+                    "close": float(k[4]),
+                    "volume": float(k[5]),
+                    "begin": datetime.fromtimestamp(int(k[0]) / 1000, tz=timezone.utc)
+                                     .strftime("%Y-%m-%d %H:%M"),
+                }
+                for k in rows
+            ]
+            candles.reverse()          # Bybit is newest-first; callers expect oldest-first
+            logger.info(f"Bybit: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
+            return candles
+    except Exception as e:
+        logger.error(f"Bybit candle fetch error for {ticker}: {e}")
+        return []
+
+
+async def fetch_crypto_candles(ticker: str, date_from: str, date_to: str,
+                               interval: str = "1d") -> list[dict]:
+    """Crypto candles with a fallback between the two exchanges.
+
+    Candles feed the ATR that sizes every stop, the charts and the backtests. With
+    one source, an outage or a block there silently produced zero candles — and a
+    signal with no ATR gets no volatility stop at all.
+    """
+    from app.services.live_price import CRYPTO_PRIMARY
+
+    order = ([fetch_bybit_candles, fetch_binance_candles]
+             if CRYPTO_PRIMARY == "bybit"
+             else [fetch_binance_candles, fetch_bybit_candles])
+    for fetch in order:
+        got = await fetch(ticker, date_from, date_to, interval)
+        if got:
+            return got
+    logger.warning(f"No crypto source returned candles for {ticker} "
+                   f"(tried Binance and Bybit)")
+    return []
 
 
 # Major + minor + exotic forex pairs
@@ -194,12 +324,23 @@ def detect_source(ticker: str) -> str:
     t = ticker.upper()
     if t in MOEX_TICKERS:
         return "moex"
+    # MOEX FORTS futures (BR-9.26, GAZR-9.26, RTS-9.26, Si-12.26). Yahoo has no
+    # such symbols, so without this they fell through to the "stocks" fallback and
+    # silently produced no candles — no chart, no ATR, no TP/SL monitoring.
+    if _MOEX_FUTURES_RE.match(t):
+        return "moex_futures"
     if t.endswith("USDT") or t.endswith("BTC") or t.endswith("BUSD"):
         return "binance"
     if _is_forex_pair(t):
         return "forex"
     if t in US_STOCKS or t in EU_STOCKS:
         return "stocks"
+    # A 4-5 letter ticker that is nothing else is far more likely to be a MOEX
+    # name we have not listed (LSRG, RAGR came in this way) than a US one, since
+    # the MOEX list is hand-maintained while US coverage comes from Yahoo. Try
+    # MOEX first; fetch_candles falls back to Yahoo if MOEX returns nothing.
+    if 4 <= len(t) <= 5 and t.isalpha() and t not in US_STOCKS:
+        return "moex_or_stocks"
     # Fallback: try Yahoo Finance (covers almost everything)
     return "stocks"
 
@@ -209,8 +350,14 @@ async def fetch_candles(ticker: str, date_from: str, date_to: str) -> list[dict]
     source = detect_source(ticker)
     if source == "moex":
         return await fetch_moex_candles(ticker, date_from, date_to)
+    elif source == "moex_futures":
+        return await fetch_moex_candles(ticker, date_from, date_to, market="forts")
+    elif source == "moex_or_stocks":
+        # Unlisted 4-5 letter ticker: MOEX first, Yahoo as the fallback.
+        return (await fetch_moex_candles(ticker, date_from, date_to)
+                or await fetch_forex_candles(ticker, date_from, date_to))
     elif source == "binance":
-        return await fetch_binance_candles(ticker, date_from, date_to)
+        return await fetch_crypto_candles(ticker, date_from, date_to)
     elif source in ("forex", "stocks"):
         return await fetch_forex_candles(ticker, date_from, date_to)
     else:

@@ -59,7 +59,9 @@ async def portfolio_summary(
     total_realized_pnl = sum(e.profit_abs or 0 for e in closed_entries)
     total_trades = len(closed_entries)
     wins = sum(1 for e in closed_entries if (e.profit_pct or 0) > 0)
-    win_rate = wins / total_trades if total_trades > 0 else 0
+    # None, not 0: with no closed trades a literal 0 renders as "win rate 0%",
+    # which reads as losing everything rather than as having no history yet.
+    win_rate = wins / total_trades if total_trades > 0 else None
 
     # Allocation by ticker
     allocation: dict[str, float] = {}
@@ -89,7 +91,7 @@ async def portfolio_summary(
         "total_invested": round(total_invested, 2),
         "total_realized_pnl": round(total_realized_pnl, 2),
         "total_trades": total_trades,
-        "win_rate": round(win_rate, 3),
+        "win_rate": round(win_rate, 3) if win_rate is not None else None,
         "filled_orders": 0,
         "pending_orders": 0,
         "positions": positions,

@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.config import settings
 from app.database import get_db
 from app.models.payment import Payment, PaymentPlan
 from app.models.user import User
@@ -21,6 +22,26 @@ from app.services.cryptocloud_service import cryptocloud_service
 from app.services.prodamus_service import prodamus_service
 
 router = APIRouter()
+
+
+def require_paid_subscriptions_enabled() -> None:
+    """Block every checkout path while paid subscriptions are switched off.
+
+    Owner's decision (2026-08-07): no money is taken until the platform has a
+    measured record of profitable signals. As of that date the honest record was
+    7 closed trades, 0 profitable, and those came from a pipeline that was
+    fabricating entry and stop levels (see services/signal_levels.py).
+
+    To re-enable, set PAID_SUBSCRIPTIONS_ENABLED=true — but only once
+    `scripts/wef_validation.py` reports a real sample with positive expectancy.
+    The flag is deliberately one switch in one place so it cannot be half-on.
+    """
+    if not settings.paid_subscriptions_enabled:
+        raise HTTPException(
+            status_code=503,
+            detail="Платные подписки пока отключены. Доступ к сигналам открыт "
+                   "бесплатно, пока не наберётся подтверждённая статистика доходности.",
+        )
 
 
 class CheckoutRequest(BaseModel):
@@ -43,6 +64,7 @@ async def create_checkout(
     user: User = Depends(get_current_user),
 ):
     """Create a YooKassa payment for Premium subscription."""
+    require_paid_subscriptions_enabled()
     result = await yookassa_service.create_payment(
         db, user, data.plan, data.return_url,
     )
@@ -74,6 +96,7 @@ async def complete_demo(
     user: User = Depends(get_current_user),
 ):
     """Complete a demo payment (for testing without real YooKassa)."""
+    require_paid_subscriptions_enabled()
     payment = await yookassa_service.complete_demo_payment(db, payment_id)
     if not payment:
         raise HTTPException(404, "Payment not found or already completed")
@@ -94,6 +117,7 @@ async def create_crypto_checkout(
     user: User = Depends(get_current_user),
 ):
     """Create a CryptoCloud payment (USDT/BTC/ETH) for international clients."""
+    require_paid_subscriptions_enabled()
     result = await cryptocloud_service.create_payment(db, user, data.plan, data.return_url)
     if "error" in result:
         raise HTTPException(400, result["error"])
@@ -113,6 +137,7 @@ async def create_international_checkout(
     user: User = Depends(get_current_user),
 ):
     """Create a Prodamus payment (Visa/MC in USD/EUR) for international clients."""
+    require_paid_subscriptions_enabled()
     result = await prodamus_service.create_payment(db, user, data.plan, data.currency, data.return_url)
     return result
 
@@ -139,11 +164,21 @@ async def prodamus_webhook(request: Request, db: AsyncSession = Depends(get_db))
 
 @router.get("/plans")
 async def get_plans(user: User = Depends(get_current_user)):
-    """Available subscription plans with prices in all currencies."""
+    """Available subscription plans with prices in all currencies.
+
+    Stays readable while checkout is off so the pricing page can show what a
+    subscription will cost — it just cannot be bought yet. `enabled` tells the
+    frontend which state to render.
+    """
     from app.services.cryptocloud_service import PLAN_CONFIG as CRYPTO_PLANS
     from app.services.prodamus_service import PLAN_CONFIG as INTL_PLANS
 
     return {
+        "enabled": settings.paid_subscriptions_enabled,
+        "disabled_reason_ru": None if settings.paid_subscriptions_enabled else (
+            "Платные подписки откроются после подтверждённой статистики доходности. "
+            "Пока все сигналы доступны бесплатно."
+        ),
         "plans": {
             "rub": [
                 {

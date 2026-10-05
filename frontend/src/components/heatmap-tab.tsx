@@ -2,34 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useI18n } from "@/lib/i18n";
-import { TradingViewHeatmap, CustomHeatmap } from "./heatmap-widget";
+import { CustomHeatmap } from "./heatmap-widget";
 
-type HeatmapView = "moex-custom" | "moex-tv" | "crypto-tv" | "us-tv";
+// All three markets now come from /api/v1/public/heatmap, which is built from
+// sources the platform already uses (MOEX ISS, CoinGecko, Yahoo). The TradingView
+// heatmap widget was dropped: its terms require a visible attribution link.
+type HeatmapView = "moex" | "crypto" | "us";
 
 export default function HeatmapTab() {
-  const [view, setView] = useState<HeatmapView>("moex-custom");
+  const [view, setView] = useState<HeatmapView>("moex");
   const [moexData, setMoexData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const { locale } = useI18n();
   const isRu = locale === "ru";
 
   useEffect(() => {
-    if (view !== "moex-custom") return;
+    let alive = true;
     setLoading(true);
-    const token = localStorage.getItem("token");
-    fetch("/api/v1/moex/heatmap", { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.tickers) setMoexData(d.tickers); })
+    fetch(`/api/v1/public/heatmap?market=${view}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (alive && d?.tickers) setMoexData(d.tickers); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, [view]);
 
-  const VIEWS: { key: HeatmapView; ru: string; en: string }[] = [
-    { key: "moex-custom", ru: "MOEX (Live)", en: "MOEX (Live)" },
-    { key: "moex-tv", ru: "MOEX (TradingView)", en: "MOEX (TradingView)" },
-    { key: "crypto-tv", ru: "Крипто", en: "Crypto" },
-    { key: "us-tv", ru: "US Stocks (S&P 500)", en: "US Stocks (S&P 500)" },
+  const VIEWS: { key: HeatmapView; ru: string; en: string; src: string }[] = [
+    { key: "moex", ru: "MOEX", en: "MOEX", src: "MOEX ISS API" },
+    { key: "crypto", ru: "Крипто", en: "Crypto", src: "CoinGecko" },
+    { key: "us", ru: "Акции США", en: "US Stocks", src: "Yahoo Finance" },
   ];
+  const current = VIEWS.find(v => v.key === view) ?? VIEWS[0];
 
   return (
     <div>
@@ -52,60 +55,33 @@ export default function HeatmapTab() {
         ))}
       </div>
 
-      {/* MOEX Custom Heatmap (our data) */}
-      {view === "moex-custom" && (
-        <div className="rounded-xl border border-border bg-surface-card p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="font-bold text-text-primary">
-              {isRu ? "Московская биржа — Live данные" : "Moscow Exchange — Live Data"}
-            </h3>
-            <div className="flex items-center gap-2">
-              <span className="pulse-dot" />
-              <span className="text-xs text-text-muted">MOEX ISS API</span>
-            </div>
+      <div className="rounded-xl border border-border bg-surface-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-bold text-text-primary">
+            {isRu ? current.ru : current.en}
+          </h3>
+          <div className="flex items-center gap-2">
+            <span className="pulse-dot" />
+            <span className="text-xs text-text-muted">{current.src}</span>
           </div>
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
-            </div>
-          ) : (
-            <CustomHeatmap data={moexData} isRu={isRu} />
-          )}
-          <p className="mt-3 text-xs text-text-muted">
-            {isRu
-              ? "Данные в реальном времени с MOEX ISS API. Размер блока — объём торгов. Цвет — изменение за день."
-              : "Real-time data from MOEX ISS API. Block size — trading volume. Color — daily change."}
-          </p>
         </div>
-      )}
-
-      {/* TradingView Widgets */}
-      {view === "moex-tv" && (
-        <div>
-          <p className="mb-2 text-xs text-text-muted">
-            {isRu ? "TradingView виджет — интерактивная карта MOEX" : "TradingView widget — interactive MOEX heatmap"}
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" />
+          </div>
+        ) : moexData.length ? (
+          <CustomHeatmap data={moexData} isRu={isRu} />
+        ) : (
+          <p className="py-10 text-center text-sm text-text-muted">
+            {isRu ? "Данные недоступны — источник не ответил." : "No data — the source did not respond."}
           </p>
-          <TradingViewHeatmap market="moex" height={550} />
-        </div>
-      )}
-
-      {view === "crypto-tv" && (
-        <div>
-          <p className="mb-2 text-xs text-text-muted">
-            {isRu ? "Тепловая карта крипторынка — по капитализации и изменению" : "Crypto market heatmap — by market cap and change"}
-          </p>
-          <TradingViewHeatmap market="crypto" height={550} />
-        </div>
-      )}
-
-      {view === "us-tv" && (
-        <div>
-          <p className="mb-2 text-xs text-text-muted">
-            {isRu ? "S&P 500 — акции США по секторам" : "S&P 500 — US stocks by sector"}
-          </p>
-          <TradingViewHeatmap market="us" height={550} />
-        </div>
-      )}
+        )}
+        <p className="mt-3 text-xs text-text-muted">
+          {isRu
+            ? "Размер блока — объём торгов, цвет — изменение за день. Тикер без котировки не показывается вовсе, а не нулём."
+            : "Block size is volume, colour is the daily change. A ticker without a quote is omitted rather than shown as zero."}
+        </p>
+      </div>
 
       {/* Disclaimer */}
       <div className="mt-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-2">

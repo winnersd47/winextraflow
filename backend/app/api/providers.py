@@ -45,10 +45,15 @@ async def leaderboard(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Get top providers ranked by win rate. Only includes rated providers."""
+    """Get top providers ranked by win rate. Only includes rated providers.
+
+    Seed fixtures are excluded: their win rate and Sharpe are generated (56-85% and
+    3-13 respectively), while every real provider has win_rate NULL — so before this
+    filter the leaderboard consisted entirely of demo data.
+    """
     result = await db.execute(
         select(Provider)
-        .where(Provider.ai_score.isnot(None))
+        .where(Provider.is_seed.is_(False), Provider.ai_score.isnot(None))
         .order_by(Provider.win_rate.desc().nulls_last())
         .limit(limit)
     )

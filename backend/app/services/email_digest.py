@@ -48,10 +48,11 @@ class EmailDigestService:
         # Best performers
         best = sorted(closed, key=lambda s: s.profit_pct or 0, reverse=True)[:3]
 
-        # Top providers this week
+        # Top providers this week. Seed fixtures excluded — they were the only
+        # providers with a win rate, so the digest was mailing out demo leaders.
         providers = (await db.execute(
             select(Provider)
-            .where(Provider.win_rate.isnot(None))
+            .where(Provider.is_seed.is_(False), Provider.win_rate.isnot(None))
             .order_by(Provider.win_rate.desc())
             .limit(3)
         )).scalars().all()
@@ -61,12 +62,16 @@ class EmailDigestService:
             select(func.count(User.id)).where(User.created_at >= week_ago)
         )).scalar() or 0
 
-        # Market regime
+        # Market regime. The old call was `detect_regime()`, which does not exist —
+        # the AttributeError was swallowed here, so every digest ever sent reported
+        # "unknown". Log the failure now instead of hiding it.
+        regime = {"regime": "unknown", "confidence": 0}
         try:
             from app.services.quant.regime import regime_detector
-            regime = regime_detector.detect_regime()
-        except Exception:
-            regime = {"regime": "unknown", "confidence": 0}
+            state = await regime_detector.detect(db)
+            regime = {"regime": state.regime.value, "confidence": state.confidence}
+        except Exception as e:
+            logger.warning(f"Digest: regime detection failed — {e}")
 
         return {
             "week_start": week_ago.strftime("%d.%m.%Y"),

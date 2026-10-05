@@ -40,8 +40,16 @@ def _proxy():
 
 async def main():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    shutil.copyfile(os.path.join(base, "winextraflow_bot.session"), os.path.join(base, "wef_find.session"))
-    client = TelegramClient(os.path.join(base, "wef_find"), int(settings.telegram_api_id),
+    # No copy. Duplicating a .session file duplicates the auth key, and
+    # Telegram revokes a key it sees connect from two places — that is what
+    # killed the pipeline for 37 days. Use the live session under the
+    # cross-process lock instead; it waits for the poller rather than
+    # cloning around it.
+    from app.services.telethon_lock import acquire, release
+    if not await acquire("wef_backfill"):
+        print("Telethon занят другим процессом — попробуйте позже")
+        return
+    client = TelegramClient(os.path.join(base, "wef_backfill"), int(settings.telegram_api_id),
                             settings.telegram_api_hash, proxy=_proxy())
     await client.connect()
     if not await client.is_user_authorized():
@@ -79,7 +87,7 @@ async def main():
 
     await client.disconnect()
     try:
-        os.remove(os.path.join(base, "wef_find.session"))
+        release("wef_backfill")
     except OSError:
         pass
 

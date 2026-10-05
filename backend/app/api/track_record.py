@@ -30,18 +30,20 @@ MIN_SAMPLE = 30
 CLOSED = (SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL)
 
 # Demo/seed rows must never enter a published track record — counting them would
-# be inventing a performance history. seed_data marks them in raw_message.
-SEED_MARKERS = ("auto-generated", "demo signal", "test signal")
-
-
-def _is_seed(s: Signal) -> bool:
-    raw = (s.raw_message or "").lower()
-    return any(raw.startswith(m) or m in raw[:40] for m in SEED_MARKERS)
+# be inventing a performance history. Shared with the TP/SL monitor, which posts
+# results to VIP from the same table.
+from app.services.signal_quality import SEED_MARKERS, is_seed_signal as _is_seed  # noqa: E402,F401
 
 
 async def _closed_real(db: AsyncSession) -> list[Signal]:
     """Closed signals from real sources only (seed/demo excluded)."""
-    rows = (await db.execute(select(Signal).where(Signal.status.in_(CLOSED)))).scalars().all()
+    # `not_excluded` drops rows a human ruled out after the fact — duplicates of
+    # an outcome already counted. `_is_seed` drops fixtures. Both are needed: one
+    # inspects the row, the other records a judgement about it.
+    from app.services.signal_quality import not_excluded
+    rows = (await db.execute(
+        select(Signal).where(Signal.status.in_(CLOSED), not_excluded())
+    )).scalars().all()
     return [s for s in rows if not _is_seed(s)]
 
 

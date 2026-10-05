@@ -7,10 +7,13 @@ Public entry: `make_clip()` -> mp4 path; `broadcast_clip()` -> send to channel.
 Optional avatar overlay (PNG with alpha) via AVATAR_PATH env / arg.
 """
 
+import asyncio
+import itertools
 import logging
 import os
 import subprocess
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -24,6 +27,38 @@ logger = logging.getLogger(__name__)
 W, H = 720, 1280          # 9:16 vertical
 FPS = 24
 BG = "#0a1628"
+
+# pyplot keeps global figure state, so only one render may run at a time inside a
+# process. Output paths also carry the pid and a counter: the VIP and teaser clips
+# for one ticker used to share a filename, and whichever finished last was sent to
+# both channels — the teaser leaked the levels that way.
+_RENDER_LOCK = asyncio.Lock()
+_render_seq = itertools.count()
+_CLIP_TTL_SEC = 3600
+
+
+def _clip_path(ticker: str, suffix: str, ext: str = ".mp4") -> str:
+    safe = "".join(ch for ch in ticker.upper() if ch.isalnum() or ch in "-_") or "SIG"
+    name = f"wef_clip_{safe}{suffix}_{os.getpid()}_{next(_render_seq)}{ext}"
+    return os.path.join(tempfile.gettempdir(), name)
+
+
+def _purge_old_clips() -> None:
+    """Drop clips left behind by crashed renders or callers that kept the path."""
+    tmp = tempfile.gettempdir()
+    cutoff = time.time() - _CLIP_TTL_SEC
+    try:
+        for name in os.listdir(tmp):
+            if not name.startswith("wef_clip_"):
+                continue
+            p = os.path.join(tmp, name)
+            try:
+                if os.path.getmtime(p) < cutoff:
+                    os.remove(p)
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 def _find_ffmpeg() -> str | None:
@@ -50,11 +85,6 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
     level lines, no price labels and no y-axis prices — so the entry/TP/SL stay
     exclusive to VIP.
     """
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    from matplotlib import animation
-
     date_from = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     date_to = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     candles = await fetch_candles(ticker, date_from, date_to)
@@ -70,8 +100,27 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
         l.append(k.get("low", 0)); c.append(k.get("close", 0))
     if len(c) < 10:
         return None
-    n = len(c)
 
+    _purge_old_clips()
+    # Rendering takes seconds of pure CPU. Off the event loop so the API and the
+    # WebSocket feed keep responding; serialized because pyplot state is global.
+    async with _RENDER_LOCK:
+        return await asyncio.to_thread(
+            _render_clip, ticker, action, entry, tp, sl, wef, verdict, strategy,
+            avatar_path, hide_levels, o, h, l, c,
+        )
+
+
+def _render_clip(ticker: str, action: str, entry: float, tp: float, sl: float,
+                 wef: int, verdict: str, strategy: str, avatar_path: str | None,
+                 hide_levels: bool, o: list, h: list, l: list, c: list) -> str | None:
+    """Blocking matplotlib render. Call only via make_clip (holds _RENDER_LOCK)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import animation
+
+    n = len(c)
     is_buy = action.lower() == "buy"
     rr = abs(tp - entry) / abs(entry - sl) if abs(entry - sl) > 0 else 0
     name = NAME_MAP.get(ticker.upper(), ticker.upper())
@@ -169,8 +218,7 @@ async def make_clip(ticker: str, action: str, entry: float, tp: float, sl: float
             t_strategy.set_text(strategy)
         return []
 
-    suffix = "_teaser" if hide_levels else ""
-    out = os.path.join(tempfile.gettempdir(), f"wef_clip_{ticker}{suffix}.mp4")
+    out = _clip_path(ticker, "_teaser" if hide_levels else "")
     ff = _find_ffmpeg()
     try:
         anim = animation.FuncAnimation(fig, frame, frames=total, interval=1000 / FPS, blit=False)
@@ -234,7 +282,8 @@ async def broadcast_clip(ticker: str, action: str, entry: float, tp: float, sl: 
                          wef: int, verdict: str = "", strategy: str = "",
                          chat_id: str | None = None, teaser: bool = False,
                          avatar_path: str | None = None, clip_path: str | None = None,
-                         caption: str | None = None) -> bool:
+                         caption: str | None = None,
+                         reply_to: int | None = None) -> int | None:
     """Render (or reuse) a clip and send it as a video to a channel.
 
     `caption` overrides the default (used to attach the full expert description).
@@ -243,12 +292,17 @@ async def broadcast_clip(ticker: str, action: str, entry: float, tp: float, sl: 
     chat_id = chat_id or settings.telegram_vip_channel_id
     if not token or not chat_id:
         logger.info(f"Clip skipped (no token/channel) for {ticker}")
-        return False
+        return None
 
-    path = clip_path or await make_clip(ticker, action, entry, tp, sl, wef, verdict, strategy,
-                                        avatar_path=avatar_path)
+    # A path handed in belongs to the caller (it may reuse it); one we render here
+    # is ours to delete afterwards.
+    path = clip_path
+    owned = path is None
+    if owned:
+        path = await make_clip(ticker, action, entry, tp, sl, wef, verdict, strategy,
+                               avatar_path=avatar_path, hide_levels=teaser)
     if not path or not os.path.exists(path):
-        return False
+        return None
 
     caption = caption or build_clip_caption(ticker, action, entry, tp, sl, wef, teaser=teaser)
     if len(caption) > MAX_CAPTION:
@@ -262,13 +316,22 @@ async def broadcast_clip(ticker: str, action: str, entry: float, tp: float, sl: 
                 resp = await client.post(
                     f"https://api.telegram.org/bot{token}/{method}",
                     data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML",
-                          "disable_notification": "true", "supports_streaming": "true"},
+                          "disable_notification": "true", "supports_streaming": "true",
+                          **({"reply_to_message_id": reply_to} if reply_to else {})},
                     files={field: (os.path.basename(path), f, "video/mp4")},
                 )
-        ok = resp.json().get("ok", False)
-        if not ok:
+        data = resp.json()
+        if not data.get("ok"):
             logger.error(f"Clip send failed for {ticker}: {resp.text[:200]}")
-        return ok
+            return None
+        # message_id, not True: the result post is published as a reply to it.
+        return data.get("result", {}).get("message_id")
     except Exception as e:
         logger.error(f"Clip send error for {ticker}: {e}")
-        return False
+        return None
+    finally:
+        if owned:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
