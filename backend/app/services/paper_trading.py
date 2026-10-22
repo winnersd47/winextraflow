@@ -42,8 +42,15 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 def platform_accounts(q):
-    """Restrict a PaperAccount query to the platform's own accounts."""
-    return q.where(PaperAccount.user_id.is_(None))
+    """Restrict a PaperAccount query to the platform's own measured record.
+
+    Two exclusions, not one. `user_id IS NULL` drops users' practice accounts.
+    `scope == "platform"` drops the evaluation account, which also has a NULL
+    user_id and would otherwise have walked straight into the published numbers
+    carrying sources nobody has measured yet.
+    """
+    return q.where(PaperAccount.user_id.is_(None),
+                   PaperAccount.scope == "platform")
 
 
 def platform_trades(q):
@@ -56,28 +63,42 @@ def platform_trades(q):
     return q.where(
         PaperTrade.opened_manually.is_(False),
         PaperTrade.account_id.in_(
-            select(PaperAccount.id).where(PaperAccount.user_id.is_(None))
+            select(PaperAccount.id).where(PaperAccount.user_id.is_(None),
+                                          PaperAccount.scope == "platform")
         ),
     )
 
 DEFAULT_ACCOUNTS = [
-    # name, currency, balance, risk, min_wef
-    ("Основной 100k ₽", "RUB", 100_000.0, 0.01, 0),
-    ("Только сильные сигналы", "RUB", 100_000.0, 0.01, 65),
-    ("Агрессивный 2%", "RUB", 100_000.0, 0.02, 0),
+    # name, currency, balance, risk, min_wef, scope
+    ("Основной 100k ₽", "RUB", 100_000.0, 0.01, 0, "platform"),
+    ("Только сильные сигналы", "RUB", 100_000.0, 0.01, 65, "platform"),
+    ("Агрессивный 2%", "RUB", 100_000.0, 0.02, 0, "platform"),
+    # Sources on trial. They are measured here and nowhere else until they have
+    # MIN_SAMPLE closed trades of their own — the forex scalping channels need
+    # 67-87% of trades to win just to break even, and no one knows yet whether
+    # they clear it. Mixing that into the platform's record would answer the
+    # question with the one number the project cannot afford to get wrong.
+    ("Оценка новых источников", "USD", 10_000.0, 0.01, 0, "evaluation"),
 ]
 
 
 async def ensure_accounts(db: AsyncSession) -> list[PaperAccount]:
     """Create the default accounts once. Returns all accounts."""
-    existing = (await db.execute(platform_accounts(select(PaperAccount)))).scalars().all()
+    # Every account the platform owns, not just the ones in the published
+    # record. `platform_accounts` narrows to scope="platform" so the evaluation
+    # account stays out of the numbers — but using that same filter HERE meant
+    # the evaluation account was never seen as existing, and a fresh copy was
+    # created on every cron run. Eight duplicates accumulated in one morning.
+    existing = (await db.execute(
+        select(PaperAccount).where(PaperAccount.user_id.is_(None))
+    )).scalars().all()
     have = {a.name for a in existing}
     created = []
-    for name, cur, bal, risk, min_wef in DEFAULT_ACCOUNTS:
+    for name, cur, bal, risk, min_wef, scope in DEFAULT_ACCOUNTS:
         if name in have:
             continue
         acc = PaperAccount(name=name, currency=cur, starting_balance=bal, balance=bal,
-                           risk_per_trade=risk, min_wef=min_wef)
+                           risk_per_trade=risk, min_wef=min_wef, scope=scope)
         db.add(acc)
         created.append(acc)
     if created:
@@ -92,6 +113,14 @@ async def sync_open(db: AsyncSession, account: PaperAccount) -> int:
         select(PaperTrade.signal_id).where(PaperTrade.account_id == account.id)
     )).scalars().all())
 
+    # An account only trades the sources its scope covers. Without this the
+    # platform's own record would quietly absorb every channel put on trial.
+    from app.models.provider import Provider
+    on_trial = set((await db.execute(
+        select(Provider.id).where(Provider.paper_only.is_(True))
+    )).scalars().all())
+    scope = getattr(account, "scope", "platform") or "platform"
+
     signals = (await db.execute(
         select(Signal).where(
             Signal.status == SignalStatus.ACTIVE,
@@ -104,6 +133,9 @@ async def sync_open(db: AsyncSession, account: PaperAccount) -> int:
     opened = 0
     for s in signals:
         if s.id in traded or is_seed_signal(s):
+            continue
+        trial = s.provider_id in on_trial
+        if (scope == "evaluation") != trial:
             continue
         wef = round((s.ai_confidence or 0) * 100)
         if wef < account.min_wef:

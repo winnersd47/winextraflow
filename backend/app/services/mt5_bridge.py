@@ -348,6 +348,10 @@ async def handle_client(reader: asyncio.StreamReader, writer: asyncio.StreamWrit
                 candles = msg.get("candles", [])
                 response = calc_indicators(candles)
 
+            elif cmd == "fill":
+                # What the terminal actually got. Free: no LLM, no budget.
+                response = await _handle_fill(msg)
+
             elif cmd == "ping":
                 response = {"pong": True, "time": datetime.now(timezone.utc).isoformat()}
 
@@ -376,6 +380,52 @@ async def _handle_signal(msg: dict) -> dict:
     candles = msg.get("candles", [])
     symbol = msg.get("ticker") or msg.get("symbol") or "UNKNOWN"
     tf = msg.get("timeframe", "H1")
+
+    # Two kinds of sender share this command.
+    #
+    # The strategy advisors (WEF_S1..S6) have already decided: they send an
+    # action and a price and no candles, because the rule lives in MQL5. Running
+    # the model over an empty candle list would reject every one of them with
+    # "no data" — which is what happened before this branch existed.
+    #
+    # WEF_Bridge and WEF_S7 send candles and no action: there the decision is
+    # the platform's to make.
+    pre = (msg.get("action") or "").lower()
+    if pre in ("buy", "sell") and not candles:
+        strategy_id = msg.get("strategy_id")
+        strategy = msg.get("strategy") or "MT5 advisor"
+        why = msg.get("reasoning") or ""
+        try:
+            price = float(msg.get("price") or msg.get("entry") or 0)
+        except (TypeError, ValueError):
+            price = 0.0
+        if price <= 0:
+            return {"stored": False, "reason": "price required"}
+
+        def _opt(key):
+            try:
+                v = msg.get(key)
+                return float(v) if v not in (None, "") else None
+            except (TypeError, ValueError):
+                return None
+
+        from app.database import async_session
+        from app.services.mt5_signals import ingest
+        async with async_session() as db:
+            out = await ingest(
+                db, symbol=symbol, action=pre, price=price,
+                tp=_opt("tp"), sl=_opt("sl"),
+                # The advisor's rule fired or it did not; it reports no
+                # probability, and inventing one would put a number nobody
+                # measured into the score.
+                confidence=0.0,
+                reasoning=f"[{strategy}] {why}".strip(),
+                indicators={"atr_pct": _opt("atr_pct")} if _opt("atr_pct") else None,
+                timeframe=tf,
+            )
+        out["strategy"] = strategy
+        out["strategy_id"] = strategy_id
+        return out
 
     indicators = calc_indicators(candles)
     if "error" in indicators:
@@ -432,3 +482,51 @@ async def start_mt5_server(host: str = WS_HOST, port: int = WS_PORT):
     logger.info(f"MT5 Bridge started on {host}:{port} ({auth})")
     async with server:
         await server.serve_forever()
+
+
+async def _handle_fill(msg: dict) -> dict:
+    """Record an execution reported by the terminal.
+
+    The EA sends this right after a position opens. It is the only message in
+    the protocol carrying a price the platform did not choose, which is exactly
+    why it matters: everything else in the track record is computed.
+    """
+    try:
+        fill = float(msg.get("fill_price") or msg.get("price") or 0)
+    except (TypeError, ValueError):
+        return {"error": "fill_price must be a number"}
+    if fill <= 0:
+        return {"error": "fill_price required"}
+
+    symbol = msg.get("ticker") or msg.get("symbol") or ""
+    if not symbol:
+        return {"error": "ticker required"}
+
+    def _num(key):
+        try:
+            v = msg.get(key)
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    ticket = msg.get("ticket")
+    try:
+        ticket = int(ticket) if ticket is not None else None
+    except (TypeError, ValueError):
+        ticket = None
+
+    from app.database import async_session
+    from app.services.mt5_signals import record_fill
+
+    async with async_session() as db:
+        return await record_fill(
+            db,
+            signal_id=msg.get("signal_id"),
+            ticker=symbol,
+            action=msg.get("action", ""),
+            requested_price=_num("requested_price") or _num("entry") or 0.0,
+            fill_price=fill,
+            spread=_num("spread"),
+            volume=_num("volume") or _num("lots"),
+            ticket=ticket,
+        )

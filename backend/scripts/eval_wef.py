@@ -247,6 +247,33 @@ def report(rows: list[dict], as_json: bool) -> None:
         print(f"  {'ИТОГО':<12}{len(sub):>4}{'':>8}"
               f"{statistics.fmean(all_pnl):>+9.2f}%{sum(all_pnl):>+10.1f}%")
 
+        # Room to target: how many prior swing levels sit between entry and the
+        # target. Measured 2026-10-16 over this same set — the zero-obstacle band
+        # was the only profitable one (11 signals, +1.52%), while the overall
+        # correlation was only -0.129 and the bands were not monotonic. That is
+        # too weak to gate on, so it is reported here and nowhere else until the
+        # sample is larger. It earns a place in signal_quality when the
+        # correlation holds at |r| > 0.3 on 30+ wins, and not before.
+        with_room = [r for r in sub if r.get("obstacles") is not None]
+        if with_room:
+            print()
+            print(f"  {'препятствий':<13}{'N':>4}{'побед':>7}"
+                  f"{'win rate':>10}{'ср. P&L':>10}")
+            for lo, hi, label in ((0, 0, "0"), (1, 2, "1-2"),
+                                  (3, 5, "3-5"), (6, 99, "6+")):
+                band = [r for r in with_room if lo <= r["obstacles"] <= hi]
+                if not band:
+                    continue
+                w = sum(1 for r in band if r["outcome"] == "win")
+                pnls = []
+                for r in band:
+                    tp = abs(r["tp"] - r["entry"]) / r["entry"] * 100
+                    sl = abs(r["entry"] - r["sl"]) / r["entry"] * 100
+                    pnls.append(tp if r["outcome"] == "win" else -sl)
+                print(f"  {label:<13}{len(band):>4}{w:>7}"
+                      f"{w / len(band) * 100:>9.0f}%"
+                      f"{statistics.fmean(pnls):>+9.2f}%")
+
         r_corr = point_biserial([r["wef"] for r in sub],
                                 [1 if r["outcome"] == "win" else 0 for r in sub])
         if r_corr is None:
@@ -298,7 +325,19 @@ async def main():
             res = await replay(s)
             if res is None:
                 continue
+            room = {}
+            try:
+                from app.services.room_to_target import room_for_signal
+                room = await room_for_signal(
+                    s.ticker, s.entry_price, s.take_profit, s.action.value,
+                    as_of=s.created_at.date() if s.created_at else None)
+            except Exception as e:
+                logger_note = f"{type(e).__name__}"
+                room = {"obstacles": None, "reason": logger_note}
+
             rows.append({
+                "obstacles": room.get("obstacles"),
+                "first_obstacle_share": room.get("first_obstacle_share"),
                 "ticker": s.ticker,
                 "action": s.action.value,
                 "wef": round((s.ai_confidence or 0) * 100),

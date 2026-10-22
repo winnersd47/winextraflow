@@ -216,7 +216,9 @@ async def fetch_crypto_candles(ticker: str, date_from: str, date_to: str,
 
 
 # Major + minor + exotic forex pairs
-FOREX_CURRENCIES = {"EUR", "USD", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK", "DKK", "SGD", "HKD", "TRY", "ZAR", "MXN", "PLN", "CZK", "HUF", "RUB", "CNY", "INR", "BRL", "KRW", "THB"}
+# Single source: services/instruments.py. This module had the longest copy;
+# the other two were short, which is how USDTRY became a US stock on a card.
+from app.services.instruments import FOREX_CURRENCIES
 # Top 50 US stocks by trading volume (2026)
 US_STOCKS = {
     # Mega-cap tech
@@ -312,17 +314,15 @@ def _is_forex_pair(ticker: str) -> bool:
 
 
 def detect_source(ticker: str) -> str:
-    """Detect data source by ticker format."""
-    MOEX_TICKERS = {
-        "SBER", "SBERP", "GAZP", "LKOH", "YNDX", "YDEX", "ROSN", "GMKN", "NVTK", "MGNT",
-        "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "T", "PHOR", "NLMK", "MAGN",
-        "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "SNGSP", "TATN", "TATNP",
-        "SIBN", "PIKK", "AFKS", "RTKM", "HYDR", "IRAO", "FEES", "TRNFP", "BANE", "SELG",
-        "UPRO", "MSNG", "FLOT", "SMLT", "SGZH", "POSI", "ASTR", "WUSH", "LEAS", "SVCB",
-        "RENI", "BSPB", "CBOM", "ENPG", "FIXP", "GLTR", "MDMG", "SOFL", "UGLD", "VKCO",
-    }
+    """Detect data source by ticker format.
+
+    The MOEX list comes from services/instruments.py. This module held the
+    longest of the four copies that existed, which is precisely why the
+    others going stale was invisible from here.
+    """
+    from app.services.instruments import is_moex_equity
     t = ticker.upper()
-    if t in MOEX_TICKERS:
+    if is_moex_equity(t):
         return "moex"
     # MOEX FORTS futures (BR-9.26, GAZR-9.26, RTS-9.26, Si-12.26). Yahoo has no
     # such symbols, so without this they fell through to the "stocks" fallback and

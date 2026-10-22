@@ -101,10 +101,26 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
     ledger = ParseLedger(max_per_run=MAX_LLM_PARSE_PER_RUN)
     async with async_session() as db:
         for ch, channel_id, title, msgs in fetched:
-            # Find or create provider for this channel
+            # Find or create provider for this channel.
+            #
+            # Three lookups, and the middle one matters: a provider registered by
+            # hand (scripts/add_trial_source.py) stores the USERNAME, while this
+            # loop stores the numeric id. Matching only on the numeric id created
+            # a second row per channel — and since the flags live on the row, a
+            # source marked `paper_only` was ingested through its unmarked twin
+            # and published to subscribers. The trial it was under did nothing.
             provider = (await db.execute(
                 select(Provider).where(Provider.telegram_channel_id == channel_id).limit(1)
             )).scalar_one_or_none()
+            if not provider and ch:
+                provider = (await db.execute(
+                    select(Provider).where(Provider.telegram_channel_id == ch).limit(1)
+                )).scalar_one_or_none()
+                if provider:
+                    # Found by username: store the numeric id so the first lookup
+                    # matches next time, and no twin is ever created.
+                    provider.telegram_channel_id = channel_id
+                    await db.commit()
             if not provider:
                 provider = (await db.execute(
                     select(Provider).where(Provider.name == title).limit(1)

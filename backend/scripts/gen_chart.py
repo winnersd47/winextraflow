@@ -216,14 +216,13 @@ async def send_to_telegram(chart_path: str, ticker: str, action: str, entry: flo
     kelly_half = max(0, kelly_full * 0.5 * 100)
     edge = (win_rate - (1 / (1 + tp_pct / sl_pct))) * 100 if sl_pct > 0 else 0
 
-    # Instrument detection
-    MOEX_TICKERS = {"SBER", "GAZP", "LKOH", "YNDX", "ROSN", "GMKN", "NVTK", "MGNT",
-                    "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "PHOR", "NLMK",
-                    "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "TATN"}
-    FOREX_CURRENCIES = {"EUR", "USD", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"}
+    # Instrument detection. The 24-name copy that used to sit here was the
+    # shortest of four and had drifted furthest; it lives in
+    # services/instruments.py now.
+    from app.services.instruments import is_forex_pair, is_moex_equity
 
     t = ticker.upper()
-    if t in MOEX_TICKERS:
+    if is_moex_equity(t):
         instrument = "MOEX (Московская биржа)"
         where = "Тинькофф Инвестиции, QUIK, MetaTrader 5"
         asset_type = "Акции РФ"
@@ -233,7 +232,7 @@ async def send_to_telegram(chart_path: str, ticker: str, action: str, entry: flo
         where = "Binance, Bybit, OKX"
         asset_type = "Криптовалюта"
         currency = "USDT"
-    elif len(t) == 6 and t[:3] in FOREX_CURRENCIES and t[3:] in FOREX_CURRENCIES:
+    elif is_forex_pair(t):
         instrument = "Forex (валютный рынок)"
         where = "MetaTrader 5, Interactive Brokers"
         asset_type = "Валютная пара"

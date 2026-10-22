@@ -73,6 +73,30 @@ async def process_and_broadcast(
     except Exception as e:
         logger.debug(f"Stale check skipped for {signal.ticker}: {e}")
 
+    # 0b. Paper-only sources: score and record, never publish.
+    #
+    # Placed after the staleness check (a stale entry is not worth measuring
+    # either) but before the verdict gate, because the point is to collect this
+    # source's outcomes — including the ones the strategy system would skip.
+    # Without that the sample would only ever contain trades we already approved
+    # of, which answers a different question than "is this source any good".
+    if provider is not None and getattr(provider, "paper_only", False):
+        if settings.ai_rating_enabled and signal.ai_confidence is None:
+            try:
+                await ai_rating_service.rate_and_update_signal(db, signal)
+                await db.refresh(signal)
+            except Exception as e:
+                logger.warning(f"AI rating failed for {signal.ticker}: {e}")
+        result["wef"] = round((signal.ai_confidence or 0) * 100)
+        signal.ai_reasoning = ((signal.ai_reasoning or "")
+                               + " | Paper-only source: measured, not published")
+        await db.commit()
+        logger.info(f"Paper-only {signal.action.value} {signal.ticker} "
+                    f"from {provider.name}: recorded, not broadcast")
+        result["broadcast"] = False
+        result["reason"] = "paper_only"
+        return result
+
     # 1. AI rating -> WEF Score
     if settings.ai_rating_enabled and signal.ai_confidence is None:
         try:

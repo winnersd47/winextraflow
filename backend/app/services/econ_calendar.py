@@ -188,3 +188,105 @@ async def get_calendar(days_ahead: int = 60) -> dict:
         "notes": notes,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── Event risk for a single signal ─────────────────────────────────────────
+#
+# Used by signal_quality to warn — never to reject. There is no measurement in
+# this project that a scheduled release changes a signal's outcome, and the
+# session that added this had just refused to gate on "room to target" because
+# its correlation was only -0.129. Warning on an unmeasured idea is honest;
+# rejecting on one is the mistake R:R already taught.
+
+# How far ahead to look. The measured median resolution is 6 bars, roughly eight
+# calendar days, so a release inside ten days can plausibly land mid-trade.
+EVENT_HORIZON_DAYS = 10
+
+# Which calendar matters for which market. Crypto is deliberately absent: it
+# trades through releases and nothing here measures an effect.
+_MARKET_COUNTRY = {
+    "moex": {"RU"},
+    "futures": {"RU"},
+    "stocks": {"US"},
+    "commodity": {"US"},     # priced in USD
+}
+
+_cache: dict[str, tuple[date, list[dict]]] = {}
+
+
+async def _events_cached() -> list[dict]:
+    """High-importance events, fetched at most once per day.
+
+    The gate runs on every ingested signal; three upstream APIs per signal would
+    be both slow and a good way to get rate-limited.
+    """
+    today = date.today()
+    hit = _cache.get("events")
+    if hit and hit[0] == today:
+        return hit[1]
+    try:
+        data = await get_calendar(days_ahead=EVENT_HORIZON_DAYS + 5)
+        events = [e for e in data.get("events", [])
+                  if e.get("importance") == "high"]
+    except Exception as e:
+        logger.debug(f"Event calendar unavailable: {e}")
+        events = []
+    _cache["events"] = (today, events)
+    return events
+
+
+def _countries_for(ticker: str) -> set[str]:
+    from app.services.instruments import FOREX_CURRENCIES, asset_class
+
+    cls = asset_class(ticker)
+    if cls == "forex":
+        t = ticker.upper()
+        out = set()
+        for half in (t[:3], t[3:]):
+            if half == "RUB":
+                out.add("RU")
+            elif half in FOREX_CURRENCIES and half == "USD":
+                out.add("US")
+        return out
+    return _MARKET_COUNTRY.get(cls, set())
+
+
+async def events_during_signal(ticker: str,
+                               days: int = EVENT_HORIZON_DAYS) -> list[dict]:
+    """High-importance releases for this instrument's market, soonest first."""
+    countries = _countries_for(ticker)
+    if not countries:
+        return []
+
+    horizon = (date.today() + timedelta(days=days)).isoformat()
+    today = date.today().isoformat()
+    out = [e for e in await _events_cached()
+           if e.get("country") in countries
+           and today <= str(e.get("date", "")) <= horizon]
+    return _collapse_runs(sorted(out, key=lambda e: str(e.get("date", ""))))
+
+
+def _collapse_runs(events: list[dict]) -> list[dict]:
+    """Merge consecutive days carrying the same title into one entry.
+
+    FRED lists an FOMC meeting as four separate release dates — statement,
+    minutes, projections — on 19, 20, 21 and 22 October. Left alone the gate
+    reported "FOMC 19 October (+3 more)", which reads as four separate risks
+    when it is one meeting. The merged entry carries `date_end` so the warning
+    can name the span instead of a count.
+    """
+    merged: list[dict] = []
+    for e in events:
+        prev = merged[-1] if merged else None
+        if prev and prev.get("title") == e.get("title"):
+            try:
+                gap = (date.fromisoformat(e["date"])
+                       - date.fromisoformat(prev.get("date_end") or prev["date"])).days
+            except (ValueError, KeyError, TypeError):
+                gap = None
+            if gap == 1:
+                prev["date_end"] = e["date"]
+                prev["days"] = prev.get("days", 1) + 1
+                continue
+        merged.append({**e, "days": 1})
+    return merged

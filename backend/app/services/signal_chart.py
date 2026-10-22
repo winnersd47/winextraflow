@@ -53,13 +53,15 @@ PLATFORM_ACCESS_NOTE = (
     "полный текст публикуем здесь же, в канале."
 )
 
-MOEX_TICKERS = {"SBER", "SBERP", "GAZP", "LKOH", "YNDX", "YDEX", "ROSN", "GMKN", "NVTK",
-                "MGNT", "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "T", "PHOR", "NLMK",
-                "MAGN", "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "SNGSP",
-                "TATN", "TATNP", "SIBN", "PIKK", "AFKS", "RTKM", "HYDR", "IRAO", "FEES",
-                "TRNFP", "BANE", "SELG", "UPRO", "MSNG", "FLOT", "SMLT", "SGZH", "POSI",
-                "ASTR", "WUSH", "LEAS", "SVCB", "RENI", "BSPB", "CBOM", "ENPG", "VKCO", "UGLD"}
-FOREX_CURRENCIES = {"EUR", "USD", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF"}
+# Market classification comes from services/instruments.py. The copy that
+# used to live here was missing FIXP, GLTR, MDMG and SOFL, so a signal on
+# any of them was captioned "US/EU Stocks" with its prices in USD — four
+# Russian names presented to the reader as American ones. The currency list
+# was short too (8 against 14), which did the same to USDTRY and USDCNY.
+from app.services.instruments import (FOREX_CURRENCIES, MOEX_EQUITIES,
+                                      is_forex_pair, is_moex_equity)
+
+MOEX_TICKERS = MOEX_EQUITIES
 NAME_MAP = {
     "SBER": "Сбер", "GAZP": "Газпром", "LKOH": "Лукойл", "ROSN": "Роснефть",
     "GMKN": "Норникель", "NVTK": "Новатэк", "YNDX": "Яндекс", "YDEX": "Яндекс",
@@ -100,11 +102,11 @@ def _instrument(ticker: str):
     if is_moex_futures(t):
         return ("MOEX FORTS (срочный рынок)", "QUIK, Тинькофф Инвестиции, Финам",
                 "Фьючерс", "RUB")
-    if t in MOEX_TICKERS:
+    if is_moex_equity(t):
         return "MOEX (Московская биржа)", "Тинькофф Инвестиции, QUIK, MetaTrader 5", "Акции РФ", "RUB"
     if t.endswith("USDT") or t.endswith("BTC"):
         return "Crypto (спотовый рынок)", "Binance, Bybit, OKX", "Криптовалюта", "USDT"
-    if len(t) == 6 and t[:3] in FOREX_CURRENCIES and t[3:] in FOREX_CURRENCIES:
+    if is_forex_pair(t):
         return "Forex (валютный рынок)", "MetaTrader 5, Interactive Brokers", "Валютная пара", t[3:]
     return "US/EU Stocks (фондовый рынок)", "Interactive Brokers, Exante, Tinkoff", "Акции", "USD"
 

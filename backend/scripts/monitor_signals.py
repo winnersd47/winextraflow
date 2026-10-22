@@ -270,6 +270,22 @@ async def check_all():
                 from app.services.ai_rating import ai_rating_service
                 await ai_rating_service.recalculate_provider_stats(db, s.provider_id)
 
+                # A result is only published for a setup that was published.
+                #
+                # Without this check the monitor posted outcomes for signals
+                # nobody had seen. A source under evaluation — ingested
+                # deliberately WITHOUT publishing, so its record could be built
+                # before subscribers were shown anything — had its win announced
+                # in VIP anyway, as a standalone post with nothing to reply to.
+                # That is worse than a missing thread: it publishes a track
+                # record for trades the channel never carried, which is the
+                # selective disclosure this project removed once already.
+                if not s.tg_vip_message_id:
+                    print(f"    результат не публикуется: сам сигнал "
+                          f"в канал не выходил")
+                    await asyncio.sleep(0.1)
+                    continue
+
                 # VIP: threaded under the original signal post, so the reader sees
                 # the setup and its outcome as one conversation.
                 await _post(VIP_CHANNEL, _result_post(s, pnl, won, for_vip=True),

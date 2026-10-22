@@ -28,6 +28,14 @@ class Provider(Base):
     # reality — while every real provider has win_rate NULL. Ranking by win_rate
     # therefore returned only fabricated leaders, so rankings must exclude these.
     is_seed: Mapped[bool] = mapped_column(default=False, index=True)
+    # Ingest and measure, but never publish. For a source whose style the
+    # platform has no measured opinion about yet — the forex scalping channels
+    # found by scripts/find_forex_sources.py need 67-87% of trades to win just to
+    # break even, and the platform's own record is 0 wins in 10. Judging them
+    # without data would mean guessing; publishing them to find out would mean
+    # guessing with subscribers' money. So they run on a paper account until
+    # MIN_SAMPLE closed trades say which it is.
+    paper_only: Mapped[bool] = mapped_column(default=False, index=True)
 
     # Source-specific config
     telegram_channel_id: Mapped[str | None] = mapped_column(String(100))

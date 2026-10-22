@@ -19,17 +19,19 @@ logger = logging.getLogger(__name__)
 # one being unreachable is a slowdown rather than an outage.
 CRYPTO_PRIMARY = os.getenv("CRYPTO_PRIMARY", "binance").lower()
 
-MOEX_TICKERS = {
-    "SBER", "GAZP", "LKOH", "YNDX", "ROSN", "GMKN", "NVTK", "MGNT",
-    "VTBR", "MTSS", "POLY", "FIVE", "OZON", "TCSG", "PHOR", "NLMK",
-    "CHMF", "ALRS", "AFLT", "MOEX", "PLZL", "RUAL", "SNGS", "TATN",
-}
-FOREX_CURRENCIES = {"EUR", "USD", "GBP", "JPY", "AUD", "NZD", "CAD", "CHF", "SEK", "NOK", "TRY", "MXN", "ZAR", "CNY"}
+# Market classification lives in services/instruments.py — four copies of
+# these literals had drifted apart, and this module held the shortest one
+# (24 names against 60), which sent POSI, ASTR, WUSH and fifteen others to
+# a price source that does not list them.
+from app.services.instruments import (COMMODITY_FUTURES, FOREX_CURRENCIES,
+                                      MOEX_EQUITIES, SPOT_COMMODITIES,
+                                      asset_class, is_forex_pair,
+                                      is_spot_commodity)
 
-
-def _is_forex(ticker: str) -> bool:
-    t = ticker.upper()
-    return len(t) == 6 and t[:3] in FOREX_CURRENCIES and t[3:] in FOREX_CURRENCIES
+# Kept as aliases: other modules and tests import these names from here.
+MOEX_TICKERS = MOEX_EQUITIES
+_is_forex = is_forex_pair
+_is_spot_commodity = is_spot_commodity
 
 
 # How far a signal's stored entry may sit from the live price before we treat the
@@ -45,26 +47,11 @@ STALE_TOLERANCE = {
     "stocks": 0.07,     # US/EU single names
     "futures": 0.08,    # FORTS, incl. commodity contracts
     "crypto": 0.15,     # altcoins routinely swing double digits
+    # Gold moves ~1% on a normal day, silver ~2-3%; same 2-3x rule as the rest.
+    "commodity": 0.04,
 }
 DEFAULT_STALE_TOLERANCE = 0.07
 
-
-def asset_class(ticker: str) -> str:
-    """Coarse market bucket for a ticker: forex | crypto | moex | futures | stocks."""
-    t = (ticker or "").upper()
-    if _is_forex(t):
-        return "forex"
-    if t.endswith("USDT") or t.endswith("BUSD") or t.endswith("BTC"):
-        return "crypto"
-    try:
-        from app.services.signal_chart import is_moex_futures
-        if is_moex_futures(t):
-            return "futures"
-    except Exception:
-        pass
-    from app.services.backtesting_real import detect_source
-    src = detect_source(t)
-    return "moex" if src == "moex" else "stocks"
 
 
 def stale_tolerance(ticker: str) -> float:
@@ -73,19 +60,72 @@ def stale_tolerance(ticker: str) -> float:
 
 
 async def get_live_price(ticker: str) -> dict | None:
-    """Get current price for any ticker. Returns dict with price, source, timestamp."""
+    """Get current price for any ticker. Returns dict with price, source, timestamp.
+
+    Routed by `asset_class`, not by the MOEX_TICKERS literal below. That set holds
+    24 names while `detect_source` — which asset_class already consults — knows
+    about sixty, so POSI, ASTR, WUSH, SVCB, SIBN, YDEX and fifteen others were
+    sent to Yahoo, which does not list them. Futures had no branch at all.
+
+    It mattered beyond a log line. With no live price the pipeline falls back to
+    a computed entry, which is the fabricated-level problem this project spent
+    months unwinding; the staleness check has nothing to compare against; and the
+    monitor can never resolve the signal, so it expires unreached. Measured when
+    this was found: 15 of 161 real signals, 9%, were in that state.
+    """
     t = ticker.upper()
 
     try:
-        if t in MOEX_TICKERS:
-            return await _moex_price(t)
-        elif t.endswith("USDT") or t.endswith("BTC"):
+        cls = asset_class(t)
+        if cls == "crypto":
             return await _crypto_price(t)
-        else:
-            return await _yahoo_price(t)
+        if cls == "moex":
+            return await _moex_price(t)
+        if cls == "futures":
+            return await _moex_futures_price(t)
+        # forex and foreign stocks
+        return await _yahoo_price(t)
     except Exception as e:
         logger.warning(f"Live price fetch failed for {t}: {e}")
         return None
+
+
+async def _moex_futures_price(ticker: str) -> dict | None:
+    """Last price of a FORTS contract.
+
+    ISS addresses futures by SECID ("GZZ6") while channels write the readable
+    form ("GAZR-12.26"); the readable form returns an empty result rather than a
+    404, which is why asking for it looked like "no data" instead of a wrong
+    symbol. `_forts_secid` already resolves one to the other for backtesting.
+    """
+    from app.services.backtesting_real import _forts_secid
+
+    secid = await _forts_secid(ticker)
+    if not secid:
+        logger.info(f"MOEX FORTS: {ticker} not among live contracts (expired?)")
+        return None
+
+    url = ("https://iss.moex.com/iss/engines/futures/markets/forts/securities/"
+           f"{secid}.json")
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get(url, params={
+            "iss.meta": "off",
+            "marketdata.columns": "SECID,LAST,HIGH,LOW,OPEN,VOLTODAY",
+        })
+        rows = (resp.json().get("marketdata") or {}).get("data") or []
+        if not rows or rows[0][1] is None:
+            return None
+        row = rows[0]
+        return {
+            "ticker": ticker,
+            "price": row[1],
+            "high": row[2],
+            "low": row[3],
+            "open": row[4],
+            "volume": row[5],
+            "source": f"MOEX FORTS ({secid})",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
 
 async def _moex_price(ticker: str) -> dict | None:
@@ -202,14 +242,34 @@ async def _yahoo_price(ticker: str) -> dict | None:
     """Yahoo Finance — free, 15 min delay."""
     if _is_forex(ticker):
         yf_sym = f"{ticker[:3]}{ticker[3:]}=X"
+    elif _is_spot_commodity(ticker):
+        # Yahoo has no spot feed for metals: XAUUSD=X returns nothing. The
+        # front-month future is the closest available reference and tracks spot
+        # within a fraction of a percent, which is enough to judge staleness —
+        # but it is a different instrument, so the source string says so rather
+        # than letting a card imply we quoted spot.
+        yf_sym = COMMODITY_FUTURES.get(ticker.upper()[:3])
+        if not yf_sym:
+            logger.info(f"No Yahoo mapping for commodity {ticker}")
+            return None
     else:
         yf_sym = ticker
 
     async with httpx.AsyncClient(timeout=10, headers={"User-Agent": "Mozilla/5.0"}) as client:
         resp = await client.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{yf_sym}", params={"interval": "1d", "range": "2d"})
         data = resp.json()
-        result = data.get("chart", {}).get("result", [{}])[0]
-        meta = result.get("meta", {})
+        # Yahoo answers an unknown symbol with {"result": null, "error": {...}}.
+        # The key exists, so `.get("result", [{}])` returns None rather than the
+        # default, and `None[0]` raised "'NoneType' object is not subscriptable" —
+        # which is what every unroutable ticker logged, saying nothing about the
+        # actual cause. Report the symbol Yahoo rejected instead.
+        chart = data.get("chart") or {}
+        results = chart.get("result") or []
+        if not results:
+            err = (chart.get("error") or {}).get("description") or "symbol not found"
+            logger.info(f"Yahoo has no data for {ticker} (as {yf_sym}): {err}")
+            return None
+        meta = (results[0] or {}).get("meta") or {}
         price = meta.get("regularMarketPrice", 0)
         # regularMarketOpen is empty while the market is closed, which left every US
         # ticker with no change figure at all. previousClose is the standard daily
@@ -218,9 +278,13 @@ async def _yahoo_price(ticker: str) -> dict | None:
         change_pct = None
         if price and prev:
             change_pct = (price - prev) / prev * 100
+        source = "Yahoo Finance"
+        if _is_spot_commodity(ticker):
+            source = f"Yahoo Finance ({yf_sym}, фьючерс — не спот)"
         return {
             "ticker": ticker,
             "price": price,
+            "source_detail": source,
             "high": meta.get("regularMarketDayHigh", 0),
             "low": meta.get("regularMarketDayLow", 0),
             "open": meta.get("regularMarketOpen", 0),

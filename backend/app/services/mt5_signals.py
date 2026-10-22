@@ -174,3 +174,138 @@ async def ingest(db: AsyncSession, symbol: str, action: str, price: float,
         out["published"] = False
         out["reason"] = f"pipeline error: {e}"
     return out
+
+
+# ── Execution feedback ─────────────────────────────────────────────────────
+
+MT5_ACCOUNT_NAME = "MT5 демо"
+
+
+async def _mt5_account(db):
+    """The paper account that holds trades actually executed in a terminal.
+
+    Its own scope, so it never enters the platform's published record: a demo
+    fill is still a demo fill, and mixing it with the computed track record
+    would make both unreadable.
+    """
+    from sqlalchemy import select
+
+    from app.models.paper import PaperAccount
+
+    acc = (await db.execute(
+        select(PaperAccount).where(PaperAccount.scope == "mt5_demo")
+    )).scalars().first()
+    if acc:
+        return acc
+
+    acc = PaperAccount(name=MT5_ACCOUNT_NAME, currency="USD",
+                       starting_balance=10_000.0, balance=10_000.0,
+                       risk_per_trade=0.01, min_wef=0, scope="mt5_demo",
+                       external_ref="MetaQuotes-Demo",
+                       notes="Сделки, исполненные терминалом MT5. "
+                             "Расчётный результат и фактический фил хранятся рядом.")
+    db.add(acc)
+    await db.commit()
+    await db.refresh(acc)
+    logger.info("MT5 demo paper account created")
+    return acc
+
+
+async def record_fill(db, *, signal_id: str | None, ticker: str, action: str,
+                      requested_price: float, fill_price: float,
+                      spread: float | None = None, volume: float | None = None,
+                      ticket: int | None = None) -> dict:
+    """Record what the terminal actually got, next to what was asked for.
+
+    This is the half of the chain that did not exist. Until now a signal's
+    result was measured at the level that settled it — no spread, no slippage,
+    no rejection. That makes a demo result an upper bound, and nobody knew by
+    how much. `slippage_pct` is that number.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone
+
+    from sqlalchemy import select
+
+    from app.models.paper import PaperTrade, PaperTradeStatus
+    from app.models.signal import Signal
+    from app.services.position_sizing import position_size
+
+    if not fill_price or fill_price <= 0:
+        return {"recorded": False, "reason": "нет цены исполнения"}
+
+    signal = None
+    if signal_id:
+        try:
+            signal = await db.get(Signal, _uuid.UUID(str(signal_id)))
+        except (ValueError, AttributeError):
+            signal = None
+    if signal is None:
+        # Fall back to the newest active signal for this symbol: the EA may send
+        # a fill before it has stored the id, and losing the measurement because
+        # of a bookkeeping gap would defeat the point.
+        signal = (await db.execute(
+            select(Signal).where(Signal.ticker == ticker.upper())
+            .order_by(Signal.created_at.desc()).limit(1)
+        )).scalars().first()
+
+    acc = await _mt5_account(db)
+
+    # One row per ticket: the EA re-sends on reconnect.
+    if ticket:
+        dup = (await db.execute(
+            select(PaperTrade).where(PaperTrade.mt5_ticket == ticket)
+        )).scalars().first()
+        if dup:
+            return {"recorded": False, "reason": "этот тикет уже записан",
+                    "trade_id": str(dup.id)}
+
+    sl = signal.stop_loss if signal else None
+    tp = signal.take_profit if signal else None
+    size = position_size(acc.balance, fill_price, sl, acc.risk_per_trade) if sl else {}
+
+    now = datetime.now(timezone.utc)
+    trade = PaperTrade(
+        account_id=acc.id,
+        signal_id=signal.id if signal else None,
+        opened_manually=False,
+        ticker=ticker.upper(),
+        action=(action or "").lower(),
+        # `entry_price` stays the level the platform asked for, so the gap to
+        # `fill_price` remains visible instead of being overwritten by it.
+        entry_price=requested_price or fill_price,
+        take_profit=tp,
+        stop_loss=sl,
+        wef_at_open=round((signal.ai_confidence or 0) * 100) if signal else None,
+        position_value=size.get("position", 0.0),
+        units=volume if volume is not None else size.get("units", 0.0),
+        risk_money=size.get("risk_money", 0.0),
+        status=PaperTradeStatus.OPEN,
+        mt5_ticket=ticket,
+        fill_price=fill_price,
+        spread_at_fill=spread,
+        filled_at=now,
+    )
+    db.add(trade)
+    await db.commit()
+    await db.refresh(trade)
+
+    slip = None
+    if requested_price:
+        # Signed against the trader: positive means the fill was worse.
+        raw = (fill_price - requested_price) / requested_price * 100
+        slip = round(raw if trade.action == "buy" else -raw, 4)
+
+    logger.info(f"MT5 fill recorded {ticker} {trade.action} "
+                f"asked {requested_price} got {fill_price} "
+                f"(slippage {slip}%, spread {spread})")
+    return {
+        "recorded": True,
+        "trade_id": str(trade.id),
+        "signal_id": str(signal.id) if signal else None,
+        "requested": requested_price,
+        "fill": fill_price,
+        "slippage_pct": slip,
+        "spread": spread,
+        "account": acc.name,
+    }

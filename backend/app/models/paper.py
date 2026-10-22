@@ -48,6 +48,12 @@ class PaperAccount(Base):
     # Only take signals at or above this WEF score, so a low-rated stream cannot
     # bury the result of the rated one.
     min_wef: Mapped[int] = mapped_column(Integer, default=0)
+    # Which sources this account takes. "platform" is the measured record and
+    # must never contain a source the platform has no opinion about;
+    # "evaluation" is the opposite — only `paper_only` providers, kept apart so a
+    # new source being terrible cannot move the number the project publishes.
+    scope: Mapped[str] = mapped_column(String(12), default="platform", index=True)
+
     # An external demo account this mirrors, when one is connected (MT5 login,
     # Binance testnet label). Empty means internal-only.
     external_ref: Mapped[str | None] = mapped_column(String(120))
@@ -82,6 +88,22 @@ class PaperTrade(Base):
     position_value: Mapped[float] = mapped_column(Float)     # money committed
     units: Mapped[float] = mapped_column(Float)              # shares / contracts / coins
     risk_money: Mapped[float] = mapped_column(Float)         # what the stop costs
+
+    # ── Actual execution, when a terminal reported one ──────────────────
+    #
+    # Everything else in this table is COMPUTED: the entry is the level that was
+    # published and the result is measured at the level that settled it. No
+    # spread, no slippage, no rejected order. The platform's own simulator says
+    # so in its disclosure; the signals did not.
+    #
+    # These three columns are the first measurement in the project with a real
+    # fill behind it. The difference between `entry_price` and `fill_price` is
+    # the number nobody publishes and the one that decides whether a 0.12%
+    # target survives contact with a 0.02% spread.
+    mt5_ticket: Mapped[int | None] = mapped_column(Integer, index=True)
+    fill_price: Mapped[float | None] = mapped_column(Float)
+    spread_at_fill: Mapped[float | None] = mapped_column(Float)
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     status: Mapped[PaperTradeStatus] = mapped_column(
         Enum(PaperTradeStatus), default=PaperTradeStatus.OPEN, index=True
