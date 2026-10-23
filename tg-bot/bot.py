@@ -1,10 +1,10 @@
-"""WinExtraFlow Telegram Bot — content publishing + auto-forwarding.
+"""WinExtraFlow Telegram Bot — content publishing + user onboarding funnel.
 
 Features:
-1. /publish {day} — publish Wave 1 post for a specific day
-2. /schedule — view full content plan
-3. /custom {text} — publish custom message
-4. /forward — manually forward last message to AI Growth Club
+1. User funnel: /start → experience → stats → CTA → follow-ups
+2. /publish {day} — publish Wave 1 post for a specific day
+3. /schedule — view full content plan
+4. /custom {text} — publish custom message
 5. Auto-forward: messages with #repost or #aigc from channels → AI Growth Club
 6. /market — quick market pulse (Fear & Greed + BTC price)
 
@@ -18,8 +18,11 @@ Bot must be admin in all channels/groups.
 import os
 import logging
 from dotenv import load_dotenv
-from telegram import Update, BotCommand
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, CallbackQueryHandler,
+    ContextTypes, filters, ConversationHandler,
+)
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -30,6 +33,13 @@ CHANNEL_SIGNALS_ID = int(os.getenv("CHANNEL_SIGNALS_ID", "0"))
 CHANNEL_VIP_ID = int(os.getenv("CHANNEL_VIP_ID", "0"))
 GROUP_AIGC_ID = int(os.getenv("GROUP_AIGC_ID", "0"))
 FORWARD_TAGS = [t.strip() for t in os.getenv("FORWARD_TAGS", "#repost,#aigc").split(",")]
+CHANNEL_SIGNALS_LINK = os.getenv("CHANNEL_SIGNALS_LINK", "https://t.me/winextraflow")
+PROMO_CODE = os.getenv("PROMO_CODE", "AIGROWTH14")
+SITE_URL = os.getenv("SITE_URL", "https://winextraflow-agc.vercel.app")
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+
+# ═══ FUNNEL STATES ═══
+EXPERIENCE, SHOW_STATS = range(2)
 
 # ═══ WAVE 1 CONTENT (8 posts, 28 days) ═══
 
@@ -206,9 +216,205 @@ AI: "14 сигналов по SBER за 30 дней. Win Rate: 72%. Уклон: 
 }
 
 
-# ═══ COMMANDS ═══
+# ═══ USER FUNNEL ═══
 
-async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def funnel_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entry point: greet user and ask about trading experience."""
+    name = update.effective_user.first_name or "трейдер"
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📈 Уже торгую", callback_data="exp_active")],
+        [InlineKeyboardButton("🔰 Хочу начать", callback_data="exp_newbie")],
+        [InlineKeyboardButton("🔍 Ищу хорошие сигналы", callback_data="exp_signals")],
+    ])
+    await update.message.reply_text(
+        f"👋 {name}, привет!\n\n"
+        f"WinExtraFlow — AI-платформа торговых сигналов.\n"
+        f"200+ AI-компонентов, 99 источников, один WEF Score.\n\n"
+        f"Скажи, чтобы я показал самое нужное 👇",
+        reply_markup=keyboard,
+    )
+    return EXPERIENCE
+
+
+async def _platform_stats() -> dict:
+    """Live numbers from the platform's own track record.
+
+    Read at call time, never written into the text. Hardcoded figures are how
+    this block came to claim "274 сигнала, 94.8% в плюс" while the database held
+    28 closed trades and 10 wins — a number that was wrong the day it was typed
+    and got wronger every day after.
+
+    `/track-record/summary` already answers honestly: below MIN_SAMPLE closed
+    trades it returns `enough_data: false` and the sentence explaining why,
+    which is the same rule the website and the signal cards follow.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as c:
+            r = await c.get(f"{API_URL}/api/v1/track-record/summary")
+            if r.status_code == 200:
+                return r.json()
+    except Exception as e:
+        logger.warning(f"track-record unavailable: {e}")
+    return {}
+
+
+def _stats_lines(d: dict) -> str:
+    """Format the record for a reader, including when there is not enough of it.
+
+    Saying "we do not publish a win rate yet, and here is the threshold" is a
+    stronger claim than any percentage: it tells the reader what the number
+    would have to survive before it is shown to them.
+    """
+    if not d:
+        return ("📊 Статистика сейчас недоступна — "
+                "сервер не отвечает. Полный журнал: /track-record")
+
+    closed = d.get("closed_trades", 0)
+    if not d.get("enough_data"):
+        return (
+            f"📊 Закрытых сделок: {closed}\n\n"
+            f"Доходность не публикуем, пока их меньше "
+            f"{d.get('min_sample', 30)} — на меньшей выборке это шум, "
+            f"а не результат.\n\n"
+            f"Каналы, обещающие «97% в плюс», этого порога не ставят. "
+            f"Мы ставим и ждём."
+        )
+
+    wr = d.get("win_rate_pct")
+    avg = d.get("avg_result_pct")
+    pf = d.get("profit_factor")
+    out = [f"📊 Закрытых сделок: {closed}"]
+    if wr is not None:
+        out.append(f"Win rate: {wr}%")
+    if avg is not None:
+        out.append(f"Средний результат: {avg:+.2f}% на сделку")
+    if pf is not None:
+        out.append(f"Profit factor: {pf}")
+    out.append("\nВключая убыточные. Журнал открыт: /track-record")
+    return "\n".join(out)
+
+
+async def funnel_experience(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handle experience selection and show relevant stats."""
+    query = update.callback_query
+    await query.answer()
+    exp = query.data
+
+    if exp == "exp_active":
+        text = (
+            "🔥 Отлично — ты уже в теме.\n\n"
+            "Проблема опытных трейдеров: 5-7 Telegram-каналов утром,\n"
+            "3 сайта, 2 биржи — 40+ минут до первой сделки.\n\n"
+            "📊 WEF Score делает это за 2 секунды:\n"
+            "✅ Win rate провайдера — когда он измерен\n"
+            "✅ Risk/Reward и безубыточная доля\n"
+            "✅ Режим рынка\n"
+            "✅ TP/SL + размер позиции от риска\n\n"
+            + _stats_lines(await _platform_stats())
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"🚀 Попробовать бесплатно ({PROMO_CODE})", url=SITE_URL)],
+            [InlineKeyboardButton("📊 Подписаться на сигналы", url=CHANNEL_SIGNALS_LINK)],
+        ])
+
+    elif exp == "exp_newbie":
+        text = (
+            # "95% новичков теряют депозит" is a figure with no source that
+            # every signal-selling funnel repeats, including the two audited
+            # for this project. Removed rather than re-sourced: the honest
+            # version of this screen is what the platform refuses to publish,
+            # not a scarier statistic.
+            "👍 Начать лучше с того, что можно проверить.\n\n"
+            "Что делает платформа:\n"
+            "1️⃣ Считает WEF Score по 9 факторам и показывает, "
+            "сколько из них реально измерено\n"
+            "2️⃣ Отклоняет сетапы, которым нужно больше 70% побед "
+            "просто чтобы не терять\n"
+            "3️⃣ Публикует результат каждой сделки — и прибыльной, "
+            "и убыточной — ответом на сам сигнал\n\n"
+            + _stats_lines(await _platform_stats()) + "\n\n"
+            "Симулятор бесплатный: торговля на реальных котировках "
+            "без денег."
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"🎯 Начать бесплатно ({PROMO_CODE})", url=SITE_URL)],
+            [InlineKeyboardButton("📊 Смотреть канал", url=CHANNEL_SIGNALS_LINK)],
+        ])
+
+    else:  # exp_signals
+        text = (
+            # The daily ✅/❌ table this replaced was copied, format and all,
+            # from a binary-options funnel. Its arithmetic: at an 80% payout,
+            # 274 signals at 94.8% compounds a deposit by ~9x per week and
+            # 10^50 per year — more than all the money in the world. A claim
+            # that cannot be true is not stronger marketing, it is the thing
+            # this platform exists to filter out.
+            "📊 Честная статистика — это та, которую можно проверить.\n\n"
+            + _stats_lines(await _platform_stats()) + "\n\n"
+            "Каждый сигнал — с входом, целью, стопом и расчётом позиции "
+            "от риска. MOEX, крипто, forex, фьючерсы.\n\n"
+            "Результат публикуется ответом на сам сигнал, "
+            "независимо от того, в плюс он или в минус."
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Подписаться на канал", url=CHANNEL_SIGNALS_LINK)],
+            [InlineKeyboardButton(f"🔓 Полный доступ ({PROMO_CODE})", url=SITE_URL)],
+        ])
+
+    await query.edit_message_text(text=text, reply_markup=keyboard)
+
+    # Schedule follow-up after 24h if user doesn't convert
+    context.job_queue.run_once(
+        _followup_job,
+        when=86400,  # 24 hours
+        chat_id=query.message.chat_id,
+        user_id=query.from_user.id,
+        data={"exp": exp},
+    )
+
+    return ConversationHandler.END
+
+
+async def _followup_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Send follow-up message 24h after /start if user hasn't registered."""
+    job = context.job
+    exp = (job.data or {}).get("exp", "exp_signals")
+
+    if exp == "exp_newbie":
+        text = (
+            "😳 Человек вступил — и сразу включился.\n"
+            "В первый день получил первый результат 💲\n\n"
+            "Без лишних сомнений. Просто начал — и увидел.\n\n"
+            f"👉 Твоё место ещё свободно → {SITE_URL}\n"
+            f"Промокод: {PROMO_CODE} — 14 дней бесплатно."
+        )
+    else:
+        text = (
+            f"📅 Сегодня новая торговая сессия.\n\n"
+            f"Ты ещё не с нами? Самое время 👇\n"
+            f"→ {SITE_URL}\n"
+            f"Промокод {PROMO_CODE} — 14 дней Premium бесплатно."
+        )
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Активировать", url=SITE_URL)],
+    ])
+    try:
+        await context.bot.send_message(
+            chat_id=job.chat_id,
+            text=text,
+            reply_markup=keyboard,
+        )
+    except Exception as e:
+        logger.warning(f"Follow-up failed for {job.chat_id}: {e}")
+
+
+# ═══ ADMIN COMMANDS ═══
+
+async def cmd_start_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin info command (only in group/channel or if args present)."""
     await update.message.reply_text(
         "🌊 WinExtraFlow Bot\n\n"
         "Команды:\n"
@@ -386,9 +592,19 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Commands
-    app.add_handler(CommandHandler("start", cmd_start))
-    app.add_handler(CommandHandler("help", cmd_start))
+    # User onboarding funnel (private chats only)
+    funnel = ConversationHandler(
+        entry_points=[CommandHandler("start", funnel_start, filters=filters.ChatType.PRIVATE)],
+        states={
+            EXPERIENCE: [CallbackQueryHandler(funnel_experience, pattern="^exp_")],
+        },
+        fallbacks=[],
+        per_chat=True,
+    )
+    app.add_handler(funnel)
+
+    # Admin commands (work everywhere)
+    app.add_handler(CommandHandler("help", cmd_start_admin))
     app.add_handler(CommandHandler("schedule", cmd_schedule))
     app.add_handler(CommandHandler("publish", cmd_publish))
     app.add_handler(CommandHandler("custom", cmd_custom))
