@@ -6,6 +6,8 @@
 [build.environment]
   NODE_VERSION = "20"
   NEXT_TELEMETRY_DISABLED = "1"
+  # После деплоя Railway — заменить на реальный URL бэкенда
+  NEXT_PUBLIC_API_URL = "https://winextraflow-production.up.railway.app"
 
 [[headers]]
   for = "/_next/static/*"

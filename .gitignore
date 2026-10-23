@@ -89,3 +89,4 @@ backend/.tg_auth_state.json
 backend/llm_metrics.jsonl
 backend/llm_metrics.jsonl.1
 frontend/next.config.js.standalone.bak2
+railway-env.txt
