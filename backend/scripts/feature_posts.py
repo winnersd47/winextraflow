@@ -14,6 +14,7 @@ Usage:
   python scripts/feature_posts.py send 3           # -> free channel
   python scripts/feature_posts.py send 3 --vip     # -> VIP too
   python scripts/feature_posts.py next             # send next unposted (rotates)
+  python scripts/feature_posts.py edit 2           # rewrite an already-sent post in place
 """
 import asyncio, json, os, sys
 sys.stdout.reconfigure(encoding="utf-8")
@@ -22,7 +23,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import httpx
 from app.config import settings
 
-P = "https://winextraflow.pages.dev"
+# Single source: services/signal_chart.PLATFORM_URL. A local copy is how
+# posts kept linking to a host that stopped resolving.
+from app.services.signal_chart import PLATFORM_URL as P
 DIS = "⚠️ Не является инвестиционной рекомендацией."
 STATE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "feature_post_state.json")
 
@@ -55,20 +58,26 @@ POSTS: list[dict] = [
     },
     {
         "key": "quality_gate",
-        "title": "Фильтр качества — 7 проверок",
+        "title": "Фильтр качества — 9 проверок",
         "text": f"""🛡 <b>Что происходит с сигналом до публикации</b>
 
-Сигнал не попадает в канал, пока не пройдёт семь проверок:
+Сигнал не попадает в канал, пока не пройдёт девять проверок:
 
-✅ Есть цель (TP)
-✅ Есть стоп (SL)
-✅ R:R не ниже 1:1.5
+Шесть могут отклонить:
+✅ Есть цель (TP) и стоп (SL)
+✅ Уровни по правильную сторону входа
+✅ Геометрия: безубыточная доля не выше 70%, цель не дальше 10 стопов и не выше +60%, стоп за пределами шума
+✅ Вход совпадает с текущим рынком
 ✅ WEF Score не ниже 50%
-✅ Провайдер с адекватной историей
-✅ Нет дубля по этому тикеру
-✅ Цена входа актуальна рынку
+✅ Не серия доливок после стопов
 
-Не прошёл — не публикуем. Даже если тикер популярный.
+Три помечают предупреждением:
+⚠️ Провайдер с короткой или слабой историей
+⚠️ Дубль активного сигнала по этому тикеру
+⚠️ Заседание по ставке или данные внутри срока сделки
+
+Не прошёл отклоняющую — не публикуем. Даже если тикер популярный. Предупреждения
+не прячем: они печатаются в самой карточке, решение остаётся за вами.
 
 Раз в неделю показываем, сколько сигналов отклонили и почему.
 
@@ -157,7 +166,19 @@ EV = 0.7 − 0.9 = <b>−0.2%</b> ❌
 
 Во втором случае вы правы чаще — и всё равно в минусе.
 
-Поэтому мы не публикуем сигналы с R:R ниже 1:1.5.
+Обратите внимание на пример B. Чтобы он вышел в ноль, прав надо быть
+в 75% случаев: 3 / (1 + 3). А правы вы в 70% — и этого не хватает.
+
+Это и есть правило, по которому мы отклоняем сигналы. Не «R:R не ниже
+такого-то», а безубыточная доля:
+
+<b>безубыток = стоп / (стоп + цель)</b>
+
+Выше 70% — отклоняем: столько побед подряд не выдаёт никто.
+Выше 55% — публикуем с предупреждением.
+
+В каждой карточке эта доля напечатана. «Нужно 73% побед» — утверждение,
+которое можно взвесить. «R:R 0.36» — нет.
 
 🔗 {P}
 
@@ -374,7 +395,7 @@ def _state() -> dict:
                 return json.load(f)
         except Exception:
             pass
-    return {"posted": []}
+    return {"posted": [], "ids": {}}
 
 
 def _save(st: dict):
@@ -382,19 +403,63 @@ def _save(st: dict):
         json.dump(st, f, ensure_ascii=False, indent=2)
 
 
-async def _send(chat_id: str, text: str) -> bool:
+def _remember(st: dict, key: str, chat_id: str, message_id: int) -> None:
+    """Record where a post landed, so a wrong claim can be corrected in place.
+
+    Two posts went out stating a rule the gate had already dropped ("R:R не
+    ниже 1:1.5"). Fixing the template left the live messages wrong, and the
+    Bot API gives no way to list a bot's own past posts — without the id the
+    only remedy is deleting and reposting, which loses the views and the
+    comment thread. A bot can edit its own channel message with no time limit,
+    so the id is worth four bytes of state.
+    """
+    st.setdefault("ids", {}).setdefault(key, {})[str(chat_id)] = message_id
+
+
+async def _api(method: str, body: dict) -> dict:
+    token = settings.telegram_bot_token
+    data = json.dumps(body).encode("utf-8")
+    async with httpx.AsyncClient(timeout=20) as c:
+        r = await c.post(f"https://api.telegram.org/bot{token}/{method}",
+                         content=data, headers={"Content-Type": "application/json; charset=utf-8"})
+    return r.json()
+
+
+async def _send(chat_id: str, text: str, st: dict | None = None,
+                key: str | None = None) -> bool:
     token = settings.telegram_bot_token
     if not token or not chat_id:
         print("(bot not configured)"); return False
-    body = {"chat_id": chat_id, "text": text, "parse_mode": "HTML",
-            "disable_notification": True, "disable_web_page_preview": True}
-    data = json.dumps(body).encode("utf-8")
-    async with httpx.AsyncClient(timeout=20) as c:
-        r = await c.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                         content=data, headers={"Content-Type": "application/json; charset=utf-8"})
-    ok = r.json().get("ok", False)
-    print("  sent" if ok else f"  failed: {r.text[:160]}")
+    res = await _api("sendMessage", {
+        "chat_id": chat_id, "text": text, "parse_mode": "HTML",
+        "disable_notification": True, "disable_web_page_preview": True})
+    ok = res.get("ok", False)
+    if ok:
+        mid = res.get("result", {}).get("message_id")
+        if st is not None and key and mid:
+            _remember(st, key, chat_id, mid)
+        print(f"  sent (id {mid})")
+    else:
+        print(f"  failed: {json.dumps(res, ensure_ascii=False)[:160]}")
     return ok
+
+
+async def _edit(chat_id: str, message_id: int, text: str) -> bool:
+    if not settings.telegram_bot_token:
+        print("(bot not configured)"); return False
+    res = await _api("editMessageText", {
+        "chat_id": chat_id, "message_id": message_id, "text": text,
+        "parse_mode": "HTML", "disable_web_page_preview": True})
+    if res.get("ok"):
+        print(f"  {chat_id}#{message_id}: edited")
+        return True
+    desc = res.get("description", "")
+    # Telegram treats an identical body as an error, which is not a failure here.
+    if "message is not modified" in desc:
+        print(f"  {chat_id}#{message_id}: already current")
+        return True
+    print(f"  {chat_id}#{message_id}: failed — {desc[:120]}")
+    return False
 
 
 async def main():
@@ -414,14 +479,29 @@ async def main():
 
     if cmd == "send" and len(args) > 1:
         p = POSTS[int(args[1]) - 1]
+        st = _state()
         print(f"Sending: {p['title']}")
-        await _send(settings.telegram_free_channel_id, p["text"])
+        await _send(settings.telegram_free_channel_id, p["text"], st, p["key"])
         if "--vip" in args:
             await asyncio.sleep(1)
-            await _send(settings.telegram_vip_channel_id, p["text"])
-        st = _state()
+            await _send(settings.telegram_vip_channel_id, p["text"], st, p["key"])
         if p["key"] not in st["posted"]:
-            st["posted"].append(p["key"]); _save(st)
+            st["posted"].append(p["key"])
+        _save(st)
+        return
+
+    if cmd == "edit" and len(args) > 1:
+        p = POSTS[int(args[1]) - 1]
+        st = _state()
+        targets = st.get("ids", {}).get(p["key"], {})
+        if not targets:
+            print(f"Нет сохранённых message_id для «{p['title']}».\n"
+                  f"Найти их в истории канала: python scripts/tg_find_post_ids.py")
+            return
+        print(f"Editing: {p['title']}")
+        for chat_id, mid in targets.items():
+            await _edit(chat_id, mid, p["text"])
+            await asyncio.sleep(0.5)
         return
 
     if cmd == "next":
@@ -430,11 +510,14 @@ async def main():
         if not nxt:  # all posted -> start over
             st["posted"] = []; nxt = POSTS[0]
         print(f"Sending: {nxt['title']}")
-        await _send(settings.telegram_free_channel_id, nxt["text"])
+        await _send(settings.telegram_free_channel_id, nxt["text"], st, nxt["key"])
         st["posted"].append(nxt["key"]); _save(st)
         return
 
     print(__doc__)
 
 
-asyncio.run(main())
+# Guarded: tg_find_post_ids.py imports POSTS and the state helpers from here,
+# and an unguarded asyncio.run made that import send a message.
+if __name__ == "__main__":
+    asyncio.run(main())
