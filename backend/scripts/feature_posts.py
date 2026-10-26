@@ -491,17 +491,27 @@ async def main():
         return
 
     if cmd == "edit" and len(args) > 1:
-        p = POSTS[int(args[1]) - 1]
         st = _state()
-        targets = st.get("ids", {}).get(p["key"], {})
-        if not targets:
-            print(f"Нет сохранённых message_id для «{p['title']}».\n"
-                  f"Найти их в истории канала: python scripts/tg_find_post_ids.py")
-            return
-        print(f"Editing: {p['title']}")
-        for chat_id, mid in targets.items():
-            await _edit(chat_id, mid, p["text"])
-            await asyncio.sleep(0.5)
+        if args[1] == "all":
+            # Telegram answers "message is not modified" for a post that is
+            # already current, which _edit treats as success — so this is safe
+            # to run over the whole library.
+            chosen = [p for p in POSTS if st.get("ids", {}).get(p["key"])]
+            if not chosen:
+                print("Нет сохранённых message_id: python scripts/tg_find_post_ids.py --write")
+                return
+        else:
+            chosen = [POSTS[int(args[1]) - 1]]
+        for p in chosen:
+            targets = st.get("ids", {}).get(p["key"], {})
+            if not targets:
+                print(f"Нет сохранённых message_id для «{p['title']}».\n"
+                      f"Найти их в истории канала: python scripts/tg_find_post_ids.py")
+                continue
+            print(f"Editing: {p['title']}")
+            for chat_id, mid in targets.items():
+                await _edit(chat_id, mid, p["text"])
+                await asyncio.sleep(0.5)
         return
 
     if cmd == "next":

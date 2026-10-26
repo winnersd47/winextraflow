@@ -23,6 +23,7 @@ Usage:
     python scripts/tg_find_post_ids.py --limit 500  # how deep to read (default 300)
 """
 import asyncio
+import html
 import json
 import os
 import re
@@ -51,6 +52,19 @@ def _headline(text: str) -> str:
     return re.sub(r"[^0-9a-zа-яё]+", "", first.lower())
 
 
+def _plain(text: str) -> str:
+    """Rendered words only — for asking whether the channel is out of date.
+
+    Telegram stores the message with HTML already applied, so the template's
+    tags have to come off before comparing, and whitespace has to be collapsed:
+    the entities a client re-adds do not survive a round trip byte for byte.
+    Escapes have to be undone too — the template writes `Buy &amp; Hold`, the
+    channel shows `Buy & Hold`, and without this the post reads as drifted
+    forever.
+    """
+    return re.sub(r"\s+", " ", html.unescape(TAGS.sub("", text))).strip()
+
+
 async def main() -> int:
     write = "--write" in sys.argv
     limit = 300
@@ -68,6 +82,7 @@ async def main() -> int:
 
     wanted = {_headline(p["text"]): p["key"] for p in fp.POSTS}
     found: dict[str, dict[str, int]] = {}
+    live: dict[str, str] = {}   # key -> text as the channel currently shows it
 
     # "wef_backfill" is the authorised login, not a label: telethon_session
     # opens the .session file of exactly that name, so any other string here
@@ -110,6 +125,10 @@ async def main() -> int:
                 key = wanted.get(_headline(msg.text))
                 if not key:
                     continue
+                # raw_text, not text: Telethon re-renders entities as markdown
+                # in .text, so every <b> comes back as ** and the comparison
+                # below reports drift on all 16 posts.
+                live.setdefault(key, msg.raw_text or msg.text)
                 # iter_messages walks newest first, so the first hit is the
                 # most recent send of that post. A rotation that reposted it
                 # should repair the copy people are actually looking at.
@@ -125,6 +144,25 @@ async def main() -> int:
     for key, targets in found.items():
         for chat_id, mid in targets.items():
             print(f"  {titles.get(key, key)} → {chat_id}#{mid}")
+
+    # Which live posts no longer say what the template says. Compared on the
+    # rendered text, because the channel stores the message with HTML already
+    # applied — only the words can be compared, not the markup.
+    drift = []
+    for i, p in enumerate(fp.POSTS, 1):
+        shown = live.get(p["key"])
+        if shown is None:
+            continue
+        if _plain(shown) != _plain(p["text"]):
+            drift.append((i, p["title"]))
+    print()
+    if drift:
+        print("Разошлись с шаблоном (в канале старый текст):")
+        for i, title in drift:
+            print(f"  {i:2}. {title}")
+        print("Починить: python scripts/feature_posts.py edit <N>")
+    else:
+        print("Все найденные посты совпадают с шаблонами.")
 
     if not write:
         print("\nЭто предпросмотр. Сохранить: --write")
