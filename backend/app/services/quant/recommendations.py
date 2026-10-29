@@ -167,7 +167,7 @@ class RecommendationEngine:
         # Use signal's SL if provided and reasonable
         if signal.stop_loss:
             sig_sl_pct = abs(entry - signal.stop_loss) / entry * 100
-            if 0.1 <= sig_sl_pct <= base_vol * 2:
+            if 0.05 <= sig_sl_pct <= base_vol * 2:
                 sl_total_pct = sig_sl_pct
                 sl_buffer_pct = sig_sl_pct * 0.15
 
@@ -297,12 +297,41 @@ class RecommendationEngine:
         mf_score = 50 + (ai_conf - 0.5) * 60 + (rr - 1.5) * 10  # approximate
         mf_score = max(0, min(100, mf_score))
 
-        # Expert verdict
-        should_trade = ev["tradeable"] and rr >= 1.5 and ai_conf >= 0.5
+        # Expert verdict.
+        #
+        # This used to require `rr >= 1.5`, and that single clause was silently
+        # the platform's real publishing rule: between 2026-10-05 and 10-29
+        # every signal with R:R >= 1.68 went out and every signal with R:R <=
+        # 1.16 was dropped with "Evolution: SKIP". Nothing reached the channel
+        # for two weeks, because the incoming flow in that period was forex and
+        # futures with modest targets.
+        #
+        # The rule also contradicted the quality gate, which dropped the ratio
+        # floor in favour of the breakeven share after replaying 80 signals: the
+        # worst outcomes came from the FARTHEST targets (-7.04% per trade in the
+        # top band against -0.41% in the nearest), so a floor on R:R selects for
+        # the failure mode rather than against it. SILV at R:R 1.08 needs 48% of
+        # trades to be right; CVX at 5.80 needs 15% and was published without
+        # question. One of those was blocked, and it was not the risky one.
+        #
+        # `expected_value` already computes `breakeven_win_rate = 1/(1+rr)`, the
+        # same quantity the gate uses, so the threshold is shared rather than
+        # re-derived. Note the win rate behind `ev` is still the assumed 0.55
+        # above whenever the provider has no measured record — see
+        # services/measured_stats.py for why that is its own problem.
+        from app.services.signal_quality import BREAKEVEN_REJECT_PCT, MIN_WEF_SCORE
+        breakeven_pct = ev["breakeven_win_rate"] * 100
+
+        should_trade = (ev["tradeable"]
+                        and breakeven_pct <= BREAKEVEN_REJECT_PCT
+                        and ai_conf >= MIN_WEF_SCORE)
+        # Strength now reads "how much room is there between the win rate this
+        # setup needs and a coin flip", not "how far away is the target".
         trade_strength = (
-            "STRONG" if ev["expected_value_pct"] > 0.5 and rr >= 2 and ai_conf >= 0.7
-            else "GOOD" if ev["tradeable"] and rr >= 1.5
-            else "MARGINAL" if ev["tradeable"]
+            "STRONG" if should_trade and ev["expected_value_pct"] > 0.5
+            and breakeven_pct <= 40 and ai_conf >= 0.7
+            else "GOOD" if should_trade and breakeven_pct <= 50
+            else "MARGINAL" if should_trade
             else "SKIP"
         )
 
