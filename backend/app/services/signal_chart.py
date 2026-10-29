@@ -20,7 +20,15 @@ from app.services.backtesting_real import fetch_candles
 
 logger = logging.getLogger(__name__)
 
-PLATFORM_URL = "https://winextraflow.pages.dev"
+# The address every post links to. Overridable, because it has moved once and
+# will move again: posts went out carrying winextraflow.pages.dev, which does
+# not resolve from Russian networks at all — measured HTTP 000 against 200 for
+# the current host — so every link in every published card was dead for the
+# audience it was written for.
+#
+# Five modules kept their own copy of this literal, which is why the move had
+# to be made in five places. They import it from here now.
+PLATFORM_URL = os.getenv("PLATFORM_URL", "https://winextra.agc-flow.online")
 
 # Telegram allows 4096 characters in a message but only 1024 in a photo or video
 # caption, and this card is always sent as one. The difference is not academic:

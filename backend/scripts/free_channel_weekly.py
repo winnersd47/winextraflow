@@ -18,7 +18,9 @@ from app.config import settings
 from app.database import async_session
 from app.models.signal import Signal, SignalStatus
 
-PLATFORM = "https://winextraflow.pages.dev"
+# Single source: services/signal_chart.PLATFORM_URL. A local copy is how
+# posts kept linking to a host that stopped resolving.
+from app.services.signal_chart import PLATFORM_URL as PLATFORM
 
 
 async def _send(chat_id: str, text: str) -> bool:

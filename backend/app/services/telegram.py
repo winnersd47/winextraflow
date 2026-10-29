@@ -100,6 +100,8 @@ _LATIN_ALIASES = {
     "MAGNIT": "MGNT", "SEVERSTAL": "CHMF", "ALROSA": "ALRS", "POLYUS": "PLZL",
     "TATNEFT": "TATN", "AEROFLOT": "AFLT", "SURGUT": "SNGS", "SURGUTNEFTEGAS": "SNGS",
     "BITCOIN": "BTCUSDT", "ETHEREUM": "ETHUSDT", "SOLANA": "SOLUSDT",
+    # MOEX futures common names
+    "GOLD": "XAUUSD", "SILV": "XAGUSD", "BRENT": "BZ=F", "OIL": "CL=F",
 }
 
 
@@ -230,13 +232,20 @@ class TelegramParser:
         # Take profit: prefer explicit price in parens after Тейк
         tp = _num(r"Тейк[^\n\r]*?\(([\d\s.,]+)\)")
 
-        # Ticker: futures code on the direction line, e.g. "Br-8.26 Шорт"
-        tm = re.search(r"([A-Za-z]{1,5}[-–][\d.]+|[A-Z]{2,6})\s+(?:Шорт|Лонг)", text, re.IGNORECASE)
-        ticker = tm.group(1).upper().replace("–", "-") if tm else None
+        # Ticker: futures code on the direction line.
+        # Accepts both "Br-8.26 Шорт" and "Gold - 12.26 Лонг" (spaces around dash).
+        tm = re.search(
+            r"([A-Za-z]{1,6})\s*[-–]\s*[\d.]+\s+(?:Шорт|Лонг)"
+            r"|([A-Z]{2,6})\s+(?:Шорт|Лонг)",
+            text, re.IGNORECASE,
+        )
+        if not tm:
+            return None
+        ticker = (tm.group(1) or tm.group(2) or "").upper()
         if not ticker or not any(c.isalpha() for c in ticker):
             return None
 
-        return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
+        return ParsedSignal(ticker=_resolve_ticker(ticker), action=action, entry_price=entry,
                             take_profit=tp, stop_loss=sl)
 
     @staticmethod
@@ -478,6 +487,67 @@ class TelegramParser:
 
 
     @staticmethod
+    def parse_ticker_colon_action(text: str) -> ParsedSignal | None:
+        """Parse format: TICKER: ACTION with emoji-prefixed level lines.
+
+        Example (Learn2Trade):
+            🔴 EURJPY: SELL
+            🎯 Entry: 176.116
+            🛑 Stop loss: 177.443
+            ✅ TP1: 174.900
+            ✅ TP2: 173.500
+        """
+        head = re.search(
+            r"#?([A-Z]{3,12}(?:/[A-Z]{2,6})?)\s*:\s*(BUY|SELL|LONG|SHORT)",
+            text, re.IGNORECASE,
+        )
+        if not head:
+            return None
+        ticker = head.group(1).upper().replace("/", "")
+        if not _is_valid_ticker(ticker):
+            return None
+        action = _normalize_action(head.group(2))
+
+        entry_m = re.search(r"Entry\s*:\s*([\d,.]+)", text, re.IGNORECASE)
+        if not entry_m:
+            return None
+        try:
+            entry = _clean_price(entry_m.group(1))
+        except ValueError:
+            return None
+        if entry <= 0:
+            return None
+
+        sl_m = re.search(r"Stop\s*(?:loss)?\s*:\s*([\d,.]+)", text, re.IGNORECASE)
+        sl = None
+        if sl_m:
+            try:
+                sl = _clean_price(sl_m.group(1))
+            except ValueError:
+                pass
+
+        # Collect all TP values, pick TP2 if available (better R:R than TP1)
+        raw_tps = re.findall(
+            r"(?:TP\d*|Take\s*profit\s*\d*)\s*:\s*([\d,.]+)", text, re.IGNORECASE
+        )
+        tps = []
+        for v in raw_tps:
+            try:
+                val = _clean_price(v)
+                if val > 0:
+                    tps.append(val)
+            except ValueError:
+                pass
+        ahead = sorted(
+            [t for t in tps if (t > entry if action == "buy" else t < entry)],
+            reverse=(action == "sell"),
+        )
+        tp = ahead[1] if len(ahead) > 1 else (ahead[0] if ahead else None)
+
+        return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
+                            take_profit=tp, stop_loss=sl)
+
+    @staticmethod
     def parse_message(text: str) -> ParsedSignal | None:
         """Parse a Telegram message into a structured signal.
 
@@ -502,17 +572,15 @@ class TelegramParser:
         if crange:
             return crange
 
-        # Pinned-levels layout: direction and ticker on one line, the entry
-        # range and numbered targets on their own.
+        # Pinned-levels layout: direction and ticker on one line, numbered targets.
         pinned = TelegramParser.parse_pin_targets(text)
         if pinned:
             return pinned
 
-        # Try the pinned-levels layout (direction and ticker on one line, the
-        # entry range and numbered targets on their own).
-        pinned = TelegramParser.parse_pin_targets(text)
-        if pinned:
-            return pinned
+        # TICKER: ACTION format with emoji-prefixed Entry/Stop/TP lines.
+        tca = TelegramParser.parse_ticker_colon_action(text)
+        if tca:
+            return tca
 
         for pattern in SIGNAL_PATTERNS:
             match = pattern.search(text)

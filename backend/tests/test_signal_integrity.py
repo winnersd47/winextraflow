@@ -77,7 +77,13 @@ def test_backfill_declares_a_message_age_limit():
     assert m, "backfill must define MAX_MESSAGE_AGE_HOURS"
     hours = int(m.group(1))
     assert 1 <= hours <= 168, f"age limit {hours}h is outside a sensible range"
-    assert "m.date >= cutoff" in src, "backfill must filter messages by date"
+    # Reads `m["date"]` since the backfill moved off Telethon to the public web
+    # preview (scripts/fetch_public.py), where a post is a dict. Same guarantee.
+    assert 'm["date"] >= cutoff' in src, "backfill must filter messages by date"
+    # And an undated post must be dropped, not kept: `or m["date"] is None`
+    # would wave through exactly the year-old posts this window exists to stop.
+    assert 'm["date"] and m["date"] >= cutoff' in src, \
+        "a post with no timestamp must not count as fresh"
 
 
 def test_message_age_cutoff_logic():

@@ -11,11 +11,14 @@ from telethon.tl.functions.messages import EditChatAboutRequest, SetChatAvailabl
 from telethon.tl.types import ChatReactionsSome, ReactionEmoji
 from app.config import settings
 
-PLATFORM = "https://winextraflow.pages.dev"
+# Single source: services/signal_chart.PLATFORM_URL. A local copy is how
+# posts kept linking to a host that stopped resolving.
+from app.services.signal_chart import PLATFORM_URL as PLATFORM
 
 ABOUT = (
     "AI-сигналы: MOEX, крипто, форекс, акции США. WEF Score по 9 факторам, "
-    "TP/SL, экспертный анализ, графики. Платформа: winextraflow.pages.dev. "
+    "TP/SL, экспертный анализ, графики. "
+    f"Платформа: {PLATFORM.replace('https://', '')}. "
     "Не является инвестиционной рекомендацией."
 )
 

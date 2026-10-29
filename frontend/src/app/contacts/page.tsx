@@ -21,7 +21,7 @@ export default function ContactsPage() {
         ["Регистрирующий орган", "Межрайонная ИФНС России №9 по Приморскому краю"],
         ["Email", "winnersd47@gmail.com"],
         ["Telegram", "@winnersd95"],
-        ["Сайт", "winextraflow.pages.dev"],
+        ["Сайт", "winextra.agc-flow.online"],
       ]
     : [
         ["Provider", "Viktor Serdyuk"],
@@ -31,7 +31,7 @@ export default function ContactsPage() {
         ["Tax authority", "Interdistrict IFTS of Russia No. 9, Primorsky Krai"],
         ["Email", "winnersd47@gmail.com"],
         ["Telegram", "@winnersd95"],
-        ["Website", "winextraflow.pages.dev"],
+        ["Website", "winextra.agc-flow.online"],
       ];
 
   const docs = isRu

@@ -20,7 +20,9 @@ from app.config import settings
 from app.database import async_session
 from app.models.signal import Signal, SignalStatus
 
-P = "https://winextraflow.pages.dev"
+# Single source: services/signal_chart.PLATFORM_URL. A local copy is how
+# posts kept linking to a host that stopped resolving.
+from app.services.signal_chart import PLATFORM_URL as P
 
 
 async def main():

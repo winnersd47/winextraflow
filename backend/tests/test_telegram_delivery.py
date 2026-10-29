@@ -167,3 +167,51 @@ def test_reason_for_absent_metrics_is_never_trimmed():
                             expert=NO_METRICS, geometry=GEOMETRY_LOSING)
         assert "не рассчитано" in cap or "не рассчитаны" in cap, \
             f"{shape[0]}: the explanation for missing metrics was trimmed"
+
+
+def test_platform_url_is_not_duplicated_across_modules():
+    """Eleven modules linked to the platform; six kept their own copy of the
+    address. When the host moved, posts kept pointing at winextraflow.pages.dev
+    — which answers HTTP 000 from Russian networks, so every published link was
+    dead for exactly the audience it was written for."""
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    offenders = []
+    for path in list((root / "app").rglob("*.py")) + list((root / "scripts").rglob("*.py")):
+        if path.name == "signal_chart.py":
+            continue
+        src = path.read_text(encoding="utf-8")
+        code = "\n".join(ln for ln in src.splitlines()
+                         if not ln.lstrip().startswith("#"))
+        if re.search(r'=\s*f?"https?://(?!127\.0\.0\.1|localhost)[^"]*"', code) \
+                and re.search(r"PLATFORM|SITE|^\s*P\s*=", code, re.M):
+            if "signal_chart import" not in code:
+                offenders.append(path.name)
+    assert not offenders, (
+        f"these modules define the platform address themselves: {offenders}")
+
+
+def test_no_module_points_at_the_dead_host():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    bad = []
+    for path in list((root / "app").rglob("*.py")) + list((root / "scripts").rglob("*.py")):
+        src = path.read_text(encoding="utf-8")
+        code = "\n".join(ln for ln in src.splitlines()
+                         if not ln.lstrip().startswith("#"))
+        if "pages.dev" in code:
+            bad.append(path.name)
+    assert not bad, f"still linking to the unreachable host: {bad}"
+
+
+def test_platform_url_is_overridable():
+    """It has moved once and will move again."""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[1] / "app" / "services"
+           / "signal_chart.py").read_text(encoding="utf-8")
+    assert 'os.getenv("PLATFORM_URL"' in src, \
+        "the address is hardcoded again — the next move needs a code change"
