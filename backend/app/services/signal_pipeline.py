@@ -201,6 +201,34 @@ async def process_and_broadcast(
             sent = False
             clip = None
 
+            # Random-entry baseline for this signal's own geometry — the number
+            # it has to beat. Cached per instrument per day, so a burst of
+            # signals on one ticker costs one candle fetch.
+            #
+            # Computed here rather than inside the clip branch, which is where
+            # it used to live: the fallback card below reads it too, so a signal
+            # whose clip could not be rendered raised UnboundLocalError and was
+            # never published at all. That hit exactly the instruments with no
+            # Yahoo candles — SILV and RTS both failed this way on 2026-10-29,
+            # reported only as "broadcast_error".
+            geometry = None
+            try:
+                from app.services.signal_geometry import (breakeven_hit_rate,
+                                                          geometry_hit_rate_cached)
+                tp_m = abs(corrected_tp - signal.entry_price)
+                sl_m = abs(signal.entry_price - corrected_sl)
+                if sl_m > 0:
+                    # Express the signal's own R:R in ATR multiples of the same
+                    # shape the baseline walks, so the two are comparable.
+                    ratio = tp_m / sl_m
+                    geometry = await geometry_hit_rate_cached(
+                        signal.ticker, signal.action.value,
+                        tp_mult=round(2.0 * ratio, 2), sl_mult=2.0)
+                    geometry["breakeven_pct"] = breakeven_hit_rate(
+                        geometry["tp_mult"], geometry["sl_mult"])
+            except Exception as e:
+                logger.debug(f"geometry baseline skipped for {signal.ticker}: {e}")
+
             # ── VIP: ONE message — video clip carrying the full expert description ──
             if settings.signal_clips_enabled:
                 try:
@@ -217,27 +245,6 @@ async def process_and_broadcast(
                 from app.services.signal_chart import build_caption
                 from app.services.signal_clip import broadcast_clip
                 # Full rich description (same text as the old photo card) on the clip
-                # Random-entry baseline for this signal's own geometry — the
-                # number it has to beat. Cached per instrument per day, so a burst
-                # of signals on one ticker costs one candle fetch.
-                geometry = None
-                try:
-                    from app.services.signal_geometry import (
-                        breakeven_hit_rate, geometry_hit_rate_cached)
-                    tp_m = abs(corrected_tp - signal.entry_price)
-                    sl_m = abs(signal.entry_price - corrected_sl)
-                    if sl_m > 0:
-                        # Express the signal's own R:R in ATR multiples of the same
-                        # shape the baseline walks, so the two are comparable.
-                        ratio = tp_m / sl_m
-                        geometry = await geometry_hit_rate_cached(
-                            signal.ticker, signal.action.value,
-                            tp_mult=round(2.0 * ratio, 2), sl_mult=2.0)
-                        geometry["breakeven_pct"] = breakeven_hit_rate(
-                            geometry["tp_mult"], geometry["sl_mult"])
-                except Exception as e:
-                    logger.debug(f"geometry baseline skipped for {signal.ticker}: {e}")
-
                 full_caption = build_caption(
                     signal.ticker, signal.action.value, signal.entry_price,
                     corrected_tp, corrected_sl, result["wef"],

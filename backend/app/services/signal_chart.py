@@ -382,10 +382,15 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
     price_fmt = ",.2f" if entry >= 1 else ",.5f"
     pyr = "\U0001f53a Пирамидинг: 3 уровня" if not trend_conflict else "\U0001f6ab Пирамидинг: не рекомендуется"
 
-    # Market hashtag for filtering
-    market_tag = {"Акции РФ": "MOEX", "Фьючерс": "фьючерсы", "Криптовалюта": "crypto", "Валютная пара": "forex",
-                  "Акции": "stocks"}.get(asset_type, "market")
-    hashtags = f"#{ticker} #{market_tag} #WinExtraFlow"
+    # Hashtags are how a reader finds every card on an instrument, a market or a
+    # direction — three of them (`#TICKER #market #WinExtraFlow`) covered only
+    # the first. The full list is built in services/signal_tags.py in priority
+    # order, and it is the LAST thing to get caption budget: below, the card is
+    # assembled with the analysis intact and the tags take what is left over.
+    # Trading conclusions must never be dropped to make room for "#трейдинг".
+    from app.services.signal_tags import build_tags, fit
+    all_tags = build_tags(ticker, action, wef)
+    min_tags = fit(all_tags, 64)
 
     # EV / Profit Factor / Kelly / Edge are all functions of the win rate, so they
     # appear only when that rate was measured. With an assumed rate they read as
@@ -402,7 +407,8 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
     else:
         metrics_block = f"{pyr}\n\n"
 
-    def assemble(concl: str) -> str:
+    def assemble(concl: str, hashtags: str = "") -> str:
+        hashtags = hashtags or min_tags
         return (
             f"{arrow} {action.upper()} {ticker}  |  WEF {wef}%\n"
             f"\U0001f3e6 {asset_type} | {instrument}\n\n"
@@ -421,11 +427,16 @@ def build_caption(ticker: str, action: str, entry: float, tp: float, sl: float,
             f"{hashtags}"
         )
 
-    caption = assemble(conclusion)
+    # Give the tags whatever the finished card leaves over. `fit` walks the
+    # priority order, so a tight card keeps the ticker and the market and loses
+    # "#investing"; a roomy one carries all twenty-odd.
+    spare = CAPTION_LIMIT - len(assemble(conclusion, ""))
+    caption = assemble(conclusion, fit(all_tags, spare))
     if len(caption) <= CAPTION_LIMIT:
         return caption
 
-    # Over budget. Drop sentences until it fits, optional ones first and from
+    # Still over budget with the shortest possible tag line, so the body itself
+    # is too long. Drop sentences until it fits, optional ones first and from
     # the end, so generic technique goes before risk warnings and measured
     # evidence. Levels, verdict and the disclaimer sit outside `parts` and are
     # never touched — a card that loses its stop loss to a length limit is worse

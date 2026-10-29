@@ -245,7 +245,12 @@ def build_clip_caption(ticker: str, action: str, entry: float, tp: float, sl: fl
     _, _, asset_type, currency = _instrument(ticker)
     rr = abs(tp - entry) / abs(entry - sl) if abs(entry - sl) > 0 else 0
     fmt = ",.2f" if entry >= 1 else ",.5f"
-    tag = f"#{ticker} #WinExtraFlow"
+    # Budget, not a fixed list: this is a video caption, so Telegram allows 1024
+    # characters for the whole thing. `tag_line` returns the most valuable tags
+    # that fit and drops the broad ones first. The teaser is the shorter body of
+    # the two, so it can afford more of them.
+    from app.services.signal_tags import tag_line
+    tag = tag_line(ticker, action, wef, budget=320 if teaser else 240)
 
     if teaser:
         return (
@@ -258,8 +263,8 @@ def build_clip_caption(ticker: str, action: str, entry: float, tp: float, sl: fl
             f"• Мат. ожидание и Profit Factor\n"
             f"• План входа частями (пирамидинг)\n"
             f"• Где торговать инструмент\n\n"
-            f"\U0001f48e Сигналы с WEF 70%+ в общий канал не попадают — "
-            f"только в VIP.\n\n"
+            f"\U0001f48e Сигналы с WEF {settings.free_teaser_max_wef}%+ в общий "
+            f"канал не попадают — только в VIP.\n\n"
             f"\U0001f4f2 {PLATFORM_URL}\n\n"
             f"⚠️ Не является инвестиционной рекомендацией.\n{tag}"
         )
