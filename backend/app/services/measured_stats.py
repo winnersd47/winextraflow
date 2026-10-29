@@ -36,6 +36,13 @@ async def measured_win_rate(db: AsyncSession, provider=None) -> dict:
     from app.models.signal import Signal, SignalStatus
     from app.services.signal_quality import is_seed_signal, not_excluded
 
+    # NOT filtered by `was_published()`, unlike the public track record, which
+    # stopped counting unsent signals on 2026-10-29. The same argument applies
+    # here — a card deriving "EV +X% на сделку" from trades that never left the
+    # building is the problem that module docstring is about — but two existing
+    # tests build their fixtures without message ids, and existing autotests are
+    # not to be rewritten. Raised with the owner instead; today the difference
+    # is nil, since both paths sit under MIN_SAMPLE and return None.
     q = select(Signal).where(
         Signal.status.in_((SignalStatus.CLOSED_TP, SignalStatus.CLOSED_SL)),
         # Duplicated closed rows counted one outcome twice, which on a sample of

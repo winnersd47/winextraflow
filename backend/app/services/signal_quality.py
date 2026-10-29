@@ -91,8 +91,39 @@ def not_excluded():
     return Signal.excluded_reason.is_(None)
 
 
+def was_published():
+    """SQL condition: the signal actually reached a channel.
+
+    A closed signal is not a result until somebody could have traded it. Three
+    kinds of row close without ever being sent, and all three were landing in
+    the public win rate:
+
+      * trial sources on a paper track — the reasoning says "Paper-only source:
+        measured, not published", which is the whole point of a trial;
+      * setups this gate rejected — 8 of them had a breakeven share above
+        BREAKEVEN_REJECT_PCT, i.e. the filter worked and the record ignored it;
+      * anything created while the broadcast path was down.
+
+    Measured 2026-10-29: 33 closed rows, 13 of them sent. The other 20 carried
+    the record over MIN_SAMPLE on their own, so the site was publishing a win
+    rate built mostly out of signals nobody saw. Pair with `not_excluded()` and
+    the seed check.
+    """
+    return Signal.tg_vip_message_id.isnot(None) | Signal.tg_free_message_id.isnot(None)
+
+
+def is_published(signal: Signal) -> bool:
+    """In-Python equivalent of `was_published()`."""
+    return bool(signal.tg_vip_message_id or signal.tg_free_message_id)
+
+
 def is_countable(signal: Signal) -> bool:
-    """In-Python equivalent of `not_excluded()` plus the seed check."""
+    """In-Python equivalent of `not_excluded()` plus the seed check.
+
+    Deliberately does NOT include `is_published`: callers that rank or audit
+    every stored signal need this, while callers that publish a number add
+    `was_published()` themselves.
+    """
     return signal.excluded_reason is None and not is_seed_signal(signal)
 
 

@@ -36,13 +36,17 @@ from app.services.signal_quality import SEED_MARKERS, is_seed_signal as _is_seed
 
 
 async def _closed_real(db: AsyncSession) -> list[Signal]:
-    """Closed signals from real sources only (seed/demo excluded)."""
-    # `not_excluded` drops rows a human ruled out after the fact — duplicates of
-    # an outcome already counted. `_is_seed` drops fixtures. Both are needed: one
-    # inspects the row, the other records a judgement about it.
-    from app.services.signal_quality import not_excluded
+    """Closed signals this channel actually published, from real sources only."""
+    # Three filters, three different questions. `_is_seed` inspects the row for
+    # fixtures and test tickers. `not_excluded` carries a human judgement made
+    # after the fact — duplicates of an outcome already counted. `was_published`
+    # asks whether a reader could have acted on it: without it the record
+    # counted paper-only trial sources and setups the quality gate rejected,
+    # which is how 33 "closed trades" came from 13 published ones.
+    from app.services.signal_quality import not_excluded, was_published
     rows = (await db.execute(
-        select(Signal).where(Signal.status.in_(CLOSED), not_excluded())
+        select(Signal).where(Signal.status.in_(CLOSED), not_excluded(),
+                             was_published())
     )).scalars().all()
     return [s for s in rows if not _is_seed(s)]
 
