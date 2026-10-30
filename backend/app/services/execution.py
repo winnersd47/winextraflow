@@ -21,6 +21,7 @@ from app.services.exchanges.demo import DemoAdapter
 from app.services.exchanges.binance import BinanceAdapter
 from app.services.exchanges.bybit import BybitAdapter
 from app.services.exchanges.okx import OKXAdapter
+from app.services.exchanges.mexc import MexcAdapter
 from app.services.exchanges.kraken import KrakenAdapter
 from app.services.exchanges.metatrader5 import MetaTrader5Adapter
 from app.services.exchanges.interactive_brokers import InteractiveBrokersAdapter
@@ -62,6 +63,7 @@ def _get_adapter(account: ExchangeAccount) -> BaseExchangeAdapter:
         ExchangeName.BYBIT: BybitAdapter,
         ExchangeName.OKX: OKXAdapter,
         ExchangeName.KRAKEN: KrakenAdapter,
+        ExchangeName.MEXC: MexcAdapter,
         # Forex / CFD
         ExchangeName.METATRADER5: MetaTrader5Adapter,
         ExchangeName.INTERACTIVE_BROKERS: InteractiveBrokersAdapter,

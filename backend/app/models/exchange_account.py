@@ -18,6 +18,10 @@ class ExchangeName(str, enum.Enum):
     BYBIT = "bybit"
     OKX = "okx"
     KRAKEN = "kraken"
+    # Reachable from the Russian network, where Binance is not — the same
+    # reason it is the third price source. Spot only, and there is no spot
+    # testnet: see services/exchanges/mexc.py.
+    MEXC = "mexc"
 
     # ─── Forex / CFD ─────────────────────────────────────
     METATRADER5 = "metatrader5"          # MetaTrader 5 (Forex, CFD, Futures)

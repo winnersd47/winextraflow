@@ -163,7 +163,7 @@ export default function LandingPage() {
           {isRu ? "Подключено к ведущим биржам" : "Connected to leading exchanges"}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-6 opacity-60">
-          {["Binance", "Bybit", "OKX", "Kraken", "MT5", "Tinkoff", "IBKR", "Exante", "Demo"].map(ex => (
+          {["Binance", "Bybit", "OKX", "Kraken", "MEXC", "MT5", "Tinkoff", "IBKR", "Exante", "Demo"].map(ex => (
             <span key={ex} className="text-sm font-bold text-text-muted tracking-wide">{ex}</span>
           ))}
         </div>
@@ -506,7 +506,7 @@ export default function LandingPage() {
             },
             {
               q: isRu ? "Какие биржи поддерживаются?" : "Which exchanges are supported?",
-              a: isRu ? "9 бирж: Binance, Bybit, OKX, Kraken, MetaTrader 5, Interactive Brokers, Tinkoff Invest, Exante и Demo-режим." : "9 exchanges: Binance, Bybit, OKX, Kraken, MetaTrader 5, Interactive Brokers, Tinkoff Invest, Exante, and Demo mode.",
+              a: isRu ? "10 бирж: Binance, Bybit, OKX, Kraken, MEXC, MetaTrader 5, Interactive Brokers, Tinkoff Invest, Exante и Demo-режим." : "10 exchanges: Binance, Bybit, OKX, Kraken, MEXC, MetaTrader 5, Interactive Brokers, Tinkoff Invest, Exante, and Demo mode.",
             },
             {
               q: isRu ? "Как работает WEF Score?" : "How does WEF Score work?",

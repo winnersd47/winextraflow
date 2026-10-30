@@ -208,6 +208,7 @@ export default function PortfolioPage() {
                       <option value="bybit">Bybit</option>
                       <option value="okx">OKX</option>
                       <option value="kraken">Kraken</option>
+                      <option value="mexc">MEXC</option>
                     </optgroup>
                     <optgroup label="Forex">
                       <option value="metatrader5">MetaTrader 5</option>
@@ -252,7 +253,7 @@ export default function PortfolioPage() {
                   <div className="flex items-center gap-3">
                     <span className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${
                       acc.exchange === "demo" ? "bg-purple-500/20 text-purple-400" :
-                      ["binance","bybit","okx","kraken"].includes(acc.exchange) ? "bg-yellow-500/20 text-yellow-400" :
+                      ["binance","bybit","okx","kraken","mexc"].includes(acc.exchange) ? "bg-yellow-500/20 text-yellow-400" :
                       ["metatrader5","interactive_brokers"].includes(acc.exchange) ? "bg-blue-500/20 text-blue-400" :
                       "bg-green-500/20 text-green-400"
                     }`}>{acc.exchange === "interactive_brokers" ? "IBKR" : acc.exchange === "metatrader5" ? "MT5" : acc.exchange}</span>
