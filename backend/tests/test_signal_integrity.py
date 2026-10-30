@@ -985,10 +985,17 @@ def test_crypto_candles_have_a_fallback():
 
 def test_bybit_candles_are_oldest_first():
     """Bybit returns newest-first; every caller assumes oldest-first, so an
-    unreversed list would make ATR and charts read the series backwards."""
+    unreversed list would make ATR and charts read the series backwards.
+
+    `candles.reverse()` became `sorted(by_ts)` when the fetcher learned to page
+    — pages arrive newest-first AND out of order relative to each other, so one
+    reverse is no longer enough. Same guarantee, stated against the current
+    mechanism; the ordering itself is exercised in tests/test_candle_paging.py.
+    """
     import inspect
     from app.services import backtesting_real as B
-    assert "candles.reverse()" in inspect.getsource(B.fetch_bybit_candles)
+    src = inspect.getsource(B.fetch_bybit_candles)
+    assert "sorted(by_ts)" in src, "порядок свечей больше ничем не гарантирован"
 
 
 def test_both_crypto_exchanges_are_health_monitored():

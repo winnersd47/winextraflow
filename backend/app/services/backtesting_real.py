@@ -99,6 +99,29 @@ async def fetch_moex_candles(ticker: str, date_from: str, date_to: str,
         return []
 
 
+# MEXC answers at most 500 klines per request and ignores a larger `limit`
+# without saying so. Paging is therefore mandatory, not an optimisation.
+MEXC_PAGE = 500
+# Binance honours 1000 and caps there; it truncates just as silently.
+BINANCE_PAGE = 1000
+# Bybit v5 caps a kline page at 1000 as well.
+BYBIT_PAGE = 1000
+
+# MEXC does not speak Binance's interval vocabulary, and says so only with
+# {"code": -1121, "msg": "Invalid interval."}. Callers across this project pass
+# the Binance spelling, so "1h" fetched nothing at all and the failure looked
+# like a symbol with no history. Measured 2026-10-30: 1m/5m/15m/30m/60m/4h/8h/
+# 1d/1W/1M are accepted; 1h, 2h, 6h, 12h and 1w are not.
+_MEXC_INTERVALS = {
+    "1m": "1m", "5m": "5m", "15m": "15m", "30m": "30m",
+    "1h": "60m", "60m": "60m", "4h": "4h", "8h": "8h",
+    "1d": "1d", "1w": "1W", "1W": "1W", "1M": "1M",
+}
+# 50 pages x 500 = 25 000 bars, far more than any window this project asks for;
+# the cap exists so a misbehaving endpoint cannot spin forever.
+MEXC_MAX_PAGES = 50
+
+
 async def fetch_binance_candles(ticker: str, date_from: str, date_to: str, interval: str = "1d") -> list[dict]:
     """Fetch candles from Binance API. Free, no auth."""
     url = "https://api.binance.com/api/v3/klines"
@@ -106,41 +129,63 @@ async def fetch_binance_candles(ticker: str, date_from: str, date_to: str, inter
     start_ts = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
     end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
 
-    params = {
-        # Binance symbols carry no separator: "ZIL/BTC" is rejected, and the error
-        # body was then iterated as if it were candle rows, which is where
-        # "could not convert string to float: 'o'" came from.
-        "symbol": ticker.upper().replace("/", "").replace("-", "").replace("_", ""),
-        "interval": interval,
-        "startTime": start_ts,
-        "endTime": end_ts,
-        "limit": 1000,
-    }
+    # Binance symbols carry no separator: "ZIL/BTC" is rejected, and the error
+    # body was then iterated as if it were candle rows, which is where
+    # "could not convert string to float: 'o'" came from.
+    symbol = ticker.upper().replace("/", "").replace("-", "").replace("_", "")
+
+    candles: list[dict] = []
+    cursor = start_ts
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(url, params=params)
-            raw = resp.json()
-            # An error response is a dict ({"code": -1121, "msg": "Invalid symbol"}),
-            # not a list of klines. Bail out instead of parsing its keys as prices.
-            if not isinstance(raw, list):
-                logger.info(f"Binance: {params['symbol']} rejected — {str(raw)[:120]}")
-                return []
-            candles = [
-                {
-                    "open": float(k[1]),
-                    "high": float(k[2]),
-                    "low": float(k[3]),
-                    "close": float(k[4]),
-                    "volume": float(k[5]),
-                    "begin": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                }
-                for k in raw
-            ]
-            logger.info(f"Binance: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
-            return candles
+            # Paged for the same reason as MEXC: a single call returns at most
+            # BINANCE_PAGE bars and says nothing when the window needed more,
+            # so it quietly answers with the OLDEST slice. Two months of 15m
+            # bars is 5 700 — this returned 1 000 of them and the backtest
+            # ended six weeks before the date it was asked for.
+            for _ in range(MEXC_MAX_PAGES):
+                resp = await client.get(url, params={
+                    "symbol": symbol, "interval": interval,
+                    "startTime": cursor, "endTime": end_ts,
+                    "limit": BINANCE_PAGE,
+                })
+                raw = resp.json()
+                # An error response is a dict ({"code": -1121, "msg": "Invalid symbol"}),
+                # not a list of klines. Bail out instead of parsing its keys as prices.
+                if not isinstance(raw, list):
+                    if not candles:
+                        logger.info(f"Binance: {symbol} rejected — {str(raw)[:120]}")
+                    break
+                if not raw:
+                    break
+                candles.extend(
+                    {
+                        "open": float(k[1]),
+                        "high": float(k[2]),
+                        "low": float(k[3]),
+                        "close": float(k[4]),
+                        "volume": float(k[5]),
+                        "begin": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                        "_ts": int(k[0]),
+                    }
+                    for k in raw
+                )
+                last_ts = int(raw[-1][0])
+                if len(raw) < BINANCE_PAGE or last_ts >= end_ts or last_ts <= cursor:
+                    break
+                cursor = last_ts + 1
     except Exception as e:
         logger.error(f"Binance candle fetch error for {ticker}: {e}")
         return []
+
+    seen, out = set(), []
+    for c in candles:
+        ts = c.pop("_ts")
+        if ts not in seen:
+            seen.add(ts)
+            out.append(c)
+    logger.info(f"Binance: {ticker} → {len(out)} candles ({date_from} to {date_to})")
+    return out
 
 
 # Bybit intervals are minute counts ("D" for daily), not Binance's "1d"/"1h" strings.
@@ -160,37 +205,57 @@ async def fetch_bybit_candles(ticker: str, date_from: str, date_to: str,
     start_ts = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
     end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
 
+    by_ts: dict[int, dict] = {}
+    cursor_end = end_ts
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get(
-                "https://api.bybit.com/v5/market/kline",
-                params={"category": "spot", "symbol": symbol,
-                        "interval": _BYBIT_INTERVAL.get(interval, "D"),
-                        "start": start_ts, "end": end_ts, "limit": 1000},
-            )
-            body = resp.json()
-            if body.get("retCode") != 0:
-                logger.info(f"Bybit: {symbol} rejected — {body.get('retMsg')}")
-                return []
-            rows = (body.get("result") or {}).get("list") or []
-            candles = [
-                {
-                    "open": float(k[1]),
-                    "high": float(k[2]),
-                    "low": float(k[3]),
-                    "close": float(k[4]),
-                    "volume": float(k[5]),
-                    "begin": datetime.fromtimestamp(int(k[0]) / 1000, tz=timezone.utc)
-                                     .strftime("%Y-%m-%d %H:%M"),
-                }
-                for k in rows
-            ]
-            candles.reverse()          # Bybit is newest-first; callers expect oldest-first
-            logger.info(f"Bybit: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
-            return candles
+            # Paged BACKWARDS, unlike Binance and MEXC. Bybit effectively
+            # ignores `start` when the window holds more than a page and
+            # returns the NEWEST BYBIT_PAGE rows up to `end` — measured
+            # 2026-10-30, two months of 15m bars came back as a round 1 000
+            # covering only 19-30 October, while the other two had 5 700 from
+            # 1 September. Advancing `start` therefore makes no progress at
+            # all; the window has to be walked by pulling `end` earlier.
+            for _ in range(MEXC_MAX_PAGES):
+                resp = await client.get(
+                    "https://api.bybit.com/v5/market/kline",
+                    params={"category": "spot", "symbol": symbol,
+                            "interval": _BYBIT_INTERVAL.get(interval, "D"),
+                            "start": start_ts, "end": cursor_end,
+                            "limit": BYBIT_PAGE},
+                )
+                body = resp.json()
+                if body.get("retCode") != 0:
+                    if not by_ts:
+                        logger.info(f"Bybit: {symbol} rejected — {body.get('retMsg')}")
+                    break
+                rows = (body.get("result") or {}).get("list") or []
+                if not rows:
+                    break
+                for k in rows:
+                    ts = int(k[0])
+                    by_ts[ts] = {
+                        "open": float(k[1]),
+                        "high": float(k[2]),
+                        "low": float(k[3]),
+                        "close": float(k[4]),
+                        "volume": float(k[5]),
+                        "begin": datetime.fromtimestamp(ts / 1000, tz=timezone.utc)
+                                         .strftime("%Y-%m-%d %H:%M"),
+                    }
+                oldest = min(int(k[0]) for k in rows)
+                if (len(rows) < BYBIT_PAGE or oldest <= start_ts
+                        or oldest >= cursor_end):
+                    break
+                cursor_end = oldest - 1
     except Exception as e:
         logger.error(f"Bybit candle fetch error for {ticker}: {e}")
         return []
+
+    # Callers expect oldest-first; the dict also drops page-boundary repeats.
+    candles = [by_ts[ts] for ts in sorted(by_ts)]
+    logger.info(f"Bybit: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
+    return candles
 
 
 async def fetch_mexc_candles(ticker: str, date_from: str, date_to: str,
@@ -204,6 +269,14 @@ async def fetch_mexc_candles(ticker: str, date_from: str, date_to: str,
     here, so the shapes agree where it matters; do not assume the tail exists.
     """
     symbol = ticker.upper().replace("/", "").replace("-", "").replace("_", "")
+    mexc_interval = _MEXC_INTERVALS.get(interval)
+    if not mexc_interval:
+        # Say it plainly and return nothing, so fetch_crypto_candles moves on to
+        # an exchange that does support the timeframe instead of reporting the
+        # instrument as having no history.
+        logger.info(f"MEXC has no {interval} candles — supported: "
+                    f"{', '.join(sorted(set(_MEXC_INTERVALS)))}")
+        return []
     start_ts = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
     # endTime is EXCLUSIVE here and inclusive on Binance: asking both for
     # 25–29 October returned five candles from Binance and four from MEXC,
@@ -212,34 +285,64 @@ async def fetch_mexc_candles(ticker: str, date_from: str, date_to: str,
     # which is the one an ATR weighs most. Extend to the end of `date_to`.
     end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000) \
         + 24 * 60 * 60 * 1000 - 1
+
+    candles: list[dict] = []
+    cursor = start_ts
     try:
         async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.get("https://api.mexc.com/api/v3/klines", params={
-                "symbol": symbol, "interval": interval,
-                "startTime": start_ts, "endTime": end_ts, "limit": 1000,
-            })
-            raw = resp.json()
-            # An unknown symbol is HTTP 400 with {"code": -1121, "msg": ...},
-            # a dict — iterating it would parse its keys as prices.
-            if not isinstance(raw, list):
-                logger.info(f"MEXC: {symbol} rejected — {str(raw)[:120]}")
-                return []
-            candles = [
-                {
-                    "open": float(k[1]),
-                    "high": float(k[2]),
-                    "low": float(k[3]),
-                    "close": float(k[4]),
-                    "volume": float(k[5]),
-                    "begin": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
-                }
-                for k in raw if len(k) >= 6
-            ]
-            logger.info(f"MEXC: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
-            return candles
+            # MEXC caps a kline response at 500 and ignores a larger `limit`
+            # silently — Binance honours 1000, so a single request looked fine
+            # until a window needed more. It then returned the OLDEST 500 bars
+            # of the range and nothing said so: a 120-day 4h backtest (720 bars)
+            # measured 2 July to 23 September and never saw the last five weeks.
+            # Page forward instead of trusting one call.
+            for _ in range(MEXC_MAX_PAGES):
+                resp = await client.get("https://api.mexc.com/api/v3/klines", params={
+                    "symbol": symbol, "interval": mexc_interval,
+                    "startTime": cursor, "endTime": end_ts, "limit": MEXC_PAGE,
+                })
+                raw = resp.json()
+                # An unknown symbol is HTTP 400 with {"code": -1121, "msg": ...},
+                # a dict — iterating it would parse its keys as prices.
+                if not isinstance(raw, list):
+                    if not candles:
+                        logger.info(f"MEXC: {symbol} rejected — {str(raw)[:120]}")
+                    break
+                page = [
+                    {
+                        "open": float(k[1]),
+                        "high": float(k[2]),
+                        "low": float(k[3]),
+                        "close": float(k[4]),
+                        "volume": float(k[5]),
+                        "begin": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                        "_ts": int(k[0]),
+                    }
+                    for k in raw if len(k) >= 6
+                ]
+                if not page:
+                    break
+                candles.extend(page)
+                last_ts = page[-1]["_ts"]
+                if len(raw) < MEXC_PAGE or last_ts >= end_ts or last_ts <= cursor:
+                    # Short page, reached the end, or no forward progress —
+                    # the last guard is what stops an endless loop if the
+                    # exchange ever returns the same bar twice.
+                    break
+                cursor = last_ts + 1
     except Exception as e:
         logger.error(f"MEXC candle fetch error for {ticker}: {e}")
         return []
+
+    # Drop the sort key and any bar a page boundary repeated.
+    seen, out = set(), []
+    for c in candles:
+        ts = c.pop("_ts")
+        if ts not in seen:
+            seen.add(ts)
+            out.append(c)
+    logger.info(f"MEXC: {ticker} → {len(out)} candles ({date_from} to {date_to})")
+    return out
 
 
 async def fetch_crypto_candles(ticker: str, date_from: str, date_to: str,

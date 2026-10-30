@@ -109,7 +109,10 @@ async def test_zero_price_is_rejected(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_candles_parse_from_an_eight_element_row(monkeypatch):
-    _stub(monkeypatch, [MEXC_KLINE, MEXC_KLINE])
+    # Distinct timestamps: two identical rows are one bar sent twice, and the
+    # pager now collapses those — a page boundary repeats its edge.
+    later = [MEXC_KLINE[0] + 86_400_000] + MEXC_KLINE[1:]
+    _stub(monkeypatch, [MEXC_KLINE, later])
     candles = await bt.fetch_mexc_candles("BTCUSDT", "2026-10-20", "2026-10-29")
 
     assert len(candles) == 2
