@@ -12,6 +12,7 @@ Usage: python scripts/tg_backfill.py [limit] [--vip]
 
 import asyncio
 import os
+import re
 import sys
 
 sys.stdout.reconfigure(encoding="utf-8")
@@ -43,6 +44,52 @@ MAX_MESSAGE_AGE_HOURS = 48
 #   free tier with $10 credit: 1000 requests/day         -> 10 is comfortable
 # Override per environment with LLM_PARSE_PER_RUN.
 MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN", "10"))
+
+
+async def find_provider(db, username: str):
+    """The provider row for a channel, whatever key it was first stored under.
+
+    One channel must map to exactly one row, because every flag that matters
+    lives on the row. A source marked `paper_only` that is ingested through an
+    unmarked twin is published to subscribers, and its trial does nothing —
+    that has already happened here once.
+
+    The keys have changed twice. Rows written under Telethon hold the numeric
+    channel id and the channel's real title; rows registered by hand hold the
+    username; rows written since the move to the web preview hold the username
+    in both the key and the name. Matching on the current key alone therefore
+    creates a duplicate for every channel with history — measured 2026-10-29,
+    the first run after the move created 17 of them, one per monitored channel,
+    splitting each source's record in half.
+
+    `description` is the join that survives all three: every auto-created and
+    every hand-registered row carries "@username" in it.
+    """
+    u = (username or "").lstrip("@")
+    if not u:
+        return None
+
+    hit = (await db.execute(select(Provider).where(
+        Provider.telegram_channel_id == u).limit(1))).scalar_one_or_none()
+    if hit:
+        return hit
+
+    # "Auto @name" and "На оценке: @name". Anchored with the trailing boundary
+    # so @silver_fx_trading_signal does not swallow @silver_fx_trading_signals_free.
+    rows = (await db.execute(select(Provider).where(
+        Provider.description.ilike(f"%@{u}%")))).scalars().all()
+    exact = [p for p in rows
+             if re.search(rf"@{re.escape(u)}(?![0-9A-Za-z_])", p.description or "")]
+    if exact:
+        # Prefer the row that actually carries the history.
+        best = max(exact, key=lambda p: p.total_signals or 0)
+        if not best.telegram_channel_id or best.telegram_channel_id != u:
+            best.telegram_channel_id = u
+            await db.commit()
+        return best
+
+    return (await db.execute(select(Provider).where(
+        Provider.name == u).limit(1))).scalar_one_or_none()
 
 
 async def main(limit: int | None = None, broadcast: bool | None = None):
@@ -90,36 +137,19 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
     ledger = ParseLedger(max_per_run=MAX_LLM_PARSE_PER_RUN)
     async with async_session() as db:
         for ch, channel_id, title, msgs in fetched:
-            # Find or create provider for this channel.
-            #
-            # Three lookups, and the middle one matters: a provider registered by
-            # hand (scripts/add_trial_source.py) stores the USERNAME, while this
-            # loop stores the numeric id. Matching only on the numeric id created
-            # a second row per channel — and since the flags live on the row, a
-            # source marked `paper_only` was ingested through its unmarked twin
-            # and published to subscribers. The trial it was under did nothing.
-            provider = (await db.execute(
-                select(Provider).where(Provider.telegram_channel_id == channel_id).limit(1)
-            )).scalar_one_or_none()
-            if not provider and ch:
-                provider = (await db.execute(
-                    select(Provider).where(Provider.telegram_channel_id == ch).limit(1)
-                )).scalar_one_or_none()
-                if provider:
-                    # Found by username: store the numeric id so the first lookup
-                    # matches next time, and no twin is ever created.
-                    provider.telegram_channel_id = channel_id
-                    await db.commit()
+            provider = await find_provider(db, ch)
             if not provider:
-                provider = (await db.execute(
-                    select(Provider).where(Provider.name == title).limit(1)
-                )).scalar_one_or_none()
-            if not provider:
-                provider = Provider(name=title, source=ProviderSource.TELEGRAM,
-                                    description=f"Auto @{ch}", telegram_channel_id=channel_id, is_active=True)
+                # Store the username in BOTH fields. telegram_channel_id is the
+                # fast lookup; the description is what survives a rename, and it
+                # is how the rows written under Telethon ("Auto @beststocksru",
+                # "На оценке: @silver_fx…") are still found today.
+                provider = Provider(name=ch, source=ProviderSource.TELEGRAM,
+                                    description=f"Auto @{ch}",
+                                    telegram_channel_id=ch, is_active=True)
                 db.add(provider)
                 await db.commit()
                 await db.refresh(provider)
+                print(f"  [{ch}] новый провайдер")
 
             for m in msgs:
                 text = m["text"]

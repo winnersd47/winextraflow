@@ -281,7 +281,14 @@ def test_provider_lookup_matches_a_hand_registered_row():
            / "tg_backfill.py").read_text(encoding="utf-8")
     code = "\n".join(ln for ln in src.splitlines()
                      if not ln.lstrip().startswith("#"))
-    start = code.index("provider = (await db.execute(")
-    lookup = code[start:code.index("for m in msgs", start)]
-    assert lookup.count("Provider.telegram_channel_id ==") >= 2, \
-        "provider lookup still matches on the numeric id alone"
+    # The lookup moved out of main() into find_provider() when the backfill
+    # stopped using Telethon; the guarantee is unchanged, so read it there.
+    start = code.index("async def find_provider")
+    lookup = code[start:code.index("async def main", start)]
+    assert "Provider.telegram_channel_id ==" in lookup, \
+        "provider lookup no longer matches on the channel key"
+    assert "Provider.description" in lookup, \
+        "provider lookup matches on one key alone — a renamed or re-keyed " \
+        "channel gets a second, unflagged row again"
+    # Behaviour, not text: tests/test_provider_identity.py exercises the real
+    # rows this used to get wrong.
