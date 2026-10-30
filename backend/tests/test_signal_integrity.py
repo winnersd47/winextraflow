@@ -934,12 +934,15 @@ async def test_crypto_price_falls_back_to_the_other_exchange(monkeypatch):
     async def alive(_t):
         return {"ticker": _t, "price": 1.0, "source": "Bybit"}
 
+    # MEXC joined as a third source; it has to be stubbed too, or this test
+    # reaches the real exchange and asserts against a live quote.
     monkeypatch.setattr(L, "_binance_price", dead)
+    monkeypatch.setattr(L, "_mexc_price", dead)
     monkeypatch.setattr(L, "_bybit_price", alive)
     got = await L._crypto_price("BTCUSDT")
     assert got and got["source"] == "Bybit"
 
-    # Both down must be None, not a fabricated zero.
+    # ALL sources down must be None, not a fabricated zero.
     monkeypatch.setattr(L, "_bybit_price", dead)
     assert await L._crypto_price("BTCUSDT") is None
 

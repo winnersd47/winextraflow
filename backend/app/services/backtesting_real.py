@@ -193,25 +193,76 @@ async def fetch_bybit_candles(ticker: str, date_from: str, date_to: str,
         return []
 
 
+async def fetch_mexc_candles(ticker: str, date_from: str, date_to: str,
+                             interval: str = "1d") -> list[dict]:
+    """Fetch candles from MEXC v3. Free, no auth. Third crypto source.
+
+    Chosen because it answers from the Russian network this deploys to, where
+    Binance does not. The endpoint is Binance-shaped and oldest-first, so the
+    index mapping is the same — but a row has EIGHT elements, not twelve
+    (openTime, o, h, l, c, volume, closeTime, quoteVolume). Only 0-5 are read
+    here, so the shapes agree where it matters; do not assume the tail exists.
+    """
+    symbol = ticker.upper().replace("/", "").replace("-", "").replace("_", "")
+    start_ts = int(datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000)
+    # endTime is EXCLUSIVE here and inclusive on Binance: asking both for
+    # 25–29 October returned five candles from Binance and four from MEXC,
+    # missing the 29th. Same backtest, different answer depending on which
+    # exchange happened to reply — and the dropped bar is the most recent one,
+    # which is the one an ATR weighs most. Extend to the end of `date_to`.
+    end_ts = int(datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp() * 1000) \
+        + 24 * 60 * 60 * 1000 - 1
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get("https://api.mexc.com/api/v3/klines", params={
+                "symbol": symbol, "interval": interval,
+                "startTime": start_ts, "endTime": end_ts, "limit": 1000,
+            })
+            raw = resp.json()
+            # An unknown symbol is HTTP 400 with {"code": -1121, "msg": ...},
+            # a dict — iterating it would parse its keys as prices.
+            if not isinstance(raw, list):
+                logger.info(f"MEXC: {symbol} rejected — {str(raw)[:120]}")
+                return []
+            candles = [
+                {
+                    "open": float(k[1]),
+                    "high": float(k[2]),
+                    "low": float(k[3]),
+                    "close": float(k[4]),
+                    "volume": float(k[5]),
+                    "begin": datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).strftime("%Y-%m-%d %H:%M"),
+                }
+                for k in raw if len(k) >= 6
+            ]
+            logger.info(f"MEXC: {ticker} → {len(candles)} candles ({date_from} to {date_to})")
+            return candles
+    except Exception as e:
+        logger.error(f"MEXC candle fetch error for {ticker}: {e}")
+        return []
+
+
 async def fetch_crypto_candles(ticker: str, date_from: str, date_to: str,
                                interval: str = "1d") -> list[dict]:
-    """Crypto candles with a fallback between the two exchanges.
+    """Crypto candles with fallbacks across the exchanges.
 
     Candles feed the ATR that sizes every stop, the charts and the backtests. With
     one source, an outage or a block there silently produced zero candles — and a
     signal with no ATR gets no volatility stop at all.
     """
-    from app.services.live_price import CRYPTO_PRIMARY
+    from app.services.live_price import _crypto_order
 
-    order = ([fetch_bybit_candles, fetch_binance_candles]
-             if CRYPTO_PRIMARY == "bybit"
-             else [fetch_binance_candles, fetch_bybit_candles])
-    for fetch in order:
+    sources = {"binance": fetch_binance_candles,
+               "bybit": fetch_bybit_candles,
+               "mexc": fetch_mexc_candles}
+    # Same precedence as the live quote, from the same CRYPTO_PRIMARY, so a
+    # card's price and its chart cannot come from exchanges ranked differently.
+    for fetch in _crypto_order(sources):
         got = await fetch(ticker, date_from, date_to, interval)
         if got:
             return got
     logger.warning(f"No crypto source returned candles for {ticker} "
-                   f"(tried Binance and Bybit)")
+                   f"(tried {', '.join(sources)})")
     return []
 
 
@@ -362,7 +413,10 @@ async def fetch_candles(ticker: str, date_from: str, date_to: str) -> list[dict]
         return await fetch_forex_candles(ticker, date_from, date_to)
     else:
         # Try all sources
-        for fetcher in [fetch_moex_candles, fetch_binance_candles, fetch_forex_candles]:
+        # fetch_crypto_candles, not fetch_binance_candles: an unclassified
+        # ticker that happens to be crypto deserves the same three-exchange
+        # fallback as a classified one.
+        for fetcher in [fetch_moex_candles, fetch_crypto_candles, fetch_forex_candles]:
             candles = await fetcher(ticker, date_from, date_to)
             if candles:
                 return candles

@@ -14,9 +14,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Which crypto exchange to try first. Bybit is the practical choice on Russian
-# infrastructure: Binance withdrew from that market, and the fallback means either
-# one being unreachable is a slowdown rather than an outage.
+# Which crypto exchange to try first — "binance", "bybit" or "mexc"; the rest
+# follow as fallbacks. Bybit and MEXC are the practical choices on Russian
+# infrastructure: Binance withdrew from that market, and MEXC was measured
+# answering that network directly. Three sources mean any one being unreachable
+# is a slowdown rather than an outage.
 CRYPTO_PRIMARY = os.getenv("CRYPTO_PRIMARY", "binance").lower()
 
 # Market classification lives in services/instruments.py — four copies of
@@ -217,24 +219,92 @@ async def _bybit_price(ticker: str) -> dict | None:
         }
 
 
-async def _crypto_price(ticker: str) -> dict | None:
-    """Crypto quote with a fallback, so one exchange failing is not an outage.
+async def _mexc_price(ticker: str) -> dict | None:
+    """MEXC v3 spot ticker — the third crypto source.
 
-    Order comes from CRYPTO_PRIMARY: set it to "bybit" where Binance is unreachable
-    (it withdrew from the Russian market, and the RU VPS this deploys to may see
-    restrictions the developer's network does not).
+    Added because it answers from the Russian network, which is where this
+    deploys and who it is for: measured 2026-10-29, ping and quotes return 200
+    in ~0.5-1.1s with no proxy. Binance withdrew from that market and Bybit is
+    one operator; a third independent one makes a block or an outage a
+    slowdown rather than a hole in the record.
+
+    The response is Binance-shaped and the symbol format is the same (BTCUSDT),
+    so no mapping table — with one trap: `priceChangePercent` is a FRACTION
+    here (-0.0334 for -3.34%), while Binance returns a percentage in that same
+    field. Passing it through unscaled would understate every move by 100x.
+    Bybit has the identical quirk; see `_bybit_price`.
     """
-    order = ([_bybit_price, _binance_price] if CRYPTO_PRIMARY == "bybit"
-             else [_binance_price, _bybit_price])
-    for fetch in order:
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.get("https://api.mexc.com/api/v3/ticker/24hr",
+                                params={"symbol": ticker})
+        if resp.status_code != 200:
+            # An unknown symbol is 400 with {"code": -1121, "msg": "invalid symbol"}.
+            logger.info(f"MEXC {ticker}: HTTP {resp.status_code} {resp.text[:90]}")
+            return None
+        data = resp.json()
+        if not isinstance(data, dict):
+            return None
+        price = float(data.get("lastPrice") or 0)
+        if price <= 0:
+            return None
+        return {
+            "ticker": ticker,
+            "price": price,
+            "high": float(data.get("highPrice") or 0),
+            "low": float(data.get("lowPrice") or 0),
+            "open": float(data.get("openPrice") or 0),
+            "volume": float(data.get("volume") or 0),
+            "change_pct": float(data.get("priceChangePercent") or 0) * 100,
+            "source": "MEXC",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+# The crypto exchanges, in default precedence. CRYPTO_PRIMARY names one of
+# these to move it to the front; the rest stay behind it as fallbacks.
+CRYPTO_SOURCE_NAMES = ("binance", "bybit", "mexc")
+
+
+def _crypto_sources() -> dict:
+    """Name -> fetcher, resolved at call time.
+
+    Looked up through `globals()` rather than captured in a module-level dict:
+    a dict built at import holds the original function objects, so replacing
+    `_binance_price` on the module — which is how the fallback is tested, and
+    how a source could be swapped at runtime — would have no effect on the
+    chain. The dict would keep calling the real exchange.
+    """
+    return {n: globals()[f"_{n}_price"] for n in CRYPTO_SOURCE_NAMES}
+
+
+def _crypto_order(sources: dict):
+    """`sources` with CRYPTO_PRIMARY moved to the front, order otherwise kept.
+
+    An unrecognised CRYPTO_PRIMARY (a typo in the env var) must not shorten the
+    chain — every source is still tried, just in the default order.
+    """
+    rest = [f for n, f in sources.items() if n != CRYPTO_PRIMARY]
+    first = sources.get(CRYPTO_PRIMARY)
+    return [first, *rest] if first else rest
+
+
+async def _crypto_price(ticker: str) -> dict | None:
+    """Crypto quote with fallbacks, so one exchange failing is not an outage.
+
+    Order comes from CRYPTO_PRIMARY: set it to "bybit" or "mexc" where Binance
+    is unreachable (it withdrew from the Russian market, and the RU VPS this
+    deploys to may see restrictions the developer's network does not).
+    """
+    for fetch in _crypto_order(_crypto_sources()):
         try:
             got = await fetch(ticker)
         except Exception as e:
-            logger.info(f"{fetch.__name__} failed for {ticker}: {e}")
+            logger.info(f"{getattr(fetch, '__name__', fetch)} failed for {ticker}: {e}")
             continue
         if got:
             return got
-    logger.warning(f"No crypto source could price {ticker} (tried Binance and Bybit)")
+    logger.warning(f"No crypto source could price {ticker} "
+                   f"(tried {', '.join(CRYPTO_SOURCE_NAMES)})")
     return None
 
 
