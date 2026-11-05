@@ -20,6 +20,7 @@ from app.models.social import SignalComment, StrategyLike
 from app.models.feedback import Feedback
 from app.models.paper import PaperAccount, PaperTrade, PaperTradeStatus
 from app.models.lesson import Lesson, LessonTopic
+from app.models.rejected import RejectedCandidate, RejectionStage
 
 __all__ = [
     "User", "Signal", "Provider", "Referral", "ExchangeAccount", "Order",
@@ -29,4 +30,5 @@ __all__ = [
     "SignalComment", "StrategyLike", "Feedback",
     "PaperAccount", "PaperTrade", "PaperTradeStatus",
     "Lesson", "LessonTopic",
+    "RejectedCandidate", "RejectionStage",
 ]

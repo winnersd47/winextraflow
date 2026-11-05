@@ -11,6 +11,7 @@ Usage: python scripts/tg_backfill.py [limit] [--vip]
 """
 
 import asyncio
+import logging
 import os
 import re
 import sys
@@ -32,6 +33,9 @@ from app.services.llm_parse_ledger import ParseLedger
 # (monitored_channels.json, seeded from .env). See load_monitored().
 from app.services.channel_discovery import load_monitored
 from scripts.fetch_public import ChannelUnavailable, fetch_channel
+from app.models.rejected import RejectionStage
+
+logger = logging.getLogger(__name__)
 
 # Ignore channel posts older than this — prevents ancient history being ingested
 # as fresh signals (stale entry prices produce absurd P&L).
@@ -44,6 +48,49 @@ MAX_MESSAGE_AGE_HOURS = 48
 #   free tier with $10 credit: 1000 requests/day         -> 10 is comfortable
 # Override per environment with LLM_PARSE_PER_RUN.
 MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN", "10"))
+
+
+async def record_rejection(db, *, channel, provider, message_id, stage, reason,
+                           text=None, parsed=None) -> None:
+    """Keep a candidate that did not become a signal.
+
+    Without this the pipeline's `continue` statements destroy the only evidence
+    that could ever show the filter is worth anything: you cannot demonstrate
+    that what you kept beat what you dropped when the dropped ones are gone.
+    Counted 2026-11-05, the database held 194 real signals and ONE recorded
+    rejection.
+
+    Levels are stored exactly as parsed, so a row can be replayed against real
+    candles alongside the published signals — that comparison is the point.
+
+    A failure here must never cost a signal: the row is a measurement, the
+    pipeline is the product.
+    """
+    from app.models.rejected import RejectedCandidate
+
+    try:
+        if message_id:
+            seen = (await db.execute(
+                select(RejectedCandidate)
+                .where(RejectedCandidate.message_id == message_id).limit(1)
+            )).scalar_one_or_none()
+            if seen:
+                return      # the backfill re-reads a post ~48 times
+        db.add(RejectedCandidate(
+            channel=channel,
+            provider_id=str(provider.id) if provider is not None else None,
+            message_id=message_id, stage=stage, reason=(reason or "")[:300],
+            ticker=getattr(parsed, "ticker", None),
+            action=getattr(parsed, "action", None),
+            entry_price=getattr(parsed, "entry_price", None),
+            take_profit=getattr(parsed, "take_profit", None),
+            stop_loss=getattr(parsed, "stop_loss", None),
+            raw_message=(text or "")[:500],
+        ))
+        await db.commit()
+    except Exception as e:
+        await db.rollback()
+        logger.debug(f"rejection not recorded ({stage}): {e}")
 
 
 async def find_provider(db, username: str):
@@ -179,6 +226,10 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                             print(f"  [{ch}] LLM разобрал: {parsed.action.upper()} "
                                   f"{parsed.ticker} @ {parsed.entry_price}")
                 if not parsed:
+                    await record_rejection(
+                        db, channel=ch, provider=provider, message_id=m["id"],
+                        stage=RejectionStage.PARSE,
+                        reason="ни regex, ни LLM не разобрали", text=text)
                     continue
 
                 # Dedup: same ticker+action from this provider, within a window
@@ -197,6 +248,11 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                     ).limit(1)
                 )).scalar_one_or_none()
                 if dup:
+                    await record_rejection(
+                        db, channel=ch, provider=provider, message_id=m["id"],
+                        stage=RejectionStage.DUPLICATE,
+                        reason=f"повтор {parsed.action} {parsed.ticker} за 7 дней",
+                        text=text, parsed=parsed)
                     continue
 
                 # Analyst formats give only direction + target: anchor the entry
@@ -207,6 +263,11 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                     derived=getattr(parsed, "derived_levels", False),
                 )
                 if not lv["usable"]:
+                    await record_rejection(
+                        db, channel=ch, provider=provider, message_id=m["id"],
+                        stage=RejectionStage.LEVELS,
+                        reason="; ".join(lv["notes"]) or "уровни непригодны",
+                        text=text, parsed=parsed)
                     continue
                 if lv["notes"]:
                     print(f"  [{ch}] {parsed.ticker}: " + "; ".join(lv["notes"]))
