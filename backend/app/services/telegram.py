@@ -102,6 +102,12 @@ _LATIN_ALIASES = {
     "BITCOIN": "BTCUSDT", "ETHEREUM": "ETHUSDT", "SOLANA": "SOLUSDT",
     # MOEX futures common names
     "GOLD": "XAUUSD", "SILV": "XAGUSD", "BRENT": "BZ=F", "OIL": "CL=F",
+    # Bare metal codes. Channels write "XAU SIGNAL" and "XAG setup"; without
+    # these the quote currency is missing, is_spot_commodity rejects the symbol
+    # as too short, and the parser falls back to whatever word came first —
+    # which on one channel was its own brand, XAUHQ.
+    "XAU": "XAUUSD", "XAG": "XAGUSD", "XAUUSD": "XAUUSD", "XAGUSD": "XAGUSD",
+    "BR": "BZ=F",  # Brent futures short code (DluxTrading: Br-12.26)
 }
 
 
@@ -225,10 +231,10 @@ class TelegramParser:
             except ValueError:
                 return None
 
-        entry = _num(r"Вход[:\s]+([\d\s.,]+?)[\n\r]")
+        entry = _num(r"Вход[:\s]+([\d\s.,]+?)(?=[\n\r]|[А-Яа-яA-Za-z]|$)")
         if entry is None or entry <= 0:
             return None  # watchlist post without explicit entry — skip
-        sl = _num(r"Стоп[:\s]+([\d\s.,]+?)[\n\r]")
+        sl = _num(r"Стоп[:\s]+([\d\s.,]+?)(?=[\n\r]|[А-Яа-яA-Za-z]|$)")
         # Take profit: prefer explicit price in parens after Тейк
         tp = _num(r"Тейк[^\n\r]*?\(([\d\s.,]+)\)")
 
@@ -498,7 +504,7 @@ class TelegramParser:
             ✅ TP2: 173.500
         """
         head = re.search(
-            r"#?([A-Z]{3,12}(?:/[A-Z]{2,6})?)\s*:\s*(BUY|SELL|LONG|SHORT)",
+            r"#?([A-Z]{3,12}(?:/[A-Z]{2,6})?)\s*(?::|·|•)\s*(BUY|SELL|LONG|SHORT)",
             text, re.IGNORECASE,
         )
         if not head:
@@ -518,7 +524,7 @@ class TelegramParser:
         if entry <= 0:
             return None
 
-        sl_m = re.search(r"Stop\s*(?:loss)?\s*:\s*([\d,.]+)", text, re.IGNORECASE)
+        sl_m = re.search(r"(?:Stop\s*(?:loss)?|SL)\s*:\s*([\d,.]+)", text, re.IGNORECASE)
         sl = None
         if sl_m:
             try:
@@ -543,6 +549,160 @@ class TelegramParser:
             reverse=(action == "sell"),
         )
         tp = ahead[1] if len(ahead) > 1 else (ahead[0] if ahead else None)
+
+        return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
+                            take_profit=tp, stop_loss=sl)
+
+    # ── labelled levels: the shape most English signal channels actually use ──
+    #
+    # Scouting 30 forex channels on 2026-11-05 found 18 that post several times
+    # a day and produced ZERO parseable setups. They were not short of levels —
+    # the parser could not read them:
+    #
+    #   🔥 EURCAD - SELL @ 1.56842 / SL: 1.57700 / TP: 1.55000
+    #   #USDCAD LONG / Entry: 1.3963 / Stop Loss: 1.3942 / Take Profit: 1.3993
+    #   AUDUSD SELL-LIMIT @0.70346 / SL: 0.70556 / TP1: 0.70147 / TP2: 0.69940
+    #   GBPAUD BUY / Goal - 1.9274 / Recommended Stop Loss - 1.9173
+    #
+    # Four channels, four layouts, one grammar: a symbol, a direction, and three
+    # labelled numbers whose labels vary. So this matches on the LABELS rather
+    # than on a fixed line order, which is what the earlier parsers did.
+
+    # Labels seen in the wild. Order matters inside each group: the longest
+    # alternative has to come first or "Stop" swallows "Stop Loss".
+    _ENTRY_LABEL = (r"(?:entry\s*(?:price|point|zone)?|enter|вход|цена\s*входа|"
+                    r"buy\s*limit|sell\s*limit|buy\s*stop|sell\s*stop)")
+    _SL_LABEL = (r"(?:recommended\s*stop\s*loss|my\s*stop\s*loss|stop\s*loss|"
+                 r"stoploss|stop|s\.?l\.?|стоп(?:\s*лосс)?)")
+    # The index after TP/target must be consumed by the LABEL and never left
+    # for the number: see the backtracking note in `_labelled`.
+    _TP_LABEL = (r"(?:take\s*profit\s*\d*(?!\d)|takeprofit|target\s*\d*(?!\d)|goal|"
+                 r"t\.?p\.?\s*\d*(?!\d)|тейк(?:\s*профит)?|цель)")
+    # A number, with an optional currency noise prefix. Not anchored to line
+    # start: these messages put emoji and stars before every label.
+    _NUM = r"([0-9]+(?:[.,][0-9]+)?)"
+
+    @staticmethod
+    def _labelled(text: str, label: str, *, all_matches: bool = False):
+        """Numbers introduced by `label`, in message order.
+
+        The separator between label and number is deliberately loose — these
+        channels use ':', '-', '@', '=' and sometimes nothing at all — but it
+        must not cross a newline, or a stop loss on the next line is read as
+        the entry's value.
+        """
+        # Separators seen between a label and its price: colon, dash, equals,
+        # at-sign, arrows, and the em-spaces these channels pad with. A missing
+        # arrow here is what let the engine backtrack into the label itself —
+        # "TP3 → 3990" gave back the 3 and reported a target of 3.0.
+        gap = r"[ \t   ]*"
+        pattern = rf"{label}{gap}[:=\-–—@>→➡]?{gap}{TelegramParser._NUM}"
+        hits = re.findall(pattern, text, re.IGNORECASE)
+        if all_matches:
+            return hits
+        return hits[0] if hits else None
+
+    @staticmethod
+    def parse_labelled_levels(text: str) -> ParsedSignal | None:
+        """Symbol + direction + labelled entry/stop/target, in any arrangement."""
+        # Direction. Taken from the first occurrence, because these posts repeat
+        # it in the footer ("LONG🚀" after the levels) and sometimes list the
+        # opposite side in a performance recap below.
+        dm = re.search(r"\b(buy\s*limit|sell\s*limit|buy\s*stop|sell\s*stop|"
+                       r"buy|sell|long|short)\b", text, re.IGNORECASE)
+        if not dm:
+            return None
+        action = _normalize_action(dm.group(1).split()[0])
+        if action not in ("buy", "sell"):
+            return None
+
+        # A RECOGNISED instrument wins over any token that merely looks like a
+        # ticker. "🏛️ XAUHQ | XAU SIGNAL" opens with the channel's own brand and
+        # names the metal second; taking the first plausible word put the signal
+        # on ticker XAUHQ, which nothing can price and no chart can draw.
+        from app.services.instruments import (is_crypto, is_forex_pair,
+                                              is_moex_equity, is_moex_futures,
+                                              is_spot_commodity)
+
+        def _known(sym: str) -> bool:
+            return (is_forex_pair(sym) or is_spot_commodity(sym)
+                    or is_crypto(sym) or is_moex_futures(sym)
+                    or is_moex_equity(sym))
+
+        tokens = [c.upper() for c in re.findall(r"#([A-Za-z]{2,12})", text)]
+        head = text[:max(dm.end() + 60, 160)]
+        tokens += [c.replace("/", "").upper()
+                   for c in re.findall(r"\b([A-Z]{2,6}(?:/[A-Z]{3})?)\b", head)]
+
+        ticker = None
+        for cand in tokens:                    # pass 1: something we can price
+            resolved = _resolve_ticker(cand)
+            if _known(resolved):
+                ticker = resolved
+                break
+        if not ticker:                         # pass 2: anything plausible
+            for cand in tokens:
+                if _is_valid_ticker(cand, raw=cand):
+                    ticker = _resolve_ticker(cand)
+                    break
+        if not ticker:
+            return None
+
+        entry_raw = TelegramParser._labelled(text, TelegramParser._ENTRY_LABEL)
+        sl_raw = TelegramParser._labelled(text, TelegramParser._SL_LABEL)
+        tps_raw = TelegramParser._labelled(text, TelegramParser._TP_LABEL,
+                                           all_matches=True)
+        if entry_raw is None:
+            # "EURCAD - SELL @ 1.56842" labels the entry with the direction
+            # itself, which is why the entry label list above includes the
+            # order types; this catches the bare "@ price" form.
+            m = re.search(rf"(?:buy|sell|long|short)[^\n]{{0,16}}?@\s*{TelegramParser._NUM}",
+                          text, re.IGNORECASE)
+            entry_raw = m.group(1) if m else None
+        if sl_raw is None or not tps_raw:
+            return None
+
+        try:
+            sl = _clean_price(sl_raw)
+            tps = [_clean_price(t) for t in tps_raw]
+            entry = _clean_price(entry_raw) if entry_raw is not None else None
+        except ValueError:
+            return None
+        if sl <= 0 or (entry is not None and entry <= 0):
+            return None
+
+        if entry is None:
+            # Direction, target and stop, but no entry — the shape anabelsignals
+            # and other "analysis" channels use ("Goal - 1.9274 / Recommended
+            # Stop Loss - 1.9173"). The stop and target still pin the trade's
+            # direction, and resolve_levels() anchors the entry to the live
+            # market exactly as it does for analyst price targets. Without this
+            # a channel posting nine times a day reads as empty.
+            tp_guess = max(tps) if action == "buy" else min(tps)
+            if (action == "buy" and not sl < tp_guess) or \
+               (action == "sell" and not tp_guess < sl):
+                return None
+            return ParsedSignal(ticker=ticker, action=action,
+                                entry_price=(sl + tp_guess) / 2,
+                                take_profit=tp_guess, stop_loss=sl,
+                                derived_levels=True)
+
+        # Several targets are the norm (TP1/TP2/TP3). Take the SECOND one ahead
+        # of entry when there is one: TP1 is usually a scalp a few pips out, and
+        # pricing the signal off it makes every setup look like it needs a 90%
+        # win rate. Same rule as parse_ticker_colon_action.
+        ahead = sorted([t for t in tps if (t > entry if action == "buy" else t < entry)],
+                       reverse=(action == "sell"))
+        if not ahead:
+            return None
+        tp = ahead[1] if len(ahead) > 1 else ahead[0]
+
+        # Direction and levels must agree, or the message was misread rather
+        # than being a signal with odd geometry.
+        if action == "buy" and not (sl < entry < tp):
+            return None
+        if action == "sell" and not (tp < entry < sl):
+            return None
 
         return ParsedSignal(ticker=ticker, action=action, entry_price=entry,
                             take_profit=tp, stop_loss=sl)
@@ -581,6 +741,12 @@ class TelegramParser:
         tca = TelegramParser.parse_ticker_colon_action(text)
         if tca:
             return tca
+
+        # Labelled levels in any arrangement — the shape most English signal
+        # channels use, and the one that made 18 active channels look empty.
+        lab = TelegramParser.parse_labelled_levels(text)
+        if lab:
+            return lab
 
         for pattern in SIGNAL_PATTERNS:
             match = pattern.search(text)
