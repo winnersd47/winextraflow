@@ -659,33 +659,37 @@ class TelegramParser:
             m = re.search(rf"(?:buy|sell|long|short)[^\n]{{0,16}}?@\s*{TelegramParser._NUM}",
                           text, re.IGNORECASE)
             entry_raw = m.group(1) if m else None
-        if sl_raw is None or not tps_raw:
+        if entry_raw is None:
+            # "Analysis" posts give direction, target and stop but label no
+            # entry — they name the level in prose instead: "the market is
+            # trading on 1.9213 pivot level", "tests an important psychological
+            # level 4045.9". That number IS the entry the source priced its
+            # levels against.
+            #
+            # It has to be read, not substituted. An earlier version let these
+            # through with a made-up entry and `derived_levels=True`, so
+            # resolve_levels replaced it with the live market price while
+            # keeping the source's stop and target — levels set around a
+            # different price. XAUUSD came out with its stop four points away
+            # and R:R 10.26; NZDJPY with R:R 0.22. Neither was the trade the
+            # channel posted.
+            m = re.search(
+                r"(?:trading\s+(?:on|at)|tests?(?:\s+\w+){0,4}?\s+level|"
+                r"pivot(?:\s+level)?|current\s+price|price\s+is)"
+                r"[^\n0-9]{0,24}" + TelegramParser._NUM,
+                text, re.IGNORECASE)
+            entry_raw = m.group(1) if m else None
+        if sl_raw is None or not tps_raw or entry_raw is None:
             return None
 
         try:
             sl = _clean_price(sl_raw)
             tps = [_clean_price(t) for t in tps_raw]
-            entry = _clean_price(entry_raw) if entry_raw is not None else None
+            entry = _clean_price(entry_raw)
         except ValueError:
             return None
-        if sl <= 0 or (entry is not None and entry <= 0):
+        if sl <= 0 or entry <= 0:
             return None
-
-        if entry is None:
-            # Direction, target and stop, but no entry — the shape anabelsignals
-            # and other "analysis" channels use ("Goal - 1.9274 / Recommended
-            # Stop Loss - 1.9173"). The stop and target still pin the trade's
-            # direction, and resolve_levels() anchors the entry to the live
-            # market exactly as it does for analyst price targets. Without this
-            # a channel posting nine times a day reads as empty.
-            tp_guess = max(tps) if action == "buy" else min(tps)
-            if (action == "buy" and not sl < tp_guess) or \
-               (action == "sell" and not tp_guess < sl):
-                return None
-            return ParsedSignal(ticker=ticker, action=action,
-                                entry_price=(sl + tp_guess) / 2,
-                                take_profit=tp_guess, stop_loss=sl,
-                                derived_levels=True)
 
         # Several targets are the norm (TP1/TP2/TP3). Take the SECOND one ahead
         # of entry when there is one: TP1 is usually a scalp a few pips out, and

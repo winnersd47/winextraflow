@@ -89,15 +89,28 @@ def test_direction_and_levels_must_agree():
         "#EURUSD BUY\nEntry: 1.10\nStop Loss: 1.12\nTake Profit: 1.08") is None
 
 
-def test_analysis_without_an_entry_is_kept_as_derived():
-    """Direction + target + stop, no entry — resolve_levels anchors it live.
+def test_analysis_posts_take_their_entry_from_the_prose():
+    """"Trading on 1.9213 pivot level" IS the entry the levels were set against.
 
-    Without this a channel posting nine times a day reads as empty.
+    An earlier version substituted a made-up entry and let resolve_levels
+    replace it with the live market price, while keeping the source's stop and
+    target — levels priced around a different number. The three signals that
+    produced came out at R:R 10.26, 0.34 and 0.22; none was the trade the
+    channel posted. Read the level or refuse the post.
     """
-    p = T.parse_message("✍️GBPAUD On The Rise! BUY!\nBias - Bullish\n"
+    p = T.parse_message("✍️GBPAUD On The Rise! BUY!\n"
+                        "The market is trading on 1.9213 pivot level.\n"
                         "⭐️Goal - 1.9274\n⭐️Recommended Stop Loss - 1.9173\n#GBPAUD")
-    assert p is not None and p.derived_levels is True
-    assert p.stop_loss < p.take_profit
+    assert p is not None and p.entry_price == pytest.approx(1.9213)
+    assert p.derived_levels is False, "вход настоящий — его нельзя пересчитывать"
+    rr = abs(p.take_profit - p.entry_price) / abs(p.entry_price - p.stop_loss)
+    assert 0.5 < rr < 5, f"R:R {rr:.2f} — геометрия источника не сохранена"
+
+
+def test_a_post_naming_no_price_at_all_is_refused():
+    """Better no signal than one whose entry we invented."""
+    assert T.parse_message("GBPAUD BUY!\nBias - Bullish\n⭐️Goal - 1.9274\n"
+                           "⭐️Stop Loss - 1.9173") is None
 
 
 def test_a_label_without_a_number_yields_nothing():
