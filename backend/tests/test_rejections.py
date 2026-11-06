@@ -102,3 +102,44 @@ def test_every_discard_point_records_something():
     for stage in ("RejectionStage.PARSE", "RejectionStage.DUPLICATE",
                   "RejectionStage.LEVELS"):
         assert stage in src, f"{stage} нигде не записывается"
+
+
+@pytest.mark.asyncio
+async def test_a_post_that_aged_out_is_kept_for_measurement(db: AsyncSession):
+    """The schedule runs on a desktop; a weekend off used to erase those posts.
+
+    They cannot be traded afterwards — the entry is days old — but a source's
+    record does not care whether the machine was awake, so the levels are kept
+    and stay replayable.
+    """
+    p = await _provider(db)
+    await record_rejection(db, channel="ch", provider=p, message_id="ch/42",
+                           stage=RejectionStage.STALE,
+                           reason="пост от 2026-11-01 — старше 48 ч",
+                           text="SELL EURUSD", parsed=_Parsed())
+
+    (row,) = (await db.execute(select(RejectedCandidate))).scalars().all()
+    assert row.stage == RejectionStage.STALE
+    assert row.entry_price and row.take_profit and row.stop_loss, \
+        "без уровней строка не переигрывается и мерить по ней нечего"
+
+
+def test_stale_posts_never_reach_the_llm_budget():
+    """The model budget is for tradable signals, not for an archive."""
+    import inspect
+
+    from scripts import tg_backfill
+    src = inspect.getsource(tg_backfill.main)
+    stale_loop = src[src.index("for m in stale_msgs"):src.index("for m in msgs:")]
+    assert "parse_with_llm" not in stale_loop
+    assert "ledger" not in stale_loop
+
+
+def test_stale_posts_do_not_become_signals():
+    """They are evidence about a source, not trades anyone could have taken."""
+    import inspect
+
+    from scripts import tg_backfill
+    src = inspect.getsource(tg_backfill.main)
+    stale_loop = src[src.index("for m in stale_msgs"):src.index("for m in msgs:")]
+    assert "db.add(Signal" not in stale_loop and "resolve_levels" not in stale_loop

@@ -37,8 +37,12 @@ class RejectionStage:
     LEVELS = "levels"        # entry/target/stop could not be made usable
     QUALITY = "quality"      # the gate refused the finished geometry
     EVOLUTION = "evolution"  # the strategy verdict said SKIP
+    # Parsed fine, but the post had already aged out of the freshness window
+    # when we read it — the schedule runs on a desktop, so a weekend switched
+    # off puts every post of that weekend here. Untradable, still measurable.
+    STALE = "stale"
 
-    ALL = (PARSE, DUPLICATE, LEVELS, QUALITY, EVOLUTION)
+    ALL = (PARSE, DUPLICATE, LEVELS, QUALITY, EVOLUTION, STALE)
 
 
 class RejectedCandidate(Base):

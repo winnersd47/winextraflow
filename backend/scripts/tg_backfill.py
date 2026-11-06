@@ -162,10 +162,18 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
             fresh = [m for m in msgs if m["date"] and m["date"] >= cutoff]
             undated = sum(1 for m in msgs if not m["date"])
             skipped = len(msgs) - len(fresh)
+            # Posts that missed the window are kept for MEASUREMENT, not for
+            # trading. This machine runs the schedule, so a weekend switched
+            # off used to erase every post in between: untradable now, but a
+            # source's record does not care whether we were awake. They are
+            # recorded as stale rejections with their levels, replayable later
+            # like any other candidate, and never become signals.
+            stale = [m for m in msgs
+                     if m["date"] and m["date"] < cutoff and m not in fresh]
             # The web preview gives no numeric channel id, and nothing downstream
             # needs one — the username is the stable key.
-            fetched.append((ch, ch, ch, fresh))
-            note = f" ({skipped} too old, skipped)" if skipped else ""
+            fetched.append((ch, ch, ch, fresh, stale))
+            note = f" ({skipped} too old, kept for measurement)" if skipped else ""
             if undated:
                 note += f" [{undated} без даты — пропущены]"
             print(f"Fetched {len(fresh)}/{len(msgs)} recent messages from @{ch}{note}")
@@ -183,7 +191,7 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
     # it ages out of the window, and each re-read would otherwise be an LLM call.
     ledger = ParseLedger(max_per_run=MAX_LLM_PARSE_PER_RUN)
     async with async_session() as db:
-        for ch, channel_id, title, msgs in fetched:
+        for ch, channel_id, title, msgs, stale_msgs in fetched:
             provider = await find_provider(db, ch)
             if not provider:
                 # Store the username in BOTH fields. telegram_channel_id is the
@@ -197,6 +205,24 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                 await db.commit()
                 await db.refresh(provider)
                 print(f"  [{ch}] новый провайдер")
+
+            # Missed posts first, and only through the regex parsers: the LLM
+            # budget is for signals that can still be traded, not for an
+            # archive. A stale post that parses is kept with its levels; one
+            # that does not is simply not worth a model call.
+            for m in stale_msgs:
+                text = m["text"]
+                if not (text and telegram_parser.is_signal_message(text)):
+                    continue
+                parsed = telegram_parser.parse_message(text)
+                if not parsed:
+                    continue
+                await record_rejection(
+                    db, channel=ch, provider=provider, message_id=m["id"],
+                    stage=RejectionStage.STALE,
+                    reason=f"пост от {str(m['date'])[:16]} — старше "
+                           f"{MAX_MESSAGE_AGE_HOURS} ч на момент чтения",
+                    text=text, parsed=parsed)
 
             for m in msgs:
                 text = m["text"]
