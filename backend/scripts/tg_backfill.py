@@ -50,6 +50,34 @@ MAX_MESSAGE_AGE_HOURS = 48
 MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN", "10"))
 
 
+async def fetch_source(name: str, limit: int) -> list[dict]:
+    """Posts from a monitored source, whichever network it lives on.
+
+    One monitored list, two networks. A "vk:" prefix routes to a VK community
+    wall; everything else is a Telegram channel read through its public web
+    preview. Both return the same {id, text, date} dicts, so the parser, the
+    freshness window, the rejection log and the trial track are shared — the
+    network a source happens to use is not something the pipeline should know
+    about.
+
+    VK's own failure modes are translated to ChannelUnavailable so the caller
+    keeps its single distinction: a source that cannot be read at all versus a
+    call that is worth retrying.
+    """
+    if not name.lower().startswith("vk:"):
+        return await fetch_channel(name, limit=limit)
+
+    from app.services.vk_source import VkThrottled, VkUnavailable, fetch_wall
+    try:
+        return await fetch_wall(name, limit=limit)
+    except VkUnavailable as e:
+        raise ChannelUnavailable(str(e)) from e
+    except VkThrottled as e:
+        # Not permanent: let the generic handler log it and move on, so the
+        # next run tries again instead of writing the source off.
+        raise RuntimeError(str(e)) from e
+
+
 async def record_rejection(db, *, channel, provider, message_id, stage, reason,
                            text=None, parsed=None) -> None:
     """Keep a candidate that did not become a signal.
@@ -154,7 +182,7 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
     fetched = []
     for ch in channels:
         try:
-            msgs = await fetch_channel(ch, limit=limit)
+            msgs = await fetch_source(ch, limit=limit)
             # A post with no timestamp is skipped, not kept. Treating an unknown
             # date as fresh defeats the window entirely — and the window is the
             # only thing standing between a year-old post and a signal card

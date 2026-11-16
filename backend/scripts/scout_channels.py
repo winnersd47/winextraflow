@@ -58,9 +58,25 @@ def _breakeven_pct(p) -> float | None:
 async def _scout(name: str, limit: int) -> dict:
     out = {"name": name, "state": "", "posts": 0, "age": None, "per_week": 0.0,
            "signals": 0, "full": 0, "classes": Counter(), "breakeven": None,
-           "sane": 0}
+           "sane": 0, "note": ""}
     try:
-        msgs = await fetch_channel(name, limit=limit)
+        # A "vk:" prefix means a VK community wall; everything else is a
+        # Telegram channel. The exam is the same either way — a source is
+        # judged on whether it posts executable setups, not on its network.
+        if name.lower().startswith("vk:"):
+            from app.services.vk_source import VkThrottled, VkUnavailable, fetch_wall
+            try:
+                msgs = await fetch_wall(name, limit=limit)
+            except VkUnavailable as e:
+                out["state"] = "VK: нет доступа"
+                out["note"] = str(e)
+                return out
+            except VkThrottled as e:
+                out["state"] = "VK: лимит"
+                out["note"] = str(e)
+                return out
+        else:
+            msgs = await fetch_channel(name, limit=limit)
     except ChannelUnavailable:
         out["state"] = "нет превью"
         return out
@@ -147,6 +163,10 @@ async def main() -> int:
         cls = " ".join(f"{k}:{v}" for k, v in r["classes"].most_common(3)) or "—"
         print(f"{n[:29]:30}{r['state']:>13}{age:>7}{r['per_week']:>10.1f}"
               f"{r['signals']:>6}{r['full']:>9}{be:>9}  {cls}")
+        # A source that could not be read at all should say why on the spot;
+        # "нет доступа" with no reason sends the reader to the logs.
+        if r.get("note"):
+            print(f"{'':30}└─ {r['note']}")
 
     good = [r for r in rows
             if r["state"] == "ГОДЕН" and r["full"] >= args.min_signals]

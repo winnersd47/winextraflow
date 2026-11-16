@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     max_vip_channel_id: str = ""            # MAX VIP channel (instant signals)
     max_free_channel_id: str = ""           # MAX free channel (delayed signals)
 
+    # VK — public community walls as a signal source. A SERVICE key only:
+    # it reads public walls and nothing private, which is all this needs.
+    # Create a standalone app at vk.com/editapp?act=create and copy the
+    # service key from its settings. Without it wall.get answers
+    # {"error_code": 15, "error_msg": "Access denied: token required"}.
+    # VK's web pages are JavaScript shells, so there is no scraping fallback.
+    vk_service_token: str = ""
+
     # TradingView
     tradingview_webhook_secret: str = ""
 
