@@ -28,7 +28,7 @@ class _Resp:
         return self._p
 
 
-def _api(monkeypatch, payload, token="service-key", capture=None):
+def _api(monkeypatch, payload, token="service-key", capture=None, hdrs=None):
     monkeypatch.setattr(vk.settings, "vk_service_token", token)
 
     class _Client:
@@ -44,6 +44,8 @@ def _api(monkeypatch, payload, token="service-key", capture=None):
         async def get(self, _url, params=None, **k):
             if capture is not None:
                 capture.update(params or {})
+            if hdrs is not None:
+                hdrs.update(k.get("headers") or {})
             return _Resp(payload)
 
     monkeypatch.setattr(httpx, "AsyncClient", _Client)
@@ -126,6 +128,24 @@ async def test_count_is_clamped_to_the_api_ceiling(monkeypatch):
     _api(monkeypatch, {"response": {"items": []}}, capture=seen)
     await vk.fetch_wall("forex", 5000)
     assert seen["count"] == 100
+
+
+@pytest.mark.asyncio
+async def test_the_key_travels_in_the_header_not_the_url(monkeypatch):
+    """A URL is the part of a request that logs and proxies keep.
+
+    VK also echoes the query string back inside its own error bodies, so a key
+    sent as a parameter would land in anything that records a failure. The
+    header is genuinely read: measured 2026-11-16, a bad key sent this way
+    answers error 5 rather than "token required".
+    """
+    seen, hdrs = {}, {}
+    _api(monkeypatch, {"response": {"items": []}}, token="secret-key",
+         capture=seen, hdrs=hdrs)
+    await vk.fetch_wall("forex", 5)
+
+    assert "access_token" not in seen, "ключ попал в адрес запроса"
+    assert hdrs.get("Authorization") == "Bearer secret-key"
 
 
 @pytest.mark.asyncio

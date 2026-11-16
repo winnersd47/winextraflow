@@ -18,10 +18,21 @@ anonymous reads — `wall.get` without a token answers
     {"error": {"error_code": 15, "error_msg": "Access denied: token required"}}
 
 So this needs VK_SERVICE_TOKEN. Getting one is an account action and belongs to
-the owner: create a standalone app at vk.com/editapp?act=create, then copy the
-service key from its settings. A service key reads public walls and nothing
-else — it cannot touch messages, friends or anything private, which is exactly
-the authority this module should have.
+the owner, and it is no longer done where the old guides say: VK moved
+standalone apps off dev.vk.com into the VK ID business cabinet, which issues
+the service key when the app is created (id.vk.ru -> Мои приложения ->
+Добавить приложение). A service key reads public walls and nothing else — it
+cannot touch messages, friends or anything private, which is exactly the
+authority this module should have.
+
+That cabinet also wants a verified VK Бизнес ID profile: unverified, apps are
+blocked 60 days after the first one is created. So this source can go dark for
+a reason that has nothing to do with this code, which is why a rejected key
+gets its own message below rather than being folded into "no token".
+
+`wall.get` accepts a service key — stated on its own documentation page
+alongside `filter` and the count ceiling of 100, both of which fetch_wall
+honours.
 
 Shape
 -----
@@ -113,9 +124,9 @@ async def fetch_wall(group: str, limit: int = 30) -> list[dict]:
     token = (settings.vk_service_token or "").strip()
     if not token:
         raise VkUnavailable(
-            "VK_SERVICE_TOKEN не задан: создайте standalone-приложение на "
-            "vk.com/editapp?act=create и возьмите сервисный ключ в его "
-            "настройках")
+            "VK_SERVICE_TOKEN не задан: создайте приложение в кабинете VK ID "
+            "(id.vk.ru → Мои приложения → Добавить приложение) и возьмите "
+            "«Сервисный ключ доступа» из карточки приложения")
 
     params = {
         "domain": name,
@@ -125,11 +136,18 @@ async def fetch_wall(group: str, limit: int = 30) -> list[dict]:
         "filter": "owner",     # the community's own posts, not visitors'
         "extended": 0,
         "v": VERSION,
-        "access_token": token,
     }
+    # The key rides in the header, never in the query string. VK echoes the
+    # query back inside its own error bodies (`request_params`), and a URL is
+    # the part of a request that proxies and access logs keep by default — a
+    # non-expiring key does not belong in either. Measured 2026-11-16: sent
+    # this way a bad key answers error 5, not 15, so the header is genuinely
+    # read and not quietly ignored in favour of the parameter.
+    headers = {"Authorization": f"Bearer {token}"}
     try:
         async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.get(API + "wall.get", params=params)
+            resp = await client.get(API + "wall.get", params=params,
+                                    headers=headers)
     except Exception as e:
         # A network failure is not the same as a wall that cannot be read; the
         # caller should retry this one.
