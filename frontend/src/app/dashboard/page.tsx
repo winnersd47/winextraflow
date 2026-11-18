@@ -132,6 +132,21 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* OTC Signal Schedule Banner */}
+      <div className="mb-4 rounded-xl border border-brand-500/20 bg-brand-500/5 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="font-semibold text-brand-400">{isRu ? "Расписание OTC-сигналов (МСК):" : "OTC Signal Schedule (MSK):"}</span>
+          {[
+            { t: "02:25–06:25" }, { t: "08:25–12:25" }, { t: "14:25–18:25" }, { t: "20:25–23:25" },
+          ].map(w => (
+            <span key={w.t} className="rounded bg-brand-500/10 px-2 py-0.5 text-xs font-mono text-brand-400">{w.t}</span>
+          ))}
+          <span className="ml-auto text-xs text-text-muted">
+            {isRu ? "1% · TF1 · Exp5 · Martingale ≤2" : "1% · TF1 · Exp5 · Martingale ≤2"}
+          </span>
+        </div>
+      </div>
+
       {/* L1: Market Regime Banner — available to ALL users */}
       {regime && regime.regime !== "unknown" && (
         <div className="mb-4 flex items-center gap-4 rounded-xl border border-border bg-surface-card px-4 py-3">

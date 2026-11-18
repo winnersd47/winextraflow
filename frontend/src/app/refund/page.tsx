@@ -45,6 +45,21 @@ function RefundRU() {
       <p className="text-text-secondary">2.1. Вы можете запросить полный возврат средств в течение 14 календарных дней с момента оплаты подписки, если услуга не была фактически использована.</p>
       <p className="text-text-secondary">2.2. Услуга считается использованной, если вы получили доступ к Premium-функциям: просмотр сигналов Premium-уровня, запуск бэктестов, активация копитрейдинга или подписка на стратегии маркетплейса.</p>
 
+      <h2 className="text-xl font-bold text-text-primary mt-8">2a. Программа возврата для новичков (OTC-копитрейдинг)</h2>
+      <div className="rounded-xl border-2 border-green-500/50 bg-green-500/5 p-6 my-4">
+        <p className="text-text-secondary font-semibold mb-2">До 80% возврата убытков по OTC-программе</p>
+        <p className="text-text-secondary text-sm">Новички, торгующие через копитрейдинг по правилам AI-бота, могут получить возврат до 80% убыточных сделок при соблюдении всех условий.</p>
+      </div>
+      <p className="text-text-secondary">2a.1. Программа действует при одновременном выполнении четырёх условий:</p>
+      <ul className="list-disc pl-5 text-text-secondary space-y-2 my-3">
+        <li><strong>Партнёрский аккаунт</strong> — регистрация в Pocket Option через реферальную ссылку провайдера.</li>
+        <li><strong>Баланс от $200</strong> — на момент открытия каждой сделки.</li>
+        <li><strong>Копи-процент ≤1%</strong> — в настройках копитрейдинга WinExtraFlow.</li>
+        <li><strong>Соблюдение правил бота</strong> — только OTC, TF 1 мин, экспирация 5 мин, мартингейл макс 2 уровня, выплата ≥60%.</li>
+      </ul>
+      <p className="text-text-secondary">2a.2. Нарушение любого из условий лишает права на возврат по данной программе. Стандартный 14-дневный возврат (п. 2) при этом сохраняется.</p>
+      <p className="text-text-secondary">2a.3. Для оформления возврата по программе приложите скриншоты истории сделок из Pocket Option и выписку из WinExtraFlow за период.</p>
+
       <h2 className="text-xl font-bold text-text-primary mt-8">3. Случаи, когда возврат невозможен</h2>
       <p className="text-text-secondary">3.1. Если услуга была фактически оказана (вы использовали Premium-функции Платформы), возврат средств не производится.</p>
       <p className="text-text-secondary">3.2. Возврат невозможен по истечении 14 календарных дней с момента оплаты.</p>
@@ -97,6 +112,21 @@ function RefundEN() {
       </div>
       <p className="text-text-secondary">2.1. You may request a full refund within 14 calendar days from the date of payment if the service has not been actually used.</p>
       <p className="text-text-secondary">2.2. The service is considered used if you have accessed Premium features: viewing Premium-level signals, running backtests, activating copy trading, or subscribing to marketplace strategies.</p>
+
+      <h2 className="text-xl font-bold text-text-primary mt-8">2a. Newcomer Refund Program (OTC Copy Trading)</h2>
+      <div className="rounded-xl border-2 border-green-500/50 bg-green-500/5 p-6 my-4">
+        <p className="text-text-secondary font-semibold mb-2">Up to 80% refund on losses under the OTC program</p>
+        <p className="text-text-secondary text-sm">Newcomers who copy-trade following the AI-bot rules may receive a refund of up to 80% of losses when all conditions are met.</p>
+      </div>
+      <p className="text-text-secondary">2a.1. The program applies when all four conditions are met simultaneously:</p>
+      <ul className="list-disc pl-5 text-text-secondary space-y-2 my-3">
+        <li><strong>Partner account</strong> — registered in Pocket Option via the provider's referral link.</li>
+        <li><strong>Balance ≥ $200</strong> — at the time of each trade.</li>
+        <li><strong>Copy percentage ≤ 1%</strong> — in WinExtraFlow copy trading settings.</li>
+        <li><strong>Bot rules followed</strong> — OTC only, TF 1 min, expiry 5 min, Martingale max 2 levels, payout ≥ 60%.</li>
+      </ul>
+      <p className="text-text-secondary">2a.2. Violation of any condition removes eligibility for this program. The standard 14-day refund (section 2) remains unaffected.</p>
+      <p className="text-text-secondary">2a.3. To apply, attach Pocket Option trade history screenshots and a WinExtraFlow activity export for the period.</p>
 
       <h2 className="text-xl font-bold text-text-primary mt-8">3. When Refunds Are Not Available</h2>
       <p className="text-text-secondary">3.1. If the service has been actually provided (you have used Premium features), no refund will be issued.</p>

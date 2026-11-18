@@ -276,6 +276,36 @@ export default function LandingPage() {
 
       <WaveDivider flip />
 
+      {/* ═══ SIGNAL SCHEDULE ═══ */}
+      <section className="px-6 py-16 lg:px-16">
+        <h2 className="mb-4 text-center text-3xl font-bold text-text-primary">
+          {isRu ? "Расписание сигналов (МСК)" : "Signal Schedule (MSK)"}
+        </h2>
+        <p className="mb-10 text-center text-sm text-text-muted">
+          {isRu ? "AI-бот публикует сигналы в 4 окна. Вне окон сигналов нет." : "The AI bot publishes signals in 4 windows. No signals outside these windows."}
+        </p>
+        <div className="mx-auto grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: isRu ? "Ночь" : "Night", time: "02:25 — 06:25" },
+            { label: isRu ? "Утро" : "Morning", time: "08:25 — 12:25" },
+            { label: isRu ? "День" : "Afternoon", time: "14:25 — 18:25" },
+            { label: isRu ? "Вечер" : "Evening", time: "20:25 — 23:25" },
+          ].map(w => (
+            <div key={w.time} className="glass gradient-border rounded-xl p-5 text-center stat-glow">
+              <p className="text-xs font-medium uppercase tracking-widest text-text-muted mb-2">{w.label}</p>
+              <p className="text-lg font-bold text-brand-500">{w.time}</p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-center text-xs text-text-muted">
+          {isRu
+            ? "OTC-рынок · TF 1 мин · Экспирация 5 мин · 1% от баланса · Мартингейл макс 2 уровня"
+            : "OTC market · TF 1 min · Expiry 5 min · 1% per trade · Martingale max 2 levels"}
+        </p>
+      </section>
+
+      <WaveDivider flip />
+
       {/* Promo Code Banner */}
       <section className="px-6 py-12 lg:px-16">
         <div className="mx-auto max-w-2xl rounded-2xl border-2 border-brand-500/30 mesh-gradient glass p-8 text-center">
