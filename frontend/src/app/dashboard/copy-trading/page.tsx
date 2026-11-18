@@ -51,15 +51,15 @@ export default function CopyTradingPage() {
       <h1 className="mb-2 text-2xl font-bold text-text-primary">{t("copyTrading.title")}</h1>
       <p className="mb-4 text-sm text-text-secondary">{t("copyTrading.subtitle")}</p>
 
-      {/* OTC Refund Program hint */}
-      <div className="mb-6 rounded-xl border border-green-500/20 bg-green-500/5 px-4 py-3">
-        <p className="text-sm font-semibold text-green-400 mb-1">
-          {isRu ? "До 80% возврата по OTC-программе" : "Up to 80% refund under OTC program"}
+      {/* Safe copy hint */}
+      <div className="mb-6 rounded-xl border border-brand-500/20 bg-brand-500/5 px-4 py-3">
+        <p className="text-sm font-semibold text-brand-400 mb-1">
+          {isRu ? "Рекомендуемые параметры безопасного копирования" : "Recommended safe copy parameters"}
         </p>
         <p className="text-xs text-text-secondary">
           {isRu
-            ? "Копи-процент ≤1% · Баланс от $200 · Партнёрский аккаунт Pocket Option · Правила бота соблюдены"
-            : "Copy % ≤1% · Balance ≥$200 · Pocket Option partner account · Bot rules followed"}
+            ? "Копи-доля ≤1% от депозита · Баланс от $200 · Мартингейл макс 2 уровня · TF 1 мин / экспирация 5 мин"
+            : "Copy share ≤1% · Balance ≥$200 · Martingale max 2 levels · TF 1 min / expiry 5 min"}
         </p>
       </div>
 

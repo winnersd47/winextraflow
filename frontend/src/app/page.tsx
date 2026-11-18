@@ -327,7 +327,20 @@ export default function LandingPage() {
 
       {/* Pricing — 3 tiers */}
       <section className="px-6 py-16 lg:px-16">
-        <h2 className="mb-12 text-center text-3xl font-bold text-text-primary">{t("landing.pricingTitle")}</h2>
+        <h2 className="mb-3 text-center text-3xl font-bold text-text-primary">{t("landing.pricingTitle")}</h2>
+
+        {/* Urgency banner */}
+        <div className="mx-auto mb-10 max-w-2xl rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-5 py-3 text-center">
+          <p className="text-sm font-bold text-yellow-400">
+            {isRu
+              ? "🔥 Только сейчас: промокод AIGROWTH14 — 14 дней Premium бесплатно при регистрации"
+              : "🔥 Right now: promo code AIGROWTH14 — 14 days Premium free on sign-up"}
+          </p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            {isRu ? "Предложение ограничено. Активируется автоматически при вводе промокода." : "Limited offer. Applied automatically when you enter the promo code."}
+          </p>
+        </div>
+
         <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 sm:grid-cols-3">
           {/* Free */}
           <div className="rounded-xl border border-border bg-surface-card p-8 flex flex-col">
@@ -340,20 +353,22 @@ export default function LandingPage() {
                 isRu ? "1 бэктест в день" : "1 backtest per day",
                 isRu ? "Лидерборд провайдеров" : "Provider leaderboard",
                 isRu ? "Реферальная программа" : "Referral program",
-              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-text-muted">~</span>{f}</li>)}
+              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-green-500">✓</span>{f}</li>)}
             </ul>
             <Link href="/register" className="mt-8 block rounded-lg border border-border py-3 text-center font-medium text-text-primary transition hover:bg-surface-hover">
               {isRu ? "Начать бесплатно" : "Get Started"}
             </Link>
           </div>
 
-          {/* Pro */}
-          <div className="rounded-xl border border-border bg-surface-card p-8 flex flex-col">
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-bold text-text-primary">Pro</h3>
-              <span className="rounded bg-blue-500/20 px-2 py-0.5 text-xs font-bold text-blue-400">NEW</span>
+          {/* Pro — POPULAR */}
+          <div className="relative rounded-xl border-2 border-brand-500 bg-surface-card p-8 shadow-lg shadow-brand-500/10 flex flex-col">
+            <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full bg-brand-600 px-4 py-1 text-xs font-bold text-white tracking-wide">
+              {isRu ? "ПОПУЛЯРНЫЙ" : "MOST POPULAR"}
             </div>
-            <p className="mt-2 text-4xl font-extrabold text-text-primary">
+            <div className="flex items-center gap-2 mt-2">
+              <h3 className="text-xl font-bold text-text-primary">Pro</h3>
+            </div>
+            <p className="mt-2 text-4xl font-extrabold text-brand-500">
               {isRu ? "1 490 ₽" : "$16"}<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span>
             </p>
             <p className="text-xs text-text-muted">{isRu ? "~$16/мес" : "~1,490 RUB/mo"}</p>
@@ -364,38 +379,47 @@ export default function LandingPage() {
                 isRu ? "AI чат + Скринер" : "AI Chat + Screener",
                 isRu ? "Торговый журнал" : "Trade Journal",
                 isRu ? "Ценовые оповещения" : "Price Alerts",
-              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-blue-400">~</span>{f}</li>)}
+              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-green-500">✓</span>{f}</li>)}
             </ul>
-            <Link href="/register" className="mt-8 block rounded-lg border border-blue-500 py-3 text-center font-medium text-blue-400 transition hover:bg-blue-500/10">
+            <Link href="/register" className="mt-8 block rounded-lg bg-brand-600 py-3 text-center font-bold text-white transition hover:bg-brand-700 shadow-md shadow-brand-500/30">
               {isRu ? "Попробовать Pro" : "Try Pro"}
             </Link>
           </div>
 
           {/* Premium */}
-          <div className="rounded-xl border-2 border-brand-500 bg-surface-card p-8 shadow-lg shadow-brand-500/10 flex flex-col">
+          <div className="rounded-xl border border-border bg-surface-card p-8 flex flex-col">
             <div className="flex items-center gap-2">
               <h3 className="text-xl font-bold text-text-primary">Premium</h3>
-              <span className="rounded bg-brand-500/20 px-2 py-0.5 text-xs font-bold text-brand-500">TOP</span>
+              <span className="rounded bg-purple-500/20 px-2 py-0.5 text-xs font-bold text-purple-400">{isRu ? "ДЛЯ СЕРЬЁЗНЫХ" : "PRO LEVEL"}</span>
             </div>
-            <p className="mt-2 text-4xl font-extrabold text-brand-500">
+            <p className="mt-2 text-4xl font-extrabold text-text-primary">
               {isRu ? "2 990 ₽" : "$33"}<span className="text-base font-normal text-text-muted">/{isRu ? "мес" : "mo"}</span>
             </p>
-            <p className="text-xs text-text-muted">{isRu ? "~$33/мес · Год: 23 900 ₽ (−33%)" : "~2,990 RUB/mo · Yearly: $264 (−33%)"}</p>
+            <p className="text-xs text-text-muted">{isRu ? "Год: 23 900 ₽ (−33%)" : "Yearly: $264 (−33%)"}</p>
             <ul className="mt-6 flex-1 space-y-3 text-sm text-text-secondary">
               {[
-                isRu ? "Всё из Pro +" : "Everything in Pro +",
-                isRu ? "Копитрейдинг" : "Copy Trading",
-                isRu ? "Исполнение на 9 биржах" : "Execution on 9 exchanges",
+                isRu ? "Всё из Pro" : "Everything in Pro",
+                isRu ? "Копитрейдинг на 9 биржах" : "Copy Trading on 9 exchanges",
                 isRu ? "Маркетплейс стратегий" : "Strategy Marketplace",
                 isRu ? "VIP Telegram канал" : "VIP Telegram channel",
-                isRu ? "PDF отчёты" : "PDF Reports",
-              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-brand-500">~</span>{f}</li>)}
+                isRu ? "Индивидуальные PDF отчёты" : "PDF Reports",
+                isRu ? "Личная настройка с командой" : "Onboarding with team",
+              ].map(f => <li key={f} className="flex items-center gap-2"><span className="text-green-500">✓</span>{f}</li>)}
             </ul>
-            <Link href="/register" className="mt-8 block rounded-lg bg-brand-600 py-3 text-center font-medium text-white transition hover:bg-brand-700">
+            <Link href="/register" className="mt-8 block rounded-lg border border-border py-3 text-center font-medium text-text-primary transition hover:bg-surface-hover">
               {isRu ? "Подключить Premium" : "Get Premium"}
             </Link>
           </div>
         </div>
+
+        {/* Personal CTA */}
+        <p className="mt-8 text-center text-sm text-text-muted">
+          {isRu
+            ? "Не знаете с чего начать? Напишите в поддержку — помогу выбрать тариф лично."
+            : "Not sure where to start? Contact support — I'll help you choose personally."}
+          {" "}
+          <a href="mailto:support@winextraflow.com" className="text-brand-500 hover:underline">support@winextraflow.com</a>
+        </p>
       </section>
 
       <WaveDivider flip />
