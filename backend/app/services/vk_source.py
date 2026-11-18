@@ -68,6 +68,9 @@ _PAUSE = 1.0 / RATE_PER_SEC
 # code 5, not 15, and its message ("User authorization failed") says nothing
 # about which token. Naming it saves the owner guessing.
 ERR_BAD_TOKEN = 5
+# 15 is "Access denied" for several unrelated reasons — no key at all, a
+# members-only wall, a wall switched off. The text differs, the code does not,
+# so it is never safe to translate 15 into a diagnosis of its own.
 ERR_TOKEN_REQUIRED = 15
 ERR_TOO_MANY = 6
 ERR_GROUP_BLOCKED = 203
@@ -92,22 +95,40 @@ def _strip(text: str) -> str:
     return s.replace("&quot;", '"').replace("&amp;", "&").strip()
 
 
+# club159245878, public12345, -84609102 — a community that never took a vanity
+# name. Most walls worth reading turn out to be these: search hands them over as
+# `vk.com/wall-84609102_12811`, and `domain` cannot address them at all.
+_BY_ID = re.compile(r"^(?:club|public)(\d+)$|^(-\d+)$", re.I)
+
+
+def _owner_id(name: str) -> int | None:
+    """The community's negative owner id, or None if this is a screen name."""
+    m = _BY_ID.match(name)
+    if not m:
+        return None
+    return -abs(int(m.group(1) or m.group(2)))
+
+
 def _check(body: dict, group: str) -> dict:
     err = body.get("error") or {}
     if not err:
         return body
     code = err.get("error_code")
     msg = err.get("error_msg", "")
-    if code == ERR_TOKEN_REQUIRED:
-        raise VkUnavailable(
-            "VK_SERVICE_TOKEN не задан — стены читать нечем")
     if code == ERR_BAD_TOKEN:
         raise VkUnavailable(
             "VK_SERVICE_TOKEN недействителен или просрочен — возьмите "
-            "сервисный ключ заново в настройках приложения")
+            "сервисный ключ заново в карточке приложения")
     if code == ERR_TOO_MANY:
         raise VkThrottled(f"VK: слишком часто ({msg})")
-    if code in (ERR_NOT_FOUND, ERR_GROUP_BLOCKED):
+    # 15 is VK's generic "Access denied", NOT "you forgot a key". It cannot mean
+    # a missing one here: fetch_wall refuses to call the API without a token, so
+    # a 15 arriving from the network is always about this particular wall.
+    # Measured 2026-11-18 on vk.com/investing with a working key —
+    # "Access denied: this wall available only for community members", a closed
+    # community. Blaming the token there would send the owner off to re-issue a
+    # key that was doing its job.
+    if code in (ERR_TOKEN_REQUIRED, ERR_NOT_FOUND, ERR_GROUP_BLOCKED):
         raise VkUnavailable(f"@{group}: {msg}")
     raise VkUnavailable(f"@{group}: VK error {code}: {msg}")
 
@@ -129,7 +150,6 @@ async def fetch_wall(group: str, limit: int = 30) -> list[dict]:
             "«Сервисный ключ доступа» из карточки приложения")
 
     params = {
-        "domain": name,
         # `count` is capped at 100 per call by the API; nothing here needs more,
         # and the freshness window throws away most of what arrives anyway.
         "count": max(1, min(int(limit), 100)),
@@ -137,6 +157,11 @@ async def fetch_wall(group: str, limit: int = 30) -> list[dict]:
         "extended": 0,
         "v": VERSION,
     }
+    owner = _owner_id(name)
+    if owner is not None:
+        params["owner_id"] = owner
+    else:
+        params["domain"] = name
     # The key rides in the header, never in the query string. VK echoes the
     # query back inside its own error bodies (`request_params`), and a URL is
     # the part of a request that proxies and access logs keep by default — a

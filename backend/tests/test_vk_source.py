@@ -123,6 +123,23 @@ async def test_only_the_community_s_own_posts_are_requested(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_a_community_without_a_vanity_name_is_addressed_by_id(monkeypatch):
+    """Most walls worth reading have no screen name.
+
+    Search returns them as `vk.com/wall-84609102_12811`; `domain` cannot
+    address those at all, so the id forms have to reach `owner_id` instead.
+    """
+    for given, expect in [("club159245878", -159245878),
+                          ("public12345", -12345),
+                          ("vk:-84609102", -84609102)]:
+        seen = {}
+        _api(monkeypatch, {"response": {"items": []}}, capture=seen)
+        await vk.fetch_wall(given, 5)
+        assert seen.get("owner_id") == expect, given
+        assert "domain" not in seen, f"{given}: ушло и имя, и id"
+
+
+@pytest.mark.asyncio
 async def test_count_is_clamped_to_the_api_ceiling(monkeypatch):
     seen = {}
     _api(monkeypatch, {"response": {"items": []}}, capture=seen)
@@ -173,6 +190,25 @@ async def test_a_wrong_token_is_told_apart_from_a_missing_one(monkeypatch):
     with pytest.raises(vk.VkUnavailable) as e:
         await vk.fetch_wall("forex", 5)
     assert "недействителен" in str(e.value) or "просрочен" in str(e.value)
+
+
+@pytest.mark.asyncio
+async def test_a_members_only_wall_is_not_blamed_on_the_token(monkeypatch):
+    """Code 15 means "Access denied", not "no token" — measured, with a key.
+
+    vk.com/investing answers it on 2026-11-18 while the same key reads other
+    walls fine: the community is closed. fetch_wall never calls the API without
+    a key, so a 15 off the network is always about the wall. Saying otherwise
+    sends the owner to re-issue a key that was working.
+    """
+    _api(monkeypatch, {"error": {
+        "error_code": 15,
+        "error_msg": "Access denied: this wall available only for community members"}})
+    with pytest.raises(vk.VkUnavailable) as e:
+        await vk.fetch_wall("investing", 5)
+
+    assert "VK_SERVICE_TOKEN" not in str(e.value), "ключ обвинён зря"
+    assert "community members" in str(e.value)
 
 
 @pytest.mark.asyncio
