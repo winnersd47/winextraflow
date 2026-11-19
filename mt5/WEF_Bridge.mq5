@@ -5,10 +5,31 @@
 //| Sends OHLCV candles → receives AI trade decision                 |
 //|                                                                  |
 //| No API keys in MQL5 code — all secrets stay in Python .env       |
+//|                                                                  |
+//| THIS IS AN EXPERT ADVISOR, NOT AN INDICATOR. It must live in     |
+//| MQL5/Experts, not MQL5/Indicators.                               |
+//|                                                                  |
+//| It used to declare #property indicator_chart_window, which was   |
+//| wrong three times over. MQL5 forbids the socket functions in     |
+//| indicators — SocketCreate returns error 4014, "Function is not   |
+//| allowed for call", because all indicators on one symbol share a  |
+//| single thread and a blocking socket would stall every chart on   |
+//| it. Trading functions are likewise out of bounds there, so       |
+//| AutoTrade could never have placed an order. And an indicator     |
+//| must define OnCalculate, which this file does not and should     |
+//| not — so it would not even have compiled.                        |
+//|                                                                  |
+//| Two consequences worth knowing before you attach it:             |
+//|   * the Strategy Tester cannot run it either — sockets return    |
+//|     4014 under the tester, so this is a live-chart-only program. |
+//|     Use a DEMO account; that is what it is for.                  |
+//|   * ServerHost must be added in the terminal under               |
+//|     Сервис -> Настройки -> Советники -> "Разрешить WebRequest    |
+//|     для следующих URL", or the connection is refused by the      |
+//|     terminal before it ever reaches Python.                      |
 //+------------------------------------------------------------------+
 #property copyright "WinExtraFlow"
-#property version   "1.00"
-#property indicator_chart_window
+#property version   "1.01"
 
 #include <Trade\Trade.mqh>
 
@@ -47,6 +68,14 @@ int OnInit()
             "Set it to the same value as MT5_BRIDGE_TOKEN on the server.");
       return(INIT_PARAMETERS_INCORRECT);
    }
+   // A local address does NOT mean the token is optional. The server checks it
+   // whenever MT5_BRIDGE_TOKEN is non-empty, whatever the host, so an empty
+   // token here against a configured server yields Unauthorized on every
+   // single request. Warn rather than refuse: a server with no token set is a
+   // legitimate local setup.
+   if(isLocal && BridgeToken == "")
+      Print("ВНИМАНИЕ: BridgeToken пуст. Если в backend/.env задан ",
+            "MT5_BRIDGE_TOKEN, сервер ответит Unauthorized на каждый запрос.");
    if(AutoTrade)
       Print("WARNING: AutoTrade is ON — orders will be placed automatically.");
 
@@ -98,6 +127,19 @@ void AnalyzeCurrentSymbol()
    if(response == "")
    {
       Print("No response from server");
+      return;
+   }
+
+   // The server demands the shared secret for EVERY command as soon as
+   // MT5_BRIDGE_TOKEN is set in its .env — including ping, and including
+   // 127.0.0.1. Without this branch the rejection is invisible: JSONGetString
+   // simply finds no "action", the function returns quietly, and the terminal
+   // log shows a connection that looks healthy and never produces a signal.
+   if(StringFind(response, "Unauthorized") >= 0)
+   {
+      Print("ОТКАЗАНО: сервер не принял BridgeToken. Впишите в параметры ",
+            "советника то же значение, что стоит в MT5_BRIDGE_TOKEN ",
+            "в backend/.env — локальный адрес от этого не освобождает.");
       return;
    }
 
