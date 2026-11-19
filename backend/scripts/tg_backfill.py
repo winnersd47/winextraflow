@@ -43,11 +43,18 @@ MAX_MESSAGE_AGE_HOURS = 48
 
 # LLM fallback budget for one run. The job runs every 30 minutes (48 runs/day), so
 # this is the daily ceiling divided by the number of runs, with headroom for the
-# insight endpoints that share the same OpenRouter key.
+# insight endpoints that share the same OpenRouter key. Note one budgeted parse
+# costs up to TWO HTTP calls: parse_with_llm retries once.
 #   free tier without credits: 50 requests/day in total  -> keep this at 1
 #   free tier with $10 credit: 1000 requests/day         -> 10 is comfortable
-# Override per environment with LLM_PARSE_PER_RUN.
-MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN", "10"))
+#
+# Read through settings, not os.getenv alone: os.getenv never sees a value that
+# lives in .env, so LLM_PARSE_PER_RUN=1 in the file was silently ignored and
+# every run spent the hardcoded 10. Measured 2026-11-14..18: a steady 480 calls
+# a day against a tier that allows 50. A real environment variable still wins,
+# which is what the cron wrapper scripts set.
+MAX_LLM_PARSE_PER_RUN = int(os.getenv("LLM_PARSE_PER_RUN")
+                            or settings.llm_parse_per_run)
 
 
 async def fetch_source(name: str, limit: int) -> list[dict]:
@@ -257,6 +264,15 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                 if not text or not telegram_parser.is_signal_message(text):
                     continue
                 parsed = telegram_parser.parse_message(text)
+                # What actually happened to this message, for the rejection log.
+                # A single verdict blaming both parsers used to be written here
+                # unconditionally, which was false whenever the model was never
+                # called — and for fifteen days it was never called at all,
+                # because the configured slug answered 404. The log recorded our
+                # own breakage as the sources' unreadability, and that is
+                # precisely the question the log exists to answer, so the cases
+                # have to be told apart.
+                why = "regex не разобрал, LLM не вызывался"
                 if not parsed:
                     # The regex parsers cover the channels with a recognisable
                     # format. Everything else — most RU channels write the signal
@@ -270,20 +286,32 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
                     msg_id = m["id"]
                     if ledger.should_try(ch, msg_id):
                         ledger.mark(ch, msg_id)
+                        # Persisted here rather than at the end of the run: the
+                        # attempt is spent the moment the request leaves, and a
+                        # run killed before its last line would otherwise offer
+                        # the same message again — against a free tier of fifty
+                        # calls a DAY in total. The write is atomic.
+                        ledger.save()
                         try:
                             parsed = await telegram_parser.parse_with_llm(text)
+                            why = "ни regex, ни LLM не разобрали"
                         except Exception as e:
                             print(f"  [{ch}] LLM-парсер упал: {e}")
                             parsed = None
+                            why = f"regex не разобрал, LLM упал: {type(e).__name__}"
                         if parsed:
                             llm_parsed += 1
                             print(f"  [{ch}] LLM разобрал: {parsed.action.upper()} "
                                   f"{parsed.ticker} @ {parsed.entry_price}")
+                    elif ledger.seen(ch, msg_id):
+                        why = "regex не разобрал, LLM уже пробовал в прошлом прогоне"
+                    else:
+                        why = (f"regex не разобрал, LLM пропущен — бюджет прогона "
+                               f"({MAX_LLM_PARSE_PER_RUN}) исчерпан")
                 if not parsed:
                     await record_rejection(
                         db, channel=ch, provider=provider, message_id=m["id"],
-                        stage=RejectionStage.PARSE,
-                        reason="ни regex, ни LLM не разобрали", text=text)
+                        stage=RejectionStage.PARSE, reason=why, text=text)
                     continue
 
                 # Dedup: same ticker+action from this provider, within a window
@@ -358,6 +386,10 @@ async def main(limit: int | None = None, broadcast: bool | None = None):
 
     print(f"\n{'='*55}")
     print(f"Backfill complete: {saved} new signals from {len(fetched)} channels")
+    # Printed every run, because silence here is indistinguishable from success.
+    # The model answered 404 to 4,603 consecutive calls without this line
+    # existing, and nothing in the run's output said so.
+    print(f"LLM разобрал: {llm_parsed}. {ledger.summary()}")
     print(f"{'='*55}")
 
 

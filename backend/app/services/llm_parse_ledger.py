@@ -71,9 +71,19 @@ class ParseLedger:
             return 0
         return max(0, self.max_per_run - self.used)
 
+    def seen(self, channel: str, message_id) -> bool:
+        """Was this message already sent to the LLM in an earlier run?
+
+        Side-effect free, unlike `should_try` — the caller needs to ask again
+        after a refusal to say WHY the model was skipped, and "already tried"
+        and "no budget left" are not the same fact: the first is a verdict on
+        the text, the second only means nobody has read it yet.
+        """
+        return self.key(channel, message_id) in self._attempts
+
     def should_try(self, channel: str, message_id) -> bool:
         """True if this message has never been sent to the LLM and budget remains."""
-        if self.key(channel, message_id) in self._attempts:
+        if self.seen(channel, message_id):
             self.skipped_seen += 1
             return False
         if self.budget_left() <= 0:

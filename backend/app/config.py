@@ -202,7 +202,26 @@ class Settings(BaseSettings):
     # LLM (OpenRouter) — fallback parser for freeform/RU signals + MT5 bridge.
     # Must be declared here: code reading os.environ alone never sees .env values.
     openrouter_api_key: str = ""
-    llm_model: str = "openai/gpt-oss-20b:free"
+    # A free slug can be withdrawn without notice, and when it is, the parser
+    # does not degrade — it stops. `openai/gpt-oss-20b:free` was withdrawn on
+    # 2026-11-04 and answered 404 ("This model is unavailable for free") to
+    # every call for the next fifteen days: 4,603 attempts, zero parses, while
+    # the rejection log went on recording "ни regex, ни LLM не разобрали".
+    #
+    # ling-3.2-flash is the replacement because it is the only free model
+    # measured parsing these messages through this code path on 2026-11-18.
+    # Of ten free slugs that answered a smoke test, the rest failed here:
+    # nemotron-3.5-lightning returned prose the schema could not read
+    # (invalid_json), gemma-4-26b was throttled. Re-measure with
+    # scripts/bench_parse_models.py before changing this — a model that answers
+    # "ok" to a smoke test is not a model that can read a signal.
+    llm_model: str = "inclusionai/ling-3.2-flash:free"
+    # LLM fallback parse attempts per backfill run. Declared here so that
+    # LLM_PARSE_PER_RUN in .env is actually honoured: scripts/tg_backfill.py
+    # read it with os.getenv alone, which never sees a .env value, so the file
+    # said 1 and the run used the hardcoded default of 10. At 48 runs a day and
+    # two HTTP attempts per parse that is 960 calls against a free tier of 50.
+    llm_parse_per_run: int = 10
 
     # Referral
     referral_reward_type: str = "premium_days"
