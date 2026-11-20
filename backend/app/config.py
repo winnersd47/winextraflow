@@ -153,6 +153,21 @@ class Settings(BaseSettings):
     # print(secrets.token_urlsafe(32))"
     mt5_bridge_token: str = ""
 
+    # Does a decision arriving from MT5 reach the channel, or only the database?
+    #
+    # OFF by default, and that is not timidity. The advisors have no record:
+    # S1 carries "3 signals, 0 closed" in its own header, and five of the seven
+    # labels have fewer than five closed trades. A terminal left running on a
+    # demo account emits a decision every CheckInterval seconds, so switching
+    # this on during a shakedown would push machine-generated setups at real
+    # subscribers and write them into the very track record that is supposed to
+    # judge them.
+    #
+    # The signal is still stored and still rated, so the outcome can be
+    # measured against candles exactly as if it had been published. Turn this on
+    # when a strategy has a measured record worth showing, not before.
+    mt5_broadcast_enabled: bool = False
+
     # Paid subscriptions. Off until the platform has a measured record of
     # profitable signals — see api/payments.py:require_paid_subscriptions_enabled.
     # Do not flip this on without a run of scripts/wef_validation.py behind it.

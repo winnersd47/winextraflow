@@ -422,7 +422,13 @@ async def _handle_signal(msg: dict) -> dict:
                 reasoning=f"[{strategy}] {why}".strip(),
                 indicators={"atr_pct": _opt("atr_pct")} if _opt("atr_pct") else None,
                 timeframe=tf,
+                # Stored and rated either way; published only if the owner has
+                # said so. A terminal on a demo account fires on a timer, and
+                # an advisor with no closed trades behind it has not earned a
+                # channel post.
+                broadcast=settings.mt5_broadcast_enabled,
             )
+        out["broadcast_enabled"] = settings.mt5_broadcast_enabled
         out["strategy"] = strategy
         out["strategy_id"] = strategy_id
         return out
@@ -452,9 +458,11 @@ async def _handle_signal(msg: dict) -> dict:
             confidence=float(decision.get("confidence") or 0),
             reasoning=decision.get("reasoning", ""),
             indicators=indicators, timeframe=tf,
+            broadcast=settings.mt5_broadcast_enabled,
         )
     out["indicators"] = indicators
     out["model_confidence"] = decision.get("confidence")
+    out["broadcast_enabled"] = settings.mt5_broadcast_enabled
     return out
 
 
@@ -479,7 +487,13 @@ async def start_mt5_server(host: str = WS_HOST, port: int = WS_PORT):
         )
     server = await asyncio.start_server(handle_client, host, port)
     auth = "token required" if BRIDGE_TOKEN else "loopback only, no token"
-    logger.info(f"MT5 Bridge started on {host}:{port} ({auth})")
+    # Whether decisions reach subscribers is the one thing about this process
+    # nobody should have to guess, so it is stated at startup rather than left
+    # to be discovered from the channel.
+    pub = ("ПУБЛИКУЕТ в канал" if settings.mt5_broadcast_enabled
+           else "только в базу, в канал НЕ публикует")
+    logger.info(f"MT5 Bridge started on {host}:{port} ({auth}); сигналы — {pub}")
+    print(f"MT5 Bridge: {host}:{port} ({auth}); сигналы — {pub}", flush=True)
     async with server:
         await server.serve_forever()
 

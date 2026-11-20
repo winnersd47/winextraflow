@@ -32,9 +32,17 @@ def main():
         idx = args.index("--host")
         host = args[idx + 1]
 
+    # Read what the bridge itself resolved, not os.getenv. A bare os.getenv
+    # never sees a value that lives in .env, so this banner used to announce a
+    # model nobody had configured and "OpenRouter: NOT SET" while the key was
+    # sitting in the file and working. A diagnostic line that lies is worse
+    # than no line: the parser outage went unnoticed for fifteen days behind
+    # exactly this kind of reassurance.
+    from app.services.mt5_bridge import LLM_MODEL, OPENROUTER_KEY
+
     print(f"MT5 Bridge Server starting on {host}:{port}")
-    print(f"LLM Model: {os.getenv('LLM_MODEL', 'anthropic/claude-sonnet-4-20250514')}")
-    print(f"OpenRouter: {'configured' if os.getenv('OPENROUTER_API_KEY') else 'NOT SET (fallback mode)'}")
+    print(f"LLM Model: {LLM_MODEL}")
+    print(f"OpenRouter: {'configured' if OPENROUTER_KEY else 'NOT SET (fallback mode)'}")
     print(f"\nWaiting for MT5 connections...")
     print(f"In MT5: set ServerHost={host}, ServerPort={port}")
 
