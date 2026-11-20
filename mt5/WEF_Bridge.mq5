@@ -278,7 +278,12 @@ string SendToServer(string request)
       Sleep(100);
    }
 
-   return StringTrimRight(response);
+   // StringTrimRight trims in place and returns the NUMBER of characters it
+   // removed. Returning it directly handed the caller "1" instead of the
+   // server's JSON — the compiler only called it an implicit int-to-string
+   // conversion, but it silently emptied every response.
+   StringTrimRight(response);
+   return response;
 }
 
 //+------------------------------------------------------------------+

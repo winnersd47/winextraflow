@@ -146,11 +146,19 @@ string WefSend(const string payload)
    string answer = "";
    if(SocketConnect(sock, ServerHost, ServerPort, 5000))
      {
-      char req[];
-      StringToCharArray(payload + "\n", req, 0, StringLen(payload) + 1, CP_UTF8);
-      if(SocketSend(sock, req, ArraySize(req) - 1) > 0)
+      // uchar, not char: SocketSend/SocketRead are declared with uchar&[] and
+      // the compiler refuses the conversion. WEF_Bridge.mq5 already does it
+      // this way; this header did not, so nothing that included it compiled.
+      uchar req[];
+      // WHOLE_ARRAY converts the whole string and returns the number of
+      // elements written, terminating zero included; -1 drops that zero and
+      // keeps the "\n". Sizing the buffer by a character count instead would
+      // make -1 eat the newline, and the bridge reads line by line — the
+      // request would simply never complete on the server side.
+      int len = StringToCharArray(payload + "\n", req, 0, WHOLE_ARRAY, CP_UTF8) - 1;
+      if(len > 0 && SocketSend(sock, req, len) > 0)
         {
-         char buf[];
+         uchar buf[];
          uint deadline = GetTickCount() + 20000;
          while(GetTickCount() < deadline)
            {
@@ -158,7 +166,7 @@ string WefSend(const string payload)
             if(avail > 0)
               {
                ArrayResize(buf, (int)avail);
-               int got = SocketRead(sock, buf, (int)avail, 2000);
+               int got = SocketRead(sock, buf, avail, 2000);
                if(got > 0)
                  {
                   answer += CharArrayToString(buf, 0, got, CP_UTF8);
