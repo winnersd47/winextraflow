@@ -90,3 +90,6 @@ backend/llm_metrics.jsonl
 backend/llm_metrics.jsonl.1
 frontend/next.config.js.standalone.bak2
 railway-env.txt
+
+# Claude Code worktrees (should never be committed as submodules)
+.claude/worktrees/
