@@ -1,14 +1,16 @@
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { formatConfidence, confidenceColor } from "@/lib/utils";
 import type { StrategyResponse } from "@/types";
 
-export default function StrategyDetailPage() {
-  const { id } = useParams<{ id: string }>();
+function StrategyDetailContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
   const router = useRouter();
   const { t } = useI18n();
   const [strategy, setStrategy] = useState<StrategyResponse | null>(null);
@@ -17,6 +19,7 @@ export default function StrategyDetailPage() {
   const [subscribed, setSubscribed] = useState(false);
 
   useEffect(() => {
+    if (!id) { setLoading(false); return; }
     async function load() {
       try {
         const s = await api.getStrategy(id);
@@ -84,4 +87,12 @@ export default function StrategyDetailPage() {
 
 function MC({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
   return <div className="rounded-lg bg-surface p-3 text-center"><p className="text-xs text-text-muted">{label}</p><p className={`mt-1 text-xl font-bold ${color}`}>{value}</p></div>;
+}
+
+export default function StrategyDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>}>
+      <StrategyDetailContent />
+    </Suspense>
+  );
 }

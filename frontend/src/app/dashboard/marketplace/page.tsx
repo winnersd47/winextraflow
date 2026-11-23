@@ -254,7 +254,7 @@ function StrategiesContent() {
                     {isRu ? "Открыть" : "Open"}
                   </a>
                 ) : (
-                  <a href={`/dashboard/marketplace/${item.id}`} className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-medium text-white hover:bg-brand-700">
+                  <a href={`/dashboard/marketplace/detail?id=${item.id}`} className="rounded-lg bg-brand-600 px-4 py-2 text-xs font-medium text-white hover:bg-brand-700">
                     {isRu ? "Подробнее" : "Details"}
                   </a>
                 )}

@@ -42,7 +42,7 @@ export function SignalCard({ signal, strategyLabel, regimeLabel }: { signal: Sig
 
   return (
     <Link
-      href={`/dashboard/signals/${signal.id}`}
+      href={`/dashboard/signals/detail?id=${signal.id}`}
       className="block rounded-xl border border-border bg-surface-card p-4 transition hover:border-brand-500/40 hover:bg-surface-hover stat-glow"
     >
       <div className="flex items-start justify-between">

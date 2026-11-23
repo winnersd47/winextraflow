@@ -1,7 +1,8 @@
 "use client";
 
+import { Suspense } from "react";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { RatingBadge } from "@/components/rating-badge";
@@ -17,8 +18,9 @@ import type { Signal, RatingDetail } from "@/types";
 import dynamic from "next/dynamic";
 const CandlestickChart = dynamic(() => import("@/components/candlestick-chart"), { ssr: false });
 
-export default function SignalDetailPage() {
-  const { id } = useParams<{ id: string }>();
+function SignalDetailContent() {
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
   const router = useRouter();
   const { t, locale } = useI18n();
   const isRu = locale === "ru";
@@ -29,6 +31,7 @@ export default function SignalDetailPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!id) { setLoading(false); return; }
     async function load() {
       const token = localStorage.getItem("token");
       const safe = (p: Promise<Response>) => p.then(r => r.ok ? r.json() : null).catch(() => null);
@@ -372,4 +375,12 @@ function CommentsSection({ signalId, isRu }: { signalId: string; isRu: boolean }
 
 function Stat({ label, value, color = "text-text-primary" }: { label: string; value: string; color?: string }) {
   return (<div><span className="text-xs text-text-muted">{label}</span><p className={`text-lg font-semibold ${color}`}>{value}</p></div>);
+}
+
+export default function SignalDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" /></div>}>
+      <SignalDetailContent />
+    </Suspense>
+  );
 }
