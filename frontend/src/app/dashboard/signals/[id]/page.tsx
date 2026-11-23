@@ -1,6 +1,8 @@
 import PageClient from "./PageClient";
 
-export function generateStaticParams() {
+export const dynamic = "force-static";
+
+export function generateStaticParams(): Array<{ id: string }> {
   return [];
 }
 
