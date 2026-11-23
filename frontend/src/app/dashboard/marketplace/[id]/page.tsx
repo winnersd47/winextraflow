@@ -1,4 +1,6 @@
-import PageClient from "./PageClient";
+import nextDynamic from "next/dynamic";
+
+const PageClient = nextDynamic(() => import("./PageClient"), { ssr: false });
 
 export function generateStaticParams() {
   return [];
